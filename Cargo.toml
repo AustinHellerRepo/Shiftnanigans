@@ -5,6 +5,7 @@ edition = "2021"
 authors = ["Austin Heller"]
 description = "This library contains all general algorithms and functionality that can easily be shared between my other projects."
 readme = "README.md"
+repository = "https://github.com/AustinHellerRepo/CommonRust"
 license = "MIT OR Apache-2.0"
 keywords = ["math", "utility", "common", "data-structures", "algorithm"]
 categories = ["algorithms", "mathematics", "data-structures"]
