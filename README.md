@@ -1,5 +1,5 @@
 # AustinHellerRepo - Common (Rust)
-This crate contains Rust-specific useful, commonly needed functionality, data structures, and algorithms for use across many domains of processing and is expected to expand for many years to come.
+This crate contains Rust-specific useful, generic, commonly needed functionality, data structures, and algorithms for use across many domains of processing and is expected to expand for many years to come.
 
 ## Features
 
