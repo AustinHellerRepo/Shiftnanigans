@@ -3,13 +3,13 @@ use uuid::Uuid;
 
 
 #[derive(Clone, Debug)]
-pub struct Segment {
-    id: String,
+pub struct Segment<TIdentifier: Clone + std::fmt::Debug> {
+    id: TIdentifier,
     length: usize
 }
 
-impl Segment {
-    pub fn new(id: String, length: usize) -> Self {
+impl<TIdentifier: Clone + std::fmt::Debug> Segment<TIdentifier> {
+    pub fn new(id: TIdentifier, length: usize) -> Self {
         Segment {
             id: id,
             length: length
@@ -18,14 +18,14 @@ impl Segment {
 }
 
 #[derive(Clone, Debug)]
-pub struct LocatedSegment {
-    id: String,
+pub struct LocatedSegment<TIdentifier: Clone + std::fmt::Debug> {
+    id: TIdentifier,
     position: usize,
     length: usize
 }
 
-impl LocatedSegment {
-    pub fn new(id: String, position: usize, length: usize) -> Self {
+impl<TIdentifier: Clone + std::fmt::Debug> LocatedSegment<TIdentifier> {
+    pub fn new(id: TIdentifier, position: usize, length: usize) -> Self {
         LocatedSegment {
             id: id,
             position: position,
@@ -35,22 +35,22 @@ impl LocatedSegment {
 }
 
 #[derive(Clone, Debug)]
-pub struct SegmentContainer {
-    segments: Vec<Segment>
+pub struct SegmentContainer<TIdentifier: Clone + std::fmt::Debug> {
+    segments: Vec<Segment<TIdentifier>>
 }
 
-impl SegmentContainer {
-    pub fn new(segments: Vec<Segment>) -> Self {
+impl<TIdentifier: Clone + std::fmt::Debug> SegmentContainer<TIdentifier> {
+    pub fn new(segments: Vec<Segment<TIdentifier>>) -> Self {
         SegmentContainer {
             segments: segments
         }
     }
-    fn get_segment_location_permutations_within_bounding_length_and_padding_excluding_mask(segments: &Vec<Segment>, mask: &mut BitVec, length: usize, padding: usize, position_offset: usize) -> Vec<Vec<LocatedSegment>> {
+    fn get_segment_location_permutations_within_bounding_length_and_padding_excluding_mask(segments: &Vec<Segment<TIdentifier>>, mask: &mut BitVec, length: usize, padding: usize, position_offset: usize) -> Vec<Vec<LocatedSegment<TIdentifier>>> {
         debug!("get all possible positions when mask {}, length {}, and position offset {}", mask, length, position_offset);
-        let mut snapshots: Vec<Vec<LocatedSegment>> = Vec::new();
+        let mut snapshots: Vec<Vec<LocatedSegment<TIdentifier>>> = Vec::new();
         for (segment_index, segment) in segments.iter().enumerate() {
             if mask[segment_index] {
-                debug!("searching {} as A", segment.id);
+                debug!("searching {:?} as A", segment.id);
                 mask.set(segment_index, false);
                 let mut other_segments_total_length = 0;
                 for (other_segment_index, other_segment) in segments.iter().enumerate() {
@@ -75,7 +75,7 @@ impl SegmentContainer {
                     }
                     debug!("creating snapshots of this single segment {} from 0 to ={}", segment_index, current_segment_position_maximum);
                     for current_segment_position in 0..=current_segment_position_maximum {
-                        let mut snapshot: Vec<LocatedSegment> = Vec::new();
+                        let mut snapshot: Vec<LocatedSegment<TIdentifier>> = Vec::new();
                         snapshot.push(LocatedSegment {
                             id: segment.id.clone(),
                             position: current_segment_position + position_offset,
@@ -105,7 +105,7 @@ impl SegmentContainer {
                         debug!("moving A relatively forward from 0 to {}", current_segment_position_maximum);
                         for current_segment_position in 0..=current_segment_position_maximum {
                             for other_segment_snapshot in other_segments_all_possible_positions.iter() {
-                                let mut snapshot: Vec<LocatedSegment> = Vec::new();
+                                let mut snapshot: Vec<LocatedSegment<TIdentifier>> = Vec::new();
                                 snapshot.push(LocatedSegment {
                                     id: segment.id.clone(),
                                     position: current_segment_position + position_offset,
@@ -126,7 +126,7 @@ impl SegmentContainer {
         }
         snapshots
     }
-    pub fn get_segment_location_permutations_within_bounding_length(&self, length: usize, padding: usize) -> Vec<Vec<LocatedSegment>> {
+    pub fn get_segment_location_permutations_within_bounding_length(&self, length: usize, padding: usize) -> Vec<Vec<LocatedSegment<TIdentifier>>> {
         let mut mask: BitVec = BitVec::new();
         for _ in 0..self.segments.len() {
             mask.push(true);
@@ -160,7 +160,7 @@ mod segment_container_tests {
     fn initialize_segment_container() {
         init();
 
-        let _segment_container: SegmentContainer = SegmentContainer::new(vec![
+        let _segment_container: SegmentContainer<String> = SegmentContainer::new(vec![
             Segment::new(String::from("segment_0"), 2),
             Segment::new(String::from("segment_1"), 3)
         ]);
@@ -173,7 +173,7 @@ mod segment_container_tests {
     fn get_all_possible_positions_within_bounding_length_with_no_segments_padding_one(#[case] bounding_length: usize) {
         init();
         
-        let segment_container: SegmentContainer = SegmentContainer::new(vec![]);
+        let segment_container: SegmentContainer<String> = SegmentContainer::new(vec![]);
         let permutations = segment_container.get_segment_location_permutations_within_bounding_length(bounding_length, 1);
         assert_eq!(0, permutations.len());
     }
@@ -185,7 +185,7 @@ mod segment_container_tests {
     fn get_all_possible_positions_within_bounding_length_with_one_segment_size_one_padding_one(#[case] bounding_length: usize) {
         init();
         
-        let segment_container: SegmentContainer = SegmentContainer::new(vec![
+        let segment_container: SegmentContainer<String> = SegmentContainer::new(vec![
             Segment::new(String::from("segment_0"), 1)
         ]);
         let permutations = segment_container.get_segment_location_permutations_within_bounding_length(bounding_length, 1);
@@ -204,7 +204,7 @@ mod segment_container_tests {
     fn get_all_possible_positions_within_bounding_length_with_one_segment_size_two_padding_one(#[case] bounding_length: usize) {
         init();
         
-        let segment_container: SegmentContainer = SegmentContainer::new(vec![
+        let segment_container: SegmentContainer<String> = SegmentContainer::new(vec![
             Segment::new(String::from("segment_0"), 2)
         ]);
         let permutations = segment_container.get_segment_location_permutations_within_bounding_length(bounding_length, 1);
@@ -220,7 +220,7 @@ mod segment_container_tests {
     fn get_all_possible_positions_within_bounding_length_with_two_segments_size_one_bounds_three_padding_one() {
         init();
 
-        let segment_container: SegmentContainer = SegmentContainer::new(vec![
+        let segment_container: SegmentContainer<String> = SegmentContainer::new(vec![
             Segment::new(String::from("segment_0"), 1),
             Segment::new(String::from("segment_1"), 1)
         ]);
@@ -244,7 +244,7 @@ mod segment_container_tests {
     fn get_all_possible_positions_within_bounding_length_with_two_segments_size_one_bounds_five_padding_two() {
         init();
 
-        let segment_container: SegmentContainer = SegmentContainer::new(vec![
+        let segment_container: SegmentContainer<String> = SegmentContainer::new(vec![
             Segment::new(String::from("0"), 1),
             Segment::new(String::from("1"), 1)
         ]);
@@ -282,7 +282,7 @@ mod segment_container_tests {
     fn get_all_possible_positions_within_bounding_length_with_two_segments_size_two_bounds_six_padding_one() {
         init();
 
-        let segment_container: SegmentContainer = SegmentContainer::new(vec![
+        let segment_container: SegmentContainer<String> = SegmentContainer::new(vec![
             Segment::new(String::from("segment_0"), 2),
             Segment::new(String::from("segment_1"), 2)
         ]);
@@ -341,7 +341,7 @@ mod segment_container_tests {
     fn get_all_possible_positions_within_bounding_length_with_three_segments_size_two_bounds_ten_padding_one() {
         init();
 
-        let segment_container: SegmentContainer = SegmentContainer::new(vec![
+        let segment_container: SegmentContainer<String> = SegmentContainer::new(vec![
             Segment::new(String::from("0"), 2),
             Segment::new(String::from("1"), 2),
             Segment::new(String::from("2"), 2)

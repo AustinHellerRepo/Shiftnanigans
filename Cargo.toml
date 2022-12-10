@@ -1,6 +1,6 @@
 [package]
 name = "austinhellerrepo-common-rust"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 authors = ["Austin Heller"]
 description = "This library contains all general algorithms and functionality that can easily be shared between my other projects."
