@@ -19,9 +19,9 @@ impl<TIdentifier: Clone + std::fmt::Debug> Segment<TIdentifier> {
 
 #[derive(Clone, Debug)]
 pub struct LocatedSegment<TIdentifier: Clone + std::fmt::Debug> {
-    id: TIdentifier,
-    position: usize,
-    length: usize
+    pub id: TIdentifier,
+    pub position: usize,
+    pub length: usize
 }
 
 impl<TIdentifier: Clone + std::fmt::Debug> LocatedSegment<TIdentifier> {
