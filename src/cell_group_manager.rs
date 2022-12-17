@@ -40,7 +40,7 @@ pub struct CellGroupManager<TCellGroupLocationCollectionIdentifier, TCellGroupId
 // TODO if all dependent cell group location collections are invalid for a specific cell group location, then that cell group location is invalid
 
 impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone, TCellGroupIdentifier: Hash + Eq + std::fmt::Debug + Clone, TCellGroupType: Hash + Eq + std::fmt::Debug + Clone> CellGroupManager<TCellGroupLocationCollectionIdentifier, TCellGroupIdentifier, TCellGroupType> {
-    fn new(
+    pub fn new(
         cell_groups: Vec<CellGroup<TCellGroupIdentifier, TCellGroupType>>,
         cell_group_location_collections: Vec<CellGroupLocationCollection<TCellGroupLocationCollectionIdentifier, TCellGroupIdentifier>>,
         detection_offsets_per_cell_group_type_pair: HashMap<(TCellGroupType, TCellGroupType), Vec<(i32, i32)>>,
@@ -278,7 +278,8 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
             let mut is_at_least_one_cell_group_location_collection_possible: bool = cell_group_location_dependency.cell_group_location_collections.is_empty();  // do not get rid of this dependency if there are no actual dependencies
 
             for cell_group_location_collection_id in cell_group_location_dependency.cell_group_location_collections.iter() {
-                let cell_group_location_collection = self.cell_group_location_collection_per_cell_group_location_collection_id.get(cell_group_location_collection_id).unwrap();
+
+                // assume that the cell group location collection is valid until at least one cell group is found to be invalid
                 let mut is_valid_cell_group_location_collection: bool = true;
 
                 for ((cell_group_id, cell_group_type, location), located_cells) in self.located_cells_per_cell_group_id_and_cell_group_type_and_location_tuple_per_cell_group_location_collection_id.get(cell_group_location_collection_id).unwrap().iter() {
@@ -370,5 +371,80 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
             validated_cell_group_location_dependencies.extend(cloned_cell_group_location_dependencies);
         }
         validated_cell_group_location_dependencies
+    }
+}
+
+#[cfg(test)]
+mod cell_group_manager_tests {
+    use super::*;
+    use rstest::rstest;
+
+    fn init() {
+        std::env::set_var("RUST_LOG", "trace");
+        pretty_env_logger::try_init();
+    }
+
+    #[rstest]
+    fn initialize() {
+        init();
+
+        #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+        enum CellGroupType {}
+
+        let cell_groups: Vec<CellGroup<String, CellGroupType>> = Vec::new();
+        let cell_group_location_collections: Vec<CellGroupLocationCollection<String, String>> = Vec::new();
+        let detection_offsets_per_cell_group_type_pair: HashMap<(CellGroupType, CellGroupType), Vec<(i32, i32)>> = HashMap::new();
+        let adjacent_cell_group_id_pairs: Vec<(String, String)> = Vec::new();
+        let cell_group_location_dependencies: Vec<CellGroupLocationDependency<String, String>> = Vec::new();
+        let _ = CellGroupManager::new(cell_groups, cell_group_location_collections, detection_offsets_per_cell_group_type_pair, adjacent_cell_group_id_pairs, cell_group_location_dependencies);
+    }
+
+    #[rstest]
+    #[should_panic]
+    fn one_cell_group_zero_dependency() {
+
+        #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+        enum CellGroupType {
+            Main
+        }
+
+        let mut cell_groups: Vec<CellGroup<String, CellGroupType>> = Vec::new();
+        let cell_group_location_collections: Vec<CellGroupLocationCollection<String, String>> = Vec::new();
+        let detection_offsets_per_cell_group_type_pair: HashMap<(CellGroupType, CellGroupType), Vec<(i32, i32)>> = HashMap::new();
+        let adjacent_cell_group_id_pairs: Vec<(String, String)> = Vec::new();
+        let cell_group_location_dependencies: Vec<CellGroupLocationDependency<String, String>> = Vec::new();
+
+        cell_groups.push(CellGroup {
+            id: String::from("cell_group_0"),
+            cell_group_type: CellGroupType::Main,
+            cells: vec![(0, 0)]
+        });
+
+        let mut cell_group_manager = CellGroupManager::new(cell_groups, cell_group_location_collections, detection_offsets_per_cell_group_type_pair, adjacent_cell_group_id_pairs, cell_group_location_dependencies);
+
+        let validated_cell_group_location_dependencies = cell_group_manager.get_validated_cell_group_location_dependencies();
+
+    }
+
+    #[rstest]
+    fn simple_level_example() {
+
+        #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+        enum CellGroupType {
+            Wall,
+            WallAdjacent,
+            Floater
+        }
+
+        let cell_groups: Vec<CellGroup<String, CellGroupType>> = Vec::new();
+        let cell_group_location_collections: Vec<CellGroupLocationCollection<String, String>> = Vec::new();
+        let detection_offsets_per_cell_group_type_pair: HashMap<(CellGroupType, CellGroupType), Vec<(i32, i32)>> = HashMap::new();
+        let adjacent_cell_group_id_pairs: Vec<(String, String)> = Vec::new();
+        let cell_group_location_dependencies: Vec<CellGroupLocationDependency<String, String>> = Vec::new();
+        let mut cell_group_manager = CellGroupManager::new(cell_groups, cell_group_location_collections, detection_offsets_per_cell_group_type_pair, adjacent_cell_group_id_pairs, cell_group_location_dependencies);
+
+        let validated_cell_group_location_dependencies = cell_group_manager.get_validated_cell_group_location_dependencies();
+
+        // TODO
     }
 }

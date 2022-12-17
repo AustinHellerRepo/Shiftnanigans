@@ -55,7 +55,7 @@ mod segment_container_tests {
     fn initialize() {
         init();
 
-        let index_incrementer = IndexIncrementer::new(Vec::new());
+        let _ = IndexIncrementer::new(Vec::new());
     }
 
     #[rstest]
@@ -63,7 +63,7 @@ mod segment_container_tests {
     fn increment_zero() {
         init();
 
-        let mut index_incrementer = IndexIncrementer::new(vec![0]);
+        let _ = IndexIncrementer::new(vec![0]);
     }
 
     #[rstest]
