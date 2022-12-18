@@ -2,6 +2,7 @@ use std::{collections::{HashMap, HashSet}, hash::Hash, marker::PhantomData};
 
 use crate::index_incrementer::{self, IndexIncrementer};
 
+#[derive(Clone, Debug)]
 pub struct CellGroup<TCellGroupIdentifier, TCellGroupType> {
     id: TCellGroupIdentifier,
     cells: Vec<(i32, i32)>,  // these should exist such that they can be added directly to location points
@@ -9,6 +10,7 @@ pub struct CellGroup<TCellGroupIdentifier, TCellGroupType> {
 }
 
 /// This struct contains a specific arrangement of cell groups, each location specified per cell group
+#[derive(Clone, Debug)]
 pub struct CellGroupLocationCollection<TCellGroupLocationCollectionIdentifier, TCellGroupIdentifier> {
     id: TCellGroupLocationCollectionIdentifier,
     location_per_cell_group_id: HashMap<TCellGroupIdentifier, (i32, i32)>
@@ -22,10 +24,12 @@ pub struct CellGroupLocationDependency<TCellGroupIdentifier, TCellGroupLocationC
     cell_group_location_collections: Vec<TCellGroupLocationCollectionIdentifier>
 }
 
+#[derive(Clone, Debug)]
 pub struct AnonymousCellGroupLocationCollection<TCellGroupIdentifier> {
     location_per_cell_group_id: HashSet<TCellGroupIdentifier, (i32, i32)>
 }
 
+#[derive(Clone, Debug)]
 pub struct CellGroupManager<TCellGroupLocationCollectionIdentifier, TCellGroupIdentifier, TCellGroupType> {
     cell_group_per_cell_group_id: HashMap<TCellGroupIdentifier, CellGroup<TCellGroupIdentifier, TCellGroupType>>,
     cell_group_location_collection_per_cell_group_location_collection_id: HashMap<TCellGroupLocationCollectionIdentifier, CellGroupLocationCollection<TCellGroupLocationCollectionIdentifier, TCellGroupIdentifier>>,
@@ -245,6 +249,10 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
             }
         }
 
+        // TODO remove any cell group location collections where the cell groups within the cell group location collection violate the overlap, stated adjacency, and stated detection logic
+
+
+
         CellGroupManager {
             cell_group_per_cell_group_id,
             cell_group_location_collection_per_cell_group_location_collection_id: cell_group_location_collection_per_cell_group_location_collection_id,
@@ -345,7 +353,7 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
             }
         }
 
-        // remove this dependency since the current cell group at this location fails to satisfy any of the provided cell group location collections in the dependency
+        // remove each invalid cell group location dependency since the current cell group at its location fails to satisfy any of the provided cell group location collections in the dependency
 
         // TODO
 
@@ -389,6 +397,7 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
 mod cell_group_manager_tests {
     use super::*;
     use rstest::rstest;
+    use uuid::Uuid;
 
     fn init() {
         std::env::set_var("RUST_LOG", "trace");
@@ -412,7 +421,7 @@ mod cell_group_manager_tests {
 
     #[rstest]
     #[should_panic]
-    fn one_cell_group_zero_dependency_initialized() {
+    fn one_cell_group_zero_dependencies_initialized() {
 
         #[derive(Clone, Debug, PartialEq, Eq, Hash)]
         enum CellGroupType {
@@ -461,6 +470,137 @@ mod cell_group_manager_tests {
         });
 
         let mut cell_group_manager = CellGroupManager::new(cell_groups, cell_group_location_collections, detection_offsets_per_cell_group_type_pair, adjacent_cell_group_id_pairs, cell_group_location_dependencies);
+
+        let validated_cell_group_location_dependencies = cell_group_manager.get_validated_cell_group_location_dependencies();
+
+        println!("validated: {:?}", validated_cell_group_location_dependencies);
+
+        assert_eq!(1, validated_cell_group_location_dependencies.len());
+        assert_eq!(String::from("cell_group_0"), validated_cell_group_location_dependencies[0].cell_group_id);
+        assert_eq!((1, 2), validated_cell_group_location_dependencies[0].location);
+        assert!(validated_cell_group_location_dependencies[0].cell_group_location_collections.is_empty());
+    }
+
+    #[rstest]
+    fn two_cell_groups_two_dependencies_validated() {
+
+        #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+        enum CellGroupType {
+            Main
+        }
+
+        let mut cell_groups: Vec<CellGroup<String, CellGroupType>> = Vec::new();
+        let mut cell_group_location_collections: Vec<CellGroupLocationCollection<String, String>> = Vec::new();
+        let detection_offsets_per_cell_group_type_pair: HashMap<(CellGroupType, CellGroupType), Vec<(i32, i32)>> = HashMap::new();
+        let adjacent_cell_group_id_pairs: Vec<(String, String)> = Vec::new();
+        let mut cell_group_location_dependencies: Vec<CellGroupLocationDependency<String, String>> = Vec::new();
+
+        let cell_groups_total = 2;
+
+        let mut area_width: usize = 0;
+        let mut area_height: usize = 0;
+
+        // calculate the minimum area for holding increasing sizes of squares
+        for cell_group_index in 0..cell_groups_total {
+            let cell_group_size = cell_group_index + 1;
+            if area_width < area_height {
+                area_width += cell_group_size;
+                if area_height < cell_group_size {
+                    area_height = cell_group_size;
+                }
+            }
+            else {
+                area_height += cell_group_size;
+                if area_width < cell_group_size {
+                    area_width = cell_group_size;
+                }
+            }
+        }
+
+        // construct index incrementer for looping over locations per cell group
+
+        let mut location_totals: Vec<usize> = Vec::new();
+        let mut cell_group_locations_per_cell_group_index: HashMap<usize, Vec<(i32, i32)>> = HashMap::new();
+        for cell_group_index in 0..cell_groups_total {
+            let cell_group_size = cell_group_index + 1;
+            let mut locations: Vec<(i32, i32)> = Vec::new();
+            for height_index in 0..(area_height - (cell_group_size - 1)) as i32 {
+                for width_index in 0..(area_width - (cell_group_size - 1)) as i32 {
+                    locations.push((width_index, height_index));
+                }
+            }
+            location_totals.push(locations.len());
+            cell_group_locations_per_cell_group_index.insert(cell_group_index, locations);
+        }
+
+        let mut cell_group_location_collection_ids_per_cell_group_index: HashMap<usize, Vec<String>> = HashMap::new();
+
+        for excluded_cell_group_index in 0..cell_groups_total {
+
+            cell_group_location_collection_ids_per_cell_group_index.insert(excluded_cell_group_index, Vec::new());
+
+            let included_location_totals = location_totals.iter().cloned().enumerate().filter(|(index, _)| index != &excluded_cell_group_index).map(|(_, location)| location).collect();
+
+            let mut index_incrementer: IndexIncrementer = IndexIncrementer::new(included_location_totals);
+
+            let mut is_index_incrementer_successful = true;
+            while is_index_incrementer_successful {
+                let location_indexes = index_incrementer.get();
+                println!("cell group {} location_indexes: {:?}", excluded_cell_group_index, location_indexes);
+    
+                let mut location_per_cell_group_id: HashMap<String, (i32, i32)> = HashMap::new();
+    
+                for (location_index_index, location_index) in location_indexes.iter().enumerate() {
+                    let locations = cell_group_locations_per_cell_group_index.get(&location_index_index).unwrap();
+                    let location = locations[location_index.to_owned()];
+
+                    let cell_group_id: String;
+                    if location_index_index < excluded_cell_group_index {
+                        cell_group_id = String::from(format!("cell_group_{}", location_index_index));
+                    }
+                    else {
+                        cell_group_id = String::from(format!("cell_group_{}", location_index_index + 1));
+                    }
+                    location_per_cell_group_id.insert(cell_group_id, location);
+                }
+
+                let cell_group_location_collection: CellGroupLocationCollection<String, String> = CellGroupLocationCollection {
+                    id: Uuid::new_v4().to_string(),
+                    location_per_cell_group_id: location_per_cell_group_id
+                };
+
+                cell_group_location_collection_ids_per_cell_group_index.get_mut(&excluded_cell_group_index).unwrap().push(cell_group_location_collection.id.clone());
+                cell_group_location_collections.push(cell_group_location_collection);
+
+                is_index_incrementer_successful = index_incrementer.try_increment();
+            }
+        }
+
+        for index in 0..cell_groups_total {
+            let mut cells: Vec<(i32, i32)> = Vec::new();
+            for width_index in 0..=index as i32 {
+                for height_index in 0..=index as i32 {
+                    cells.push((width_index, height_index));
+                }
+            }
+            cell_groups.push(CellGroup {
+                id: String::from(format!("cell_group_{}", index)),
+                cell_group_type: CellGroupType::Main,
+                cells: cells
+            });
+
+            for cell_group_location in cell_group_locations_per_cell_group_index.get(&index).unwrap().iter() {
+                cell_group_location_dependencies.push(CellGroupLocationDependency {
+                    cell_group_id: String::from(format!("cell_group_{}", index)),
+                    location: cell_group_location.clone(),
+                    cell_group_location_collections: cell_group_location_collection_ids_per_cell_group_index.get(&index).unwrap().clone()
+                });
+            }
+        }
+
+        let mut cell_group_manager = CellGroupManager::new(cell_groups, cell_group_location_collections, detection_offsets_per_cell_group_type_pair, adjacent_cell_group_id_pairs, cell_group_location_dependencies);
+
+        println!("validating...");
 
         let validated_cell_group_location_dependencies = cell_group_manager.get_validated_cell_group_location_dependencies();
 

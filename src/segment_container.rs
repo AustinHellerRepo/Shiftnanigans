@@ -1,7 +1,7 @@
 use bitvec::vec::BitVec;
 use uuid::Uuid;
 
-
+/// This struct is an unfixed line segment.
 #[derive(Clone, Debug)]
 pub struct Segment<TIdentifier: Clone + std::fmt::Debug> {
     id: TIdentifier,
@@ -17,6 +17,7 @@ impl<TIdentifier: Clone + std::fmt::Debug> Segment<TIdentifier> {
     }
 }
 
+/// This struct is a fixed line segment.
 #[derive(Clone, Debug)]
 pub struct LocatedSegment<TIdentifier: Clone + std::fmt::Debug> {
     pub id: TIdentifier,
@@ -34,6 +35,7 @@ impl<TIdentifier: Clone + std::fmt::Debug> LocatedSegment<TIdentifier> {
     }
 }
 
+/// This struct contains unfixed line segments.
 #[derive(Clone, Debug)]
 pub struct SegmentContainer<TIdentifier: Clone + std::fmt::Debug> {
     segments: Vec<Segment<TIdentifier>>
