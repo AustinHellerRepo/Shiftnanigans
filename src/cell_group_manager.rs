@@ -280,7 +280,7 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
         let expected_adjacent_cell_group_ids = self.adjacent_cell_group_ids_per_cell_group_id.get(cell_group_id).unwrap();
 
         // collect invalid pairs of cell groups for when being at their respective locations never produces a valid combination
-        let mut invalid_cell_group_and_location_tuple_per_location: HashMap<(i32, i32), Vec<(&TCellGroupIdentifier, &(i32, i32))>> = HashMap::new();
+        let mut invalid_cell_group_and_location_tuples_per_location: HashMap<(i32, i32), Vec<(&TCellGroupIdentifier, &(i32, i32))>> = HashMap::new();
 
         // collect the cell group location dependencies that fully invalidate their cell group location collections (since that would mean there is no valid state for this dependency)
         let mut invalid_cell_group_location_dependency_indexes: Vec<usize> = Vec::new();
@@ -334,10 +334,10 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
                         is_valid_cell_group_location_collection = false;
                         
                         // store that this cell group at this location is invalid for the current cell group at its location
-                        if !invalid_cell_group_and_location_tuple_per_location.contains_key(&cell_group_location_dependency.location) {
-                            invalid_cell_group_and_location_tuple_per_location.insert(cell_group_location_dependency.location, Vec::new());
+                        if !invalid_cell_group_and_location_tuples_per_location.contains_key(&cell_group_location_dependency.location) {
+                            invalid_cell_group_and_location_tuples_per_location.insert(cell_group_location_dependency.location, Vec::new());
                         }
-                        invalid_cell_group_and_location_tuple_per_location.get_mut(&cell_group_location_dependency.location).unwrap().push((cell_group_id, location));
+                        invalid_cell_group_and_location_tuples_per_location.get_mut(&cell_group_location_dependency.location).unwrap().push((cell_group_id, location));
 
                         // TODO consider if breaking out here is best
                     }
@@ -353,15 +353,21 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
             }
         }
 
+        let is_at_least_one_reduction_performed: bool = !invalid_cell_group_location_dependency_indexes.is_empty() || !invalid_cell_group_and_location_tuples_per_location.is_empty();
+
         // remove each invalid cell group location dependency since the current cell group at its location fails to satisfy any of the provided cell group location collections in the dependency
 
-        // TODO
+        for cell_group_location_dependency_index in invalid_cell_group_location_dependency_indexes.into_iter().rev() {
+            self.cell_group_location_dependencies_per_cell_group_id.get_mut(cell_group_id).unwrap().remove(cell_group_location_dependency_index);
+        }
 
         // remove any invalid_cell_group_and_location_tuple_per_location for this cell group since the combinations of the two will always lead to invalid results
 
-        // TODO
+        for (cell_group_location, cell_group_and_location_tuples) in invalid_cell_group_and_location_tuples_per_location.into_iter() {
+            todo!();
+        }
 
-        !invalid_cell_group_location_dependency_indexes.is_empty() || !invalid_cell_group_and_location_tuple_per_location.is_empty()
+        is_at_least_one_reduction_performed
     }
     pub fn get_validated_cell_group_location_dependencies(&mut self) -> Vec<CellGroupLocationDependency<TCellGroupIdentifier, TCellGroupLocationCollectionIdentifier>> {
 
