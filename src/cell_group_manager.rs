@@ -15,7 +15,7 @@ pub struct CellGroupLocationCollection<TCellGroupLocationCollectionIdentifier, T
 }
 
 /// This struct specifies that "this" cell group location has "these" cell group location collections as dependencies such that if being at that location makes all of them invalid, then that location must be invalid
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CellGroupLocationDependency<TCellGroupIdentifier, TCellGroupLocationCollectionIdentifier> {
     cell_group_id: TCellGroupIdentifier,
     location: (i32, i32),
@@ -81,6 +81,13 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
                     adjacent_cell_group_ids_per_cell_group_id.get_mut(&from_cell_group_id).unwrap().insert(to_cell_group_id);
                 }
             }
+
+            // create an empty hashset for any cell groups that do not have an adjacency dependency
+            for cell_group_id in cell_group_per_cell_group_id.keys() {
+                if !adjacent_cell_group_ids_per_cell_group_id.contains_key(cell_group_id) {
+                    adjacent_cell_group_ids_per_cell_group_id.insert(cell_group_id.clone(), HashSet::new());
+                }
+            }
         }
 
         // construct detection cell groups from provided cell groups
@@ -111,36 +118,40 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
 
                 for cell_group in cell_group_per_cell_group_id.values() {
 
-                    for (cell_group_type, detection_offsets) in detection_offsets_per_cell_group_type_per_cell_group_type.get(&cell_group.cell_group_type).unwrap() {
+                    if detection_offsets_per_cell_group_type_per_cell_group_type.contains_key(&cell_group.cell_group_type) {
+                        // the cell group type of the current cell group is restrictive to at least one other cell group type
 
-                        // construct detection cells
+                        for (cell_group_type, detection_offsets) in detection_offsets_per_cell_group_type_per_cell_group_type.get(&cell_group.cell_group_type).unwrap() {
 
-                        let mut detection_cells: Vec<(i32, i32)> = Vec::new();
+                            // construct detection cells
 
-                        {
-                            let mut traveled_cells: HashSet<(i32, i32)> = HashSet::new();
-                            for cell in cell_group.cells.iter() {
-                                if !traveled_cells.contains(cell) {
-                                    traveled_cells.insert(cell.to_owned());
-                                    detection_cells.push(cell.to_owned());
-                                }
-                                for detection_offset in detection_offsets.iter() {
-                                    let potential_detection_cell = (cell.0 + detection_offset.0, cell.1 + detection_offset.1);
-                                    if !traveled_cells.contains(&potential_detection_cell) {
-                                        traveled_cells.insert(potential_detection_cell.clone());
-                                        detection_cells.push(potential_detection_cell);
+                            let mut detection_cells: Vec<(i32, i32)> = Vec::new();
+
+                            {
+                                let mut traveled_cells: HashSet<(i32, i32)> = HashSet::new();
+                                for cell in cell_group.cells.iter() {
+                                    if !traveled_cells.contains(cell) {
+                                        traveled_cells.insert(cell.to_owned());
+                                        detection_cells.push(cell.to_owned());
+                                    }
+                                    for detection_offset in detection_offsets.iter() {
+                                        let potential_detection_cell = (cell.0 + detection_offset.0, cell.1 + detection_offset.1);
+                                        if !traveled_cells.contains(&potential_detection_cell) {
+                                            traveled_cells.insert(potential_detection_cell.clone());
+                                            detection_cells.push(potential_detection_cell);
+                                        }
                                     }
                                 }
                             }
-                        }
 
-                        if !detection_cells_per_cell_group_type_per_cell_group_id.contains_key(&cell_group.id) {
-                            detection_cells_per_cell_group_type_per_cell_group_id.insert(cell_group.id.clone(), HashMap::new());
+                            if !detection_cells_per_cell_group_type_per_cell_group_id.contains_key(&cell_group.id) {
+                                detection_cells_per_cell_group_type_per_cell_group_id.insert(cell_group.id.clone(), HashMap::new());
+                            }
+                            if detection_cells_per_cell_group_type_per_cell_group_id.get(&cell_group.id).unwrap().contains_key(cell_group_type) {
+                                panic!("Unexpected duplicate cell group type {:?} for detection cells of cell group {:?}.", cell_group_type, cell_group.id);
+                            }
+                            detection_cells_per_cell_group_type_per_cell_group_id.get_mut(&cell_group.id).unwrap().insert(cell_group_type.clone(), detection_cells);
                         }
-                        if detection_cells_per_cell_group_type_per_cell_group_id.get(&cell_group.id).unwrap().contains_key(cell_group_type) {
-                            panic!("Unexpected duplicate cell group type {:?} for detection cells of cell group {:?}.", cell_group_type, cell_group.id);
-                        }
-                        detection_cells_per_cell_group_type_per_cell_group_id.get_mut(&cell_group.id).unwrap().insert(cell_group_type.clone(), detection_cells);
                     }
                 }
             }
@@ -401,7 +412,7 @@ mod cell_group_manager_tests {
 
     #[rstest]
     #[should_panic]
-    fn one_cell_group_zero_dependency() {
+    fn one_cell_group_zero_dependency_initialized() {
 
         #[derive(Clone, Debug, PartialEq, Eq, Hash)]
         enum CellGroupType {
@@ -420,10 +431,45 @@ mod cell_group_manager_tests {
             cells: vec![(0, 0)]
         });
 
+        let _ = CellGroupManager::new(cell_groups, cell_group_location_collections, detection_offsets_per_cell_group_type_pair, adjacent_cell_group_id_pairs, cell_group_location_dependencies);
+    }
+
+    #[rstest]
+    fn one_cell_group_one_dependency_validated() {
+
+        #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+        enum CellGroupType {
+            Main
+        }
+
+        let mut cell_groups: Vec<CellGroup<String, CellGroupType>> = Vec::new();
+        let cell_group_location_collections: Vec<CellGroupLocationCollection<String, String>> = Vec::new();
+        let detection_offsets_per_cell_group_type_pair: HashMap<(CellGroupType, CellGroupType), Vec<(i32, i32)>> = HashMap::new();
+        let adjacent_cell_group_id_pairs: Vec<(String, String)> = Vec::new();
+        let mut cell_group_location_dependencies: Vec<CellGroupLocationDependency<String, String>> = Vec::new();
+
+        cell_groups.push(CellGroup {
+            id: String::from("cell_group_0"),
+            cell_group_type: CellGroupType::Main,
+            cells: vec![(0, 0)]
+        });
+
+        cell_group_location_dependencies.push(CellGroupLocationDependency {
+            cell_group_id: String::from("cell_group_0"),
+            location: (1, 2),
+            cell_group_location_collections: Vec::new()
+        });
+
         let mut cell_group_manager = CellGroupManager::new(cell_groups, cell_group_location_collections, detection_offsets_per_cell_group_type_pair, adjacent_cell_group_id_pairs, cell_group_location_dependencies);
 
         let validated_cell_group_location_dependencies = cell_group_manager.get_validated_cell_group_location_dependencies();
 
+        println!("validated: {:?}", validated_cell_group_location_dependencies);
+
+        assert_eq!(1, validated_cell_group_location_dependencies.len());
+        assert_eq!(String::from("cell_group_0"), validated_cell_group_location_dependencies[0].cell_group_id);
+        assert_eq!((1, 2), validated_cell_group_location_dependencies[0].location);
+        assert!(validated_cell_group_location_dependencies[0].cell_group_location_collections.is_empty());
     }
 
     #[rstest]
