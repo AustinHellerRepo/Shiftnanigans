@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, HashSet}, hash::Hash, marker::PhantomData};
+use std::{collections::{HashMap, HashSet}, hash::Hash, marker::PhantomData, time::Instant};
 
 use uuid::Uuid;
 
@@ -24,11 +24,6 @@ pub struct CellGroupLocationDependency<TCellGroupIdentifier, TCellGroupLocationC
     cell_group_id: TCellGroupIdentifier,
     location: (i32, i32),
     cell_group_location_collections: Vec<TCellGroupLocationCollectionIdentifier>
-}
-
-#[derive(Clone, Debug)]
-pub struct AnonymousCellGroupLocationCollection<TCellGroupIdentifier> {
-    location_per_cell_group_id: HashSet<TCellGroupIdentifier, (i32, i32)>
 }
 
 pub struct CellGroupDependencyManager<TCellGroupLocationCollectionIdentifier, TCellGroupIdentifier, TCellGroupType> {
@@ -102,7 +97,7 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
             located_cells_per_cell_group_id_and_cell_group_type_and_location_tuple_per_cell_group_location_collection_id.insert(cell_group_location_collection_id.clone(), HashMap::new());
             let mut cell_group_id_and_location_tuples: HashSet<(TCellGroupIdentifier, (i32, i32))> = HashSet::new();
             for (cell_group_id, location) in cell_group_location_collection.location_per_cell_group_id.iter() {
-                println!("cell group location collection {:?} with cell group {:?} is at location {:?}", cell_group_location_collection_id, cell_group_id, location);
+                //println!("cell group location collection {:?} with cell group {:?} is at location {:?}", cell_group_location_collection_id, cell_group_id, location);
                 let cell_group = cell_group_collection.get_cell_group_per_cell_group_id().get(cell_group_id).unwrap();
                 let cell_group_id_and_cell_group_type_and_location_tuple = (cell_group.id.clone(), cell_group.cell_group_type.clone(), location.clone());
                 if !located_cells_per_cell_group_id_and_cell_group_type_and_location_tuple_per_cell_group_location_collection_id.get(cell_group_location_collection_id).unwrap().contains_key(&cell_group_id_and_cell_group_type_and_location_tuple) {
@@ -202,7 +197,7 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
 
                 for ((located_cell_group_id, located_cell_group_type, location), located_cells) in self.located_cells_per_cell_group_id_and_cell_group_type_and_location_tuple_per_cell_group_location_collection_id.get(cell_group_location_collection_id).unwrap().iter() {
                     
-                    println!("checking {:?} at {:?} against {:?}", cell_group_id, cell_group_location_dependency.location, (located_cell_group_id, located_cell_group_type, location, located_cells));
+                    //println!("checking {:?} at {:?} against {:?}", cell_group_id, cell_group_location_dependency.location, (located_cell_group_id, located_cell_group_type, location, located_cells));
                     let is_adjacency_expected = expected_adjacent_cell_group_ids.contains(located_cell_group_id);
                     let mut is_adjacent = false;
                     let mut is_valid_cell_group = true;
@@ -237,7 +232,7 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
                         if !invalid_cell_group_id_and_location_tuples_per_location.contains_key(&cell_group_location_dependency.location) {
                             invalid_cell_group_id_and_location_tuples_per_location.insert(cell_group_location_dependency.location, Vec::new());
                         }
-                        println!("found invalid cell group ID {:?} at location {:?}", located_cell_group_id, location);
+                        //println!("found invalid cell group ID {:?} at location {:?}", located_cell_group_id, location);
                         invalid_cell_group_id_and_location_tuples_per_location.get_mut(&cell_group_location_dependency.location).unwrap().push((located_cell_group_id.clone(), location.clone()));
 
                         // not breaking here for two reasons:
@@ -249,14 +244,14 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
 
                 if is_valid_cell_group_location_collection {
                     is_at_least_one_cell_group_location_collection_possible = true;
-                    println!("discovered that at least one cell group location collection is valid");
+                    //println!("discovered that at least one cell group location collection is valid");
                 }
             }
 
             if !is_at_least_one_cell_group_location_collection_possible {
                 invalid_cell_group_location_dependency_indexes.push(cell_group_location_dependency_index);
                 invalid_cell_group_id_and_location_tuples_per_location.remove(&cell_group_location_dependency.location);
-                println!("realized that all cell group location collections were invalid, so removing entire dependency {:?}", cell_group_location_dependency_index);
+                //println!("realized that all cell group location collections were invalid, so removing entire dependency {:?}", cell_group_location_dependency_index);
             }
         }
 
@@ -265,7 +260,7 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
         // remove each invalid cell group location dependency since the current cell group at its location fails to satisfy any of the provided cell group location collections in the dependency
 
         for cell_group_location_dependency_index in invalid_cell_group_location_dependency_indexes.into_iter().rev() {
-            println!("removing cell group location {:?}", self.cell_group_location_dependencies_per_cell_group_id.get_mut(cell_group_id).unwrap()[cell_group_location_dependency_index]);
+            //println!("removing cell group location {:?}", self.cell_group_location_dependencies_per_cell_group_id.get_mut(cell_group_id).unwrap()[cell_group_location_dependency_index]);
             self.cell_group_location_dependencies_per_cell_group_id.get_mut(cell_group_id).unwrap().remove(cell_group_location_dependency_index);
         }
 
@@ -289,7 +284,7 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
                         }
                     }
                     for invalid_cell_group_location_collection_id_index in invalid_cell_group_location_collection_id_indexes.into_iter().rev() {
-                        println!("removing cell group location collection {:?} from dependency {:?}", cell_group_location_dependency.cell_group_location_collections[invalid_cell_group_location_collection_id_index], cell_group_location_dependency);
+                        //println!("removing cell group location collection {:?} from dependency {:?}", cell_group_location_dependency.cell_group_location_collections[invalid_cell_group_location_collection_id_index], cell_group_location_dependency);
                         cell_group_location_dependency.cell_group_location_collections.remove(invalid_cell_group_location_collection_id_index);
                     }
                 }
@@ -332,12 +327,11 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
         // construct the necessary data structures to test this cell group location collection as if each individual cell group can be located where it is defined in the cell group location collection
 
         let mut inner_cell_group_location_ids_total_per_cell_group_location_collection_id: HashMap<&TCellGroupLocationCollectionIdentifier, usize> = HashMap::new();
-        let mut inner_cell_group_location_ids_per_cell_group_location_collection_id: HashMap<&TCellGroupLocationCollectionIdentifier, HashSet<String>> = HashMap::new();
         let mut inner_cell_group_location_collections: Vec<CellGroupLocationCollection<String, TCellGroupIdentifier>> = Vec::new();
         let mut inner_cell_group_location_dependencies: Vec<CellGroupLocationDependency<TCellGroupIdentifier, String>> = Vec::new();
         let mut applicable_cell_group_ids: Vec<&TCellGroupIdentifier> = Vec::new();
 
-        for cell_group_location_collection in cell_group_location_collections.iter() {
+        for (cell_group_location_collection_index, cell_group_location_collection) in cell_group_location_collections.iter().enumerate() {
             let mut inner_cell_group_location_ids: HashSet<String> = HashSet::new();
             for (cell_group_index, (cell_group_id, location)) in cell_group_location_collection.location_per_cell_group_id.iter().enumerate() {
 
@@ -350,7 +344,7 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
                     }
                 }
 
-                let inner_cell_group_location_collection_id: String = Uuid::new_v4().to_string();
+                let inner_cell_group_location_collection_id: String = format!("inner_{}_{}", cell_group_index, cell_group_location_collection_index);
                 inner_cell_group_location_ids.insert(inner_cell_group_location_collection_id.clone());
                 let inner_cell_group_location_collection = CellGroupLocationCollection {
                     id: inner_cell_group_location_collection_id.clone(),
@@ -368,31 +362,35 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
                 inner_cell_group_location_dependencies.push(cell_group_location_dependency);
             }
             inner_cell_group_location_ids_total_per_cell_group_location_collection_id.insert(&cell_group_location_collection.id, inner_cell_group_location_ids.len());
-            inner_cell_group_location_ids_per_cell_group_location_collection_id.insert(&cell_group_location_collection.id, inner_cell_group_location_ids);
         }
         
         let mut cell_group_dependency_manager = CellGroupDependencyManager::new(cell_group_collection, inner_cell_group_location_collections, inner_cell_group_location_dependencies);
-        let validated_cell_group_dependencies = cell_group_dependency_manager.get_validated_cell_group_location_dependencies();
 
-        let mut validated_inner_cell_group_location_ids_total_per_cell_group_location_collection_id: HashMap<&TCellGroupLocationCollectionIdentifier, usize> = HashMap::new();
-        for cell_group_location_collection in cell_group_location_collections.iter() {
-            validated_inner_cell_group_location_ids_total_per_cell_group_location_collection_id.insert(&cell_group_location_collection.id, 0);
+        let validating_cell_group_dependencies_start_time = Instant::now();
+        let validated_cell_group_dependencies = cell_group_dependency_manager.get_validated_cell_group_location_dependencies();
+        println!("validated cell group location collections: {:?}", validating_cell_group_dependencies_start_time.elapsed());
+
+        let determining_subset_start_time = Instant::now();
+        let mut cell_group_location_collection_index_total_per_cell_group_location_collection_index: HashMap<usize, usize> = HashMap::new();
+        for (cell_group_location_collection_index, _) in cell_group_location_collections.iter().enumerate() {
+            cell_group_location_collection_index_total_per_cell_group_location_collection_index.insert(cell_group_location_collection_index, 0);
         }
         for cell_group_location_dependency in validated_cell_group_dependencies.iter() {
             let inner_cell_group_location_collection_id = &cell_group_location_dependency.cell_group_location_collections[0];
-            for (cell_group_location_collection_id, inner_cell_group_location_collection_ids) in inner_cell_group_location_ids_per_cell_group_location_collection_id.iter() {
-                if inner_cell_group_location_collection_ids.contains(inner_cell_group_location_collection_id) {
-                    let current_total = validated_inner_cell_group_location_ids_total_per_cell_group_location_collection_id.get(cell_group_location_collection_id).unwrap();
-                    validated_inner_cell_group_location_ids_total_per_cell_group_location_collection_id.insert(cell_group_location_collection_id, current_total + 1);
-                }
-            }
+            let cell_group_location_collection_index = inner_cell_group_location_collection_id.split("_").last().unwrap().parse::<usize>().unwrap();
+            let current_total = cell_group_location_collection_index_total_per_cell_group_location_collection_index.get(&cell_group_location_collection_index).unwrap();
+            cell_group_location_collection_index_total_per_cell_group_location_collection_index.insert(cell_group_location_collection_index, current_total + 1);
         }
+        println!("determined subset: {:?}", determining_subset_start_time.elapsed());
+
+        let pulling_out_subset_start_time = Instant::now();
         let mut validated_cell_group_collection_locations: Vec<CellGroupLocationCollection<TCellGroupLocationCollectionIdentifier, TCellGroupIdentifier>> = Vec::new();
-        for cell_group_location_collection in cell_group_location_collections.iter() {
-            if inner_cell_group_location_ids_total_per_cell_group_location_collection_id.get(&cell_group_location_collection.id).unwrap() == validated_inner_cell_group_location_ids_total_per_cell_group_location_collection_id.get(&cell_group_location_collection.id).unwrap() {
+        for (cell_group_location_collection_index, cell_group_location_collection) in cell_group_location_collections.iter().enumerate() {
+            if inner_cell_group_location_ids_total_per_cell_group_location_collection_id.get(&cell_group_location_collection.id).unwrap() == cell_group_location_collection_index_total_per_cell_group_location_collection_index.get(&cell_group_location_collection_index).unwrap() {
                 validated_cell_group_collection_locations.push(cell_group_location_collection.clone());
             }
         }
+        println!("pulled subset: {:?}", pulling_out_subset_start_time.elapsed());
         validated_cell_group_collection_locations
     }
 }
@@ -525,6 +523,8 @@ impl<TCellGroupIdentifier: Hash + Eq + std::fmt::Debug + Clone, TCellGroupType: 
 
 #[cfg(test)]
 mod cell_group_manager_tests {
+    use std::time::{Duration, Instant};
+
     use super::*;
     use rstest::rstest;
     use uuid::Uuid;
@@ -648,7 +648,7 @@ mod cell_group_manager_tests {
         let detection_offsets_per_cell_group_type_pair: HashMap<(CellGroupType, CellGroupType), Vec<(i32, i32)>> = HashMap::new();
         let adjacent_cell_group_id_pairs: Vec<(String, String)> = Vec::new();
 
-        let cell_groups_total = 2;
+        let cell_groups_total = 4;
 
         let mut area_width: usize = 0;
         let mut area_height: usize = 0;
@@ -689,7 +689,7 @@ mod cell_group_manager_tests {
             });
         }
 
-        let cell_group_collection = CellGroupCollection::new(cell_groups, detection_offsets_per_cell_group_type_pair, adjacent_cell_group_id_pairs);
+        let cell_group_collection = CellGroupCollection::new(cell_groups.clone(), detection_offsets_per_cell_group_type_pair, adjacent_cell_group_id_pairs);
 
         let mut cell_group_location_collections: Vec<CellGroupLocationCollection<String, String>> = Vec::new();
         let mut cell_group_location_dependencies: Vec<CellGroupLocationDependency<String, String>> = Vec::new();
@@ -731,7 +731,7 @@ mod cell_group_manager_tests {
                 let mut is_index_incrementer_successful = true;
                 while is_index_incrementer_successful {
                     let location_indexes = index_incrementer.get();
-                    println!("cell group {} location_indexes: {:?}", excluded_cell_group_index, location_indexes);
+                    //println!("cell group {} location_indexes: {:?}", excluded_cell_group_index, location_indexes);
         
                     let mut location_per_cell_group_id: HashMap<String, (i32, i32)> = HashMap::new();
         
@@ -747,7 +747,7 @@ mod cell_group_manager_tests {
                         let location = locations[location_index.to_owned()];
 
                         let cell_group_id: String = String::from(format!("cell_group_{}", cell_group_index));
-                        println!("placing {:?} at {:?}", cell_group_id, location);
+                        //println!("placing {:?} at {:?}", cell_group_id, location);
                         location_per_cell_group_id.insert(cell_group_id, location);
                     }
 
@@ -765,7 +765,12 @@ mod cell_group_manager_tests {
 
             // filter the cell group location collections before constructing the cell group location dependencies
 
+            let filter_start_time = Instant::now();
+
             let filtered_cell_group_location_collections = CellGroupDependencyManager::filter_invalid_cell_group_location_collections(cell_group_collection.clone(), unfiltered_cell_group_location_collections);
+
+            println!("filter time: {:?}", filter_start_time.elapsed());
+
             let mut filtered_cell_group_location_collection_ids_per_cell_group_index: HashMap<usize, Vec<String>> = HashMap::new();
 
             {
@@ -776,7 +781,7 @@ mod cell_group_manager_tests {
 
                 // remove any references to filtered-out cell group location collections
 
-                println!("unfiltered_cell_group_location_collection_ids_per_cell_group_index: {:?}", unfiltered_cell_group_location_collection_ids_per_cell_group_index);
+                //println!("unfiltered_cell_group_location_collection_ids_per_cell_group_index: {:?}", unfiltered_cell_group_location_collection_ids_per_cell_group_index);
 
                 for (cell_group_index, unfiltered_cell_group_location_collection_ids) in unfiltered_cell_group_location_collection_ids_per_cell_group_index.into_iter() {
                     let mut discovered_filtered_cell_group_location_collection_ids: Vec<String> = Vec::new();
@@ -791,7 +796,7 @@ mod cell_group_manager_tests {
 
             cell_group_location_collections.extend(filtered_cell_group_location_collections);
 
-            println!("filtered_cell_group_location_collection_ids_per_cell_group_index: {:?}", filtered_cell_group_location_collection_ids_per_cell_group_index);
+            //println!("filtered_cell_group_location_collection_ids_per_cell_group_index: {:?}", filtered_cell_group_location_collection_ids_per_cell_group_index);
 
             for index in 0..cell_groups_total {
                 for cell_group_location in cell_group_locations_per_cell_group_index.get(&index).unwrap().iter() {
@@ -804,45 +809,118 @@ mod cell_group_manager_tests {
             }
         }
 
-        let mut cell_group_dependency_manager = CellGroupDependencyManager::new(cell_group_collection, cell_group_location_collections, cell_group_location_dependencies);
+        let mut cell_group_dependency_manager = CellGroupDependencyManager::new(cell_group_collection, cell_group_location_collections.clone(), cell_group_location_dependencies);
 
         println!("validating...");
+        let validating_start_time = Instant::now();
 
         let validated_cell_group_location_dependencies = cell_group_dependency_manager.get_validated_cell_group_location_dependencies();
 
+        println!("validation time: {:?}", validating_start_time.elapsed());
         println!("validated: {:?}", validated_cell_group_location_dependencies);
 
-        assert_eq!(6, validated_cell_group_location_dependencies.len());
+        // all of the expected locations each cell group can exist at
+        let expected_dependencies_total: usize = match cell_groups_total {
+            2 => 6,
+            3 => 14,
+            4 => 4 + 4 + 8 + 22,
+            _ => {
+                panic!("Unexpected number of cell groups: {}", cell_groups_total);
+            }
+        };
+        assert_eq!(expected_dependencies_total, validated_cell_group_location_dependencies.len());
 
         // https://en.wikipedia.org/wiki/Square_pyramidal_number
         let cells_total: usize = (cell_groups_total * (cell_groups_total + 1) * (2 * cell_groups_total + 1)) / 6;
+        let mut permutations: HashSet<Vec<Vec<&str>>> = HashSet::new();
 
         for validated_cell_group_location_dependency in validated_cell_group_location_dependencies.iter() {
-            for cell_group_location_collection in validated_cell_group_location_dependency.cell_group_location_collections.iter() {
-                // TODO iterate over all possible locations, checking if any combination of cell group and its cell group location collection(s) total to the correct number of filled cells, breaking out of the cell coordinate after finding one satisfactory condition (so as to avoid counting any possible overlap)
-                let mut pixels: Vec<Vec<bool>> = Vec::new();
-                for _ in 0..area_width {
-                    let mut pixel_column: Vec<bool> = Vec::new();
-                    for _ in 0..area_height {
-                        pixel_column.push(false);
+            let mut pixels: Vec<Vec<bool>> = Vec::new();
+            let mut pixels_as_ids: Vec<Vec<&str>> = Vec::new();
+            for _ in 0..area_width {
+                let mut pixel_column: Vec<bool> = Vec::new();
+                let mut pixel_as_id_column: Vec<&str> = Vec::new();
+                for _ in 0..area_height {
+                    pixel_column.push(false);
+                    pixel_as_id_column.push(" ");
+                }
+                pixels.push(pixel_column);
+                pixels_as_ids.push(pixel_as_id_column);
+            }
+            for cell_group in cell_groups.iter() {
+                if cell_group.id == validated_cell_group_location_dependency.cell_group_id {
+                    for cell in cell_group.cells.iter() {
+                        let width_index = (cell.0 + validated_cell_group_location_dependency.location.0) as usize;
+                        let height_index = (cell.1 + validated_cell_group_location_dependency.location.1) as usize;
+                        pixels[width_index][height_index] = true;
+                        pixels_as_ids[width_index][height_index] = cell_group.id.split("_").last().unwrap();
                     }
-                    pixels.push(pixel_column);
+                }
+            }
+            for cell_group_location_collection_id in validated_cell_group_location_dependency.cell_group_location_collections.iter() {
+                // iterate over all possible locations, checking if any combination of cell group and its cell group location collection(s) total to the correct number of filled cells, breaking out of the cell coordinate after finding one satisfactory condition (so as to avoid counting any possible overlap)
+                let mut cloned_pixels = pixels.clone();
+                let mut cloned_pixels_as_ids = pixels_as_ids.clone();
+                let mut valid_pixels_total: usize = 0;
+
+                for cell_group_location_collection in cell_group_location_collections.iter() {
+                    if &cell_group_location_collection.id == cell_group_location_collection_id {
+                        for (cell_group_id, location) in cell_group_location_collection.location_per_cell_group_id.iter() {
+                            for cell_group in cell_groups.iter() {
+                                if &cell_group.id == cell_group_id {
+                                    for cell in cell_group.cells.iter() {
+                                        let width_index = (cell.0 + location.0) as usize;
+                                        let height_index = (cell.1 + location.1) as usize;
+                                        cloned_pixels[width_index][height_index] = true;
+                                        cloned_pixels_as_ids[width_index][height_index] = cell_group.id.split("_").last().unwrap();
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
 
-                let mut valid_pixels_total: usize = 0;
+                let is_printed: bool;
+                if validated_cell_group_location_dependency.cell_group_id == String::from("cell_group_0") && false {
+                    is_printed = true;
+                }
+                else {
+                    is_printed = false;
+                }
+
                 for height_index in 0..area_height {
                     for width_index in 0..area_width {
-                        // TODO check if the cell group contains this coordinate
+                        if is_printed {
+                            print!("{}", cloned_pixels_as_ids[width_index][height_index]);
+                        }
 
                         // TODO check if any cell group in the current cell group location collection contains this coordinate
+                        if cloned_pixels[width_index][height_index] {
+                            valid_pixels_total += 1;
+                        }
                     }
+                    if is_printed {
+                        println!("");
+                    }
+                }
+                if is_printed {
+                    println!("");
                 }
 
                 assert_eq!(valid_pixels_total, cells_total);
+                permutations.insert(cloned_pixels_as_ids);
             }
         }
-        
-        todo!();
+
+        let expected_permutations_total: usize = match cell_groups_total {
+            2 => 4,
+            3 => 8,
+            4 => 96,
+            _ => {
+                panic!("Unexpected number of cell groups: {}", cell_groups_total);
+            }
+        };
+        assert_eq!(expected_permutations_total, permutations.len());
     }
 
     #[rstest]
