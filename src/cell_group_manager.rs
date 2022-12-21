@@ -73,15 +73,17 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
             for cell_group in cell_group_collection.get_cell_group_per_cell_group_id().values() {
                 overlap_locations_per_location_per_cell_group_id.insert(cell_group.id.clone(), HashMap::new());
 
-                let cell_group_location_dependencies: &Vec<CellGroupLocationDependency<TCellGroupIdentifier, TCellGroupLocationCollectionIdentifier>> = cell_group_location_dependencies_per_cell_group_id.get(&cell_group.id).unwrap();
-                for cell_group_location_dependency in cell_group_location_dependencies.iter() {
-                    if !overlap_locations_per_location_per_cell_group_id.get(&cell_group.id).unwrap().contains_key(&cell_group_location_dependency.location) {
-                        // this is the first time this cell group is known to exist at this location (but there may be more instances given different dependency relationships)
-                        let mut overlap_locations: HashSet<(i32, i32)> = HashSet::new();
-                        for cell in cell_group.cells.iter() {
-                            overlap_locations.insert((cell.0 + cell_group_location_dependency.location.0, cell.1 + cell_group_location_dependency.location.1));
+                if cell_group_location_dependencies_per_cell_group_id.contains_key(&cell_group.id) {
+                    let cell_group_location_dependencies: &Vec<CellGroupLocationDependency<TCellGroupIdentifier, TCellGroupLocationCollectionIdentifier>> = cell_group_location_dependencies_per_cell_group_id.get(&cell_group.id).unwrap();
+                    for cell_group_location_dependency in cell_group_location_dependencies.iter() {
+                        if !overlap_locations_per_location_per_cell_group_id.get(&cell_group.id).unwrap().contains_key(&cell_group_location_dependency.location) {
+                            // this is the first time this cell group is known to exist at this location (but there may be more instances given different dependency relationships)
+                            let mut overlap_locations: HashSet<(i32, i32)> = HashSet::new();
+                            for cell in cell_group.cells.iter() {
+                                overlap_locations.insert((cell.0 + cell_group_location_dependency.location.0, cell.1 + cell_group_location_dependency.location.1));
+                            }
+                            overlap_locations_per_location_per_cell_group_id.get_mut(&cell_group.id).unwrap().insert(cell_group_location_dependency.location.clone(), overlap_locations);
                         }
-                        overlap_locations_per_location_per_cell_group_id.get_mut(&cell_group.id).unwrap().insert(cell_group_location_dependency.location.clone(), overlap_locations);
                     }
                 }
             }
@@ -306,9 +308,11 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
             // TODO consider if subsequent passes will ever result in any reductions
 
             for cell_group_id in cell_group_ids.iter() {
-                let is_cell_group_location_dependency_reduced = self.try_reduce_cell_group_location_dependency_for_cell_group(cell_group_id);
-                if is_cell_group_location_dependency_reduced {
-                    is_at_least_one_cell_group_location_dependency_reduced = true;
+                if self.cell_group_location_dependencies_per_cell_group_id.contains_key(cell_group_id) {
+                    let is_cell_group_location_dependency_reduced = self.try_reduce_cell_group_location_dependency_for_cell_group(cell_group_id);
+                    if is_cell_group_location_dependency_reduced {
+                        is_at_least_one_cell_group_location_dependency_reduced = true;
+                    }
                 }
             }
         }
@@ -326,16 +330,13 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
 
         // construct the necessary data structures to test this cell group location collection as if each individual cell group can be located where it is defined in the cell group location collection
 
-        let mut inner_cell_group_location_ids_total_per_cell_group_location_collection_id: HashMap<&TCellGroupLocationCollectionIdentifier, usize> = HashMap::new();
-        let mut inner_cell_group_location_collections: Vec<CellGroupLocationCollection<String, TCellGroupIdentifier>> = Vec::new();
-        let mut inner_cell_group_location_dependencies: Vec<CellGroupLocationDependency<TCellGroupIdentifier, String>> = Vec::new();
-        let mut applicable_cell_group_ids: Vec<&TCellGroupIdentifier> = Vec::new();
+        let mut validated_cell_group_collection_locations: Vec<CellGroupLocationCollection<TCellGroupLocationCollectionIdentifier, TCellGroupIdentifier>> = Vec::new();
 
-        for (cell_group_location_collection_index, cell_group_location_collection) in cell_group_location_collections.iter().enumerate() {
+        for (cell_group_location_collection_index, cell_group_location_collection) in cell_group_location_collections.into_iter().enumerate() {
+            let mut inner_cell_group_location_collections: Vec<CellGroupLocationCollection<String, TCellGroupIdentifier>> = Vec::new();
+            let mut inner_cell_group_location_dependencies: Vec<CellGroupLocationDependency<TCellGroupIdentifier, String>> = Vec::new();
             let mut inner_cell_group_location_ids: HashSet<String> = HashSet::new();
             for (cell_group_index, (cell_group_id, location)) in cell_group_location_collection.location_per_cell_group_id.iter().enumerate() {
-
-                applicable_cell_group_ids.push(cell_group_id);
 
                 let mut location_per_cell_group_id: HashMap<TCellGroupIdentifier, (i32, i32)> = HashMap::new();
                 for (other_cell_group_index, (other_cell_group_id, other_location)) in cell_group_location_collection.location_per_cell_group_id.iter().enumerate() {
@@ -361,36 +362,13 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
 
                 inner_cell_group_location_dependencies.push(cell_group_location_dependency);
             }
-            inner_cell_group_location_ids_total_per_cell_group_location_collection_id.insert(&cell_group_location_collection.id, inner_cell_group_location_ids.len());
-        }
-        
-        let mut cell_group_dependency_manager = CellGroupDependencyManager::new(cell_group_collection, inner_cell_group_location_collections, inner_cell_group_location_dependencies);
-
-        let validating_cell_group_dependencies_start_time = Instant::now();
-        let validated_cell_group_dependencies = cell_group_dependency_manager.get_validated_cell_group_location_dependencies();
-        println!("validated cell group location collections: {:?}", validating_cell_group_dependencies_start_time.elapsed());
-
-        let determining_subset_start_time = Instant::now();
-        let mut cell_group_location_collection_index_total_per_cell_group_location_collection_index: HashMap<usize, usize> = HashMap::new();
-        for (cell_group_location_collection_index, _) in cell_group_location_collections.iter().enumerate() {
-            cell_group_location_collection_index_total_per_cell_group_location_collection_index.insert(cell_group_location_collection_index, 0);
-        }
-        for cell_group_location_dependency in validated_cell_group_dependencies.iter() {
-            let inner_cell_group_location_collection_id = &cell_group_location_dependency.cell_group_location_collections[0];
-            let cell_group_location_collection_index = inner_cell_group_location_collection_id.split("_").last().unwrap().parse::<usize>().unwrap();
-            let current_total = cell_group_location_collection_index_total_per_cell_group_location_collection_index.get(&cell_group_location_collection_index).unwrap();
-            cell_group_location_collection_index_total_per_cell_group_location_collection_index.insert(cell_group_location_collection_index, current_total + 1);
-        }
-        println!("determined subset: {:?}", determining_subset_start_time.elapsed());
-
-        let pulling_out_subset_start_time = Instant::now();
-        let mut validated_cell_group_collection_locations: Vec<CellGroupLocationCollection<TCellGroupLocationCollectionIdentifier, TCellGroupIdentifier>> = Vec::new();
-        for (cell_group_location_collection_index, cell_group_location_collection) in cell_group_location_collections.iter().enumerate() {
-            if inner_cell_group_location_ids_total_per_cell_group_location_collection_id.get(&cell_group_location_collection.id).unwrap() == cell_group_location_collection_index_total_per_cell_group_location_collection_index.get(&cell_group_location_collection_index).unwrap() {
-                validated_cell_group_collection_locations.push(cell_group_location_collection.clone());
+            let mut cell_group_dependency_manager = CellGroupDependencyManager::new(cell_group_collection.clone(), inner_cell_group_location_collections, inner_cell_group_location_dependencies);
+            let validated_cell_group_dependencies = cell_group_dependency_manager.get_validated_cell_group_location_dependencies();
+            if validated_cell_group_dependencies.len() == cell_group_location_collection.location_per_cell_group_id.len() {
+                validated_cell_group_collection_locations.push(cell_group_location_collection);
             }
         }
-        println!("pulled subset: {:?}", pulling_out_subset_start_time.elapsed());
+        
         validated_cell_group_collection_locations
     }
 }
