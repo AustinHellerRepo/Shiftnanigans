@@ -294,10 +294,13 @@ mod cell_group_manager_tests {
         // Stats
         //  3
         //      2022-12-21  0.01s
+        //      2022-12-22  0.00s
         //  4
         //      2022-12-21  0.56s
+        //      2022-12-22  0.05s
         //  5
         //      2022-12-21  2339.69s
+        //      2022-12-22    28.95s
 
         let mut area_width: usize = 0;
         let mut area_height: usize = 0;
