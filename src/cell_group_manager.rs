@@ -1,7 +1,5 @@
-use std::{collections::{HashMap, HashSet}, hash::Hash, marker::PhantomData, time::Instant};
-
+use std::{collections::{BTreeMap, BTreeSet}, hash::Hash, marker::PhantomData, time::Instant};
 use uuid::Uuid;
-
 use crate::index_incrementer::{self, IndexIncrementer};
 
 #[derive(Clone, Debug)]
@@ -15,7 +13,7 @@ pub struct CellGroup<TCellGroupIdentifier, TCellGroupType> {
 #[derive(Clone, Debug)]
 pub struct CellGroupLocationCollection<TCellGroupLocationCollectionIdentifier, TCellGroupIdentifier> {
     id: TCellGroupLocationCollectionIdentifier,
-    location_per_cell_group_id: HashMap<TCellGroupIdentifier, (i32, i32)>
+    location_per_cell_group_id: BTreeMap<TCellGroupIdentifier, (i32, i32)>
 }
 
 /// This struct specifies that "this" cell group location has "these" cell group location collections as dependencies such that if being at that location makes all of them invalid, then that location must be invalid
@@ -28,23 +26,23 @@ pub struct CellGroupLocationDependency<TCellGroupIdentifier, TCellGroupLocationC
 
 pub struct CellGroupDependencyManager<TCellGroupLocationCollectionIdentifier, TCellGroupIdentifier, TCellGroupType> {
     cell_group_collection: CellGroupCollection<TCellGroupIdentifier, TCellGroupType>,
-    cell_group_location_dependencies_per_cell_group_id: HashMap<TCellGroupIdentifier, Vec<CellGroupLocationDependency<TCellGroupIdentifier, TCellGroupLocationCollectionIdentifier>>>,
-    detection_locations_per_cell_group_type_per_location_per_cell_group_id: HashMap<TCellGroupIdentifier, HashMap<(i32, i32), HashMap<TCellGroupType, HashSet<(i32, i32)>>>>,
-    overlap_locations_per_location_per_cell_group_id: HashMap<TCellGroupIdentifier, HashMap<(i32, i32), HashSet<(i32, i32)>>>,
-    located_cells_per_cell_group_id_and_cell_group_type_and_location_tuple_per_cell_group_location_collection_id: HashMap<TCellGroupLocationCollectionIdentifier, HashMap<(TCellGroupIdentifier, TCellGroupType, (i32, i32)), Vec<(i32, i32)>>>,
-    cell_group_id_and_location_tuples_per_cell_group_location_collection_id: HashMap<TCellGroupLocationCollectionIdentifier, HashSet<(TCellGroupIdentifier, (i32, i32))>>
+    cell_group_location_dependencies_per_cell_group_id: BTreeMap<TCellGroupIdentifier, Vec<CellGroupLocationDependency<TCellGroupIdentifier, TCellGroupLocationCollectionIdentifier>>>,
+    detection_locations_per_cell_group_type_per_location_per_cell_group_id: BTreeMap<TCellGroupIdentifier, BTreeMap<(i32, i32), BTreeMap<TCellGroupType, BTreeSet<(i32, i32)>>>>,
+    overlap_locations_per_location_per_cell_group_id: BTreeMap<TCellGroupIdentifier, BTreeMap<(i32, i32), BTreeSet<(i32, i32)>>>,
+    located_cells_per_cell_group_id_and_cell_group_type_and_location_tuple_per_cell_group_location_collection_id: BTreeMap<TCellGroupLocationCollectionIdentifier, BTreeMap<(TCellGroupIdentifier, TCellGroupType, (i32, i32)), Vec<(i32, i32)>>>,
+    cell_group_id_and_location_tuples_per_cell_group_location_collection_id: BTreeMap<TCellGroupLocationCollectionIdentifier, BTreeSet<(TCellGroupIdentifier, (i32, i32))>>
 }
 
-impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone, TCellGroupIdentifier: Hash + Eq + std::fmt::Debug + Clone, TCellGroupType: Hash + Eq + std::fmt::Debug + Clone> CellGroupDependencyManager<TCellGroupLocationCollectionIdentifier, TCellGroupIdentifier, TCellGroupType> {
+impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone + Ord, TCellGroupIdentifier: Hash + Eq + std::fmt::Debug + Clone + Ord, TCellGroupType: Hash + Eq + std::fmt::Debug + Clone + Ord> CellGroupDependencyManager<TCellGroupLocationCollectionIdentifier, TCellGroupIdentifier, TCellGroupType> {
     pub fn new(
         cell_group_collection: CellGroupCollection<TCellGroupIdentifier, TCellGroupType>,
         cell_group_location_collections: Vec<CellGroupLocationCollection<TCellGroupLocationCollectionIdentifier, TCellGroupIdentifier>>,
         cell_group_location_dependencies: Vec<CellGroupLocationDependency<TCellGroupIdentifier, TCellGroupLocationCollectionIdentifier>>
     ) -> Self {
 
-        // create cell group location collection lookup hashmap
+        // create cell group location collection lookup BTreeMap
 
-        let mut cell_group_location_collection_per_cell_group_location_collection_id: HashMap<TCellGroupLocationCollectionIdentifier, CellGroupLocationCollection<TCellGroupLocationCollectionIdentifier, TCellGroupIdentifier>> = HashMap::new();
+        let mut cell_group_location_collection_per_cell_group_location_collection_id: BTreeMap<TCellGroupLocationCollectionIdentifier, CellGroupLocationCollection<TCellGroupLocationCollectionIdentifier, TCellGroupIdentifier>> = BTreeMap::new();
 
         {
             for cell_group_location_collection in cell_group_location_collections.into_iter() {
@@ -52,9 +50,9 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
             }
         }
 
-        // construct cell group location dependency lookup hashmap
+        // construct cell group location dependency lookup BTreeMap
 
-        let mut cell_group_location_dependencies_per_cell_group_id: HashMap<TCellGroupIdentifier, Vec<CellGroupLocationDependency<TCellGroupIdentifier, TCellGroupLocationCollectionIdentifier>>> = HashMap::new();
+        let mut cell_group_location_dependencies_per_cell_group_id: BTreeMap<TCellGroupIdentifier, Vec<CellGroupLocationDependency<TCellGroupIdentifier, TCellGroupLocationCollectionIdentifier>>> = BTreeMap::new();
 
         {
             for cell_group_location_dependency in cell_group_location_dependencies.into_iter() {
@@ -67,18 +65,18 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
 
         // construct overlap locations for each possible location that each cell group could exist at (based on the dependencies)
 
-        let mut overlap_locations_per_location_per_cell_group_id: HashMap<TCellGroupIdentifier, HashMap<(i32, i32), HashSet<(i32, i32)>>> = HashMap::new();
+        let mut overlap_locations_per_location_per_cell_group_id: BTreeMap<TCellGroupIdentifier, BTreeMap<(i32, i32), BTreeSet<(i32, i32)>>> = BTreeMap::new();
 
         {
             for cell_group in cell_group_collection.get_cell_group_per_cell_group_id().values() {
-                overlap_locations_per_location_per_cell_group_id.insert(cell_group.id.clone(), HashMap::new());
+                overlap_locations_per_location_per_cell_group_id.insert(cell_group.id.clone(), BTreeMap::new());
 
                 if cell_group_location_dependencies_per_cell_group_id.contains_key(&cell_group.id) {
                     let cell_group_location_dependencies: &Vec<CellGroupLocationDependency<TCellGroupIdentifier, TCellGroupLocationCollectionIdentifier>> = cell_group_location_dependencies_per_cell_group_id.get(&cell_group.id).unwrap();
                     for cell_group_location_dependency in cell_group_location_dependencies.iter() {
                         if !overlap_locations_per_location_per_cell_group_id.get(&cell_group.id).unwrap().contains_key(&cell_group_location_dependency.location) {
                             // this is the first time this cell group is known to exist at this location (but there may be more instances given different dependency relationships)
-                            let mut overlap_locations: HashSet<(i32, i32)> = HashSet::new();
+                            let mut overlap_locations: BTreeSet<(i32, i32)> = BTreeSet::new();
                             for cell in cell_group.cells.iter() {
                                 overlap_locations.insert((cell.0 + cell_group_location_dependency.location.0, cell.1 + cell_group_location_dependency.location.1));
                             }
@@ -90,14 +88,14 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
         }
 
         // construct located cells per cell group type per cell group location collection
-        // construct lookup hashset of cell group ID and location pairs for later checking if this is a cell group location collection that should be removed
+        // construct lookup BTreeSet of cell group ID and location pairs for later checking if this is a cell group location collection that should be removed
 
-        let mut located_cells_per_cell_group_id_and_cell_group_type_and_location_tuple_per_cell_group_location_collection_id: HashMap<TCellGroupLocationCollectionIdentifier, HashMap<(TCellGroupIdentifier, TCellGroupType, (i32, i32)), Vec<(i32, i32)>>> = HashMap::new();
-        let mut cell_group_id_and_location_tuples_per_cell_group_location_collection_id: HashMap<TCellGroupLocationCollectionIdentifier, HashSet<(TCellGroupIdentifier, (i32, i32))>> = HashMap::new();
+        let mut located_cells_per_cell_group_id_and_cell_group_type_and_location_tuple_per_cell_group_location_collection_id: BTreeMap<TCellGroupLocationCollectionIdentifier, BTreeMap<(TCellGroupIdentifier, TCellGroupType, (i32, i32)), Vec<(i32, i32)>>> = BTreeMap::new();
+        let mut cell_group_id_and_location_tuples_per_cell_group_location_collection_id: BTreeMap<TCellGroupLocationCollectionIdentifier, BTreeSet<(TCellGroupIdentifier, (i32, i32))>> = BTreeMap::new();
 
         for (cell_group_location_collection_id, cell_group_location_collection) in cell_group_location_collection_per_cell_group_location_collection_id.iter() {
-            located_cells_per_cell_group_id_and_cell_group_type_and_location_tuple_per_cell_group_location_collection_id.insert(cell_group_location_collection_id.clone(), HashMap::new());
-            let mut cell_group_id_and_location_tuples: HashSet<(TCellGroupIdentifier, (i32, i32))> = HashSet::new();
+            located_cells_per_cell_group_id_and_cell_group_type_and_location_tuple_per_cell_group_location_collection_id.insert(cell_group_location_collection_id.clone(), BTreeMap::new());
+            let mut cell_group_id_and_location_tuples: BTreeSet<(TCellGroupIdentifier, (i32, i32))> = BTreeSet::new();
             for (cell_group_id, location) in cell_group_location_collection.location_per_cell_group_id.iter() {
                 //println!("cell group location collection {:?} with cell group {:?} is at location {:?}", cell_group_location_collection_id, cell_group_id, location);
                 let cell_group = cell_group_collection.get_cell_group_per_cell_group_id().get(cell_group_id).unwrap();
@@ -118,22 +116,22 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
             cell_group_id_and_location_tuples_per_cell_group_location_collection_id.insert(cell_group_location_collection_id.clone(), cell_group_id_and_location_tuples);
         }
 
-        let mut detection_locations_per_cell_group_type_per_location_per_cell_group_id: HashMap<TCellGroupIdentifier, HashMap<(i32, i32), HashMap<TCellGroupType, HashSet<(i32, i32)>>>> = HashMap::new();
+        let mut detection_locations_per_cell_group_type_per_location_per_cell_group_id: BTreeMap<TCellGroupIdentifier, BTreeMap<(i32, i32), BTreeMap<TCellGroupType, BTreeSet<(i32, i32)>>>> = BTreeMap::new();
 
         {
             // iterate over every location each cell group could exist at for each cell group type it may encounter in a dependency
 
             for (cell_group_id, cell_group_location_dependencies) in cell_group_location_dependencies_per_cell_group_id.iter() {
-                detection_locations_per_cell_group_type_per_location_per_cell_group_id.insert(cell_group_id.clone(), HashMap::new());
+                detection_locations_per_cell_group_type_per_location_per_cell_group_id.insert(cell_group_id.clone(), BTreeMap::new());
                 for cell_group_location_dependency in cell_group_location_dependencies {
                     if !detection_locations_per_cell_group_type_per_location_per_cell_group_id.get(&cell_group_location_dependency.cell_group_id).unwrap().contains_key(&cell_group_location_dependency.location) {
-                        detection_locations_per_cell_group_type_per_location_per_cell_group_id.get_mut(&cell_group_location_dependency.cell_group_id).unwrap().insert(cell_group_location_dependency.location.clone(), HashMap::new());
+                        detection_locations_per_cell_group_type_per_location_per_cell_group_id.get_mut(&cell_group_location_dependency.cell_group_id).unwrap().insert(cell_group_location_dependency.location.clone(), BTreeMap::new());
                     }
                     for dependent_cell_group_location_collection_id in cell_group_location_dependency.cell_group_location_collections.iter() {
                         for cell_group_id in cell_group_location_collection_per_cell_group_location_collection_id.get(dependent_cell_group_location_collection_id).unwrap().location_per_cell_group_id.keys() {
                             let dependent_cell_group = cell_group_collection.get_cell_group_per_cell_group_id().get(cell_group_id).unwrap();
                             if !detection_locations_per_cell_group_type_per_location_per_cell_group_id.get(&cell_group_location_dependency.cell_group_id).unwrap().get(&cell_group_location_dependency.location).unwrap().contains_key(&dependent_cell_group.cell_group_type) {
-                                let mut detection_locations: HashSet<(i32, i32)> = HashSet::new();
+                                let mut detection_locations: BTreeSet<(i32, i32)> = BTreeSet::new();
 
                                 // calculate detection locations for this location and cell group type
                                 if cell_group_collection.get_detection_cells_per_cell_group_type_per_cell_group_id().contains_key(&cell_group_location_dependency.cell_group_id) &&
@@ -164,6 +162,7 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
     }
     /// This function will determine which permitted locations for this cell group are actually possible while iterating over all possible locations for the known dependent cell group
     /// Returns true if at least one cell group location dependency was removed from at least one of the known dependent cell group location dependencies
+    #[time_graph::instrument]
     fn try_reduce_cell_group_location_dependency_for_cell_group(&mut self, cell_group_id: &TCellGroupIdentifier) -> bool {
 
         let mut is_at_least_one_reduction_performed: bool = false;
@@ -183,6 +182,7 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
         while cell_group_location_dependencies_index < cell_group_location_dependencies.len() {
 
             let cell_group_location_dependency_location = &cell_group_location_dependencies[cell_group_location_dependencies_index].location;
+            let cell_group_id_and_location_tuple = &(cell_group_id.clone(), cell_group_location_dependency_location.clone());
 
             // load cached overlap locations
             let overlap_locations = overlap_locations_per_location.get(cell_group_location_dependency_location).unwrap();
@@ -236,19 +236,54 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
 
                         let invalid_cell_group_id_and_location_tuple = &(located_cell_group_id.clone(), location.clone());
 
-                        let mut checking_cell_group_location_dependency_cell_group_location_collections_index = cell_group_location_dependencies[cell_group_location_dependencies_index].cell_group_location_collections.len() - 1;
-                        while checking_cell_group_location_dependency_cell_group_location_collections_index > cell_group_location_dependency_cell_group_location_collections_index {
+                        // NOTE performing these checks in future cell group location collections actually makes the algorithm less efficient
+                        if false
+                        {
+                            let mut checking_cell_group_location_dependency_cell_group_location_collections_index = cell_group_location_dependencies[cell_group_location_dependencies_index].cell_group_location_collections.len() - 1;
+                            while checking_cell_group_location_dependency_cell_group_location_collections_index > cell_group_location_dependency_cell_group_location_collections_index {
 
-                            // check if this cell group location collection contains the same bad pair of cell group ID and location
+                                // check if this cell group location collection contains the same bad pair of cell group ID and location
 
-                            let checking_cell_group_location_collection_id = &cell_group_location_dependencies[cell_group_location_dependencies_index].cell_group_location_collections[checking_cell_group_location_dependency_cell_group_location_collections_index];
-                            let checking_cell_group_id_and_location_tuples = self.cell_group_id_and_location_tuples_per_cell_group_location_collection_id.get(checking_cell_group_location_collection_id).unwrap();
-                            if checking_cell_group_id_and_location_tuples.contains(invalid_cell_group_id_and_location_tuple) {
-                                // if it does, remove it from this dependency
-                                cell_group_location_dependencies[cell_group_location_dependencies_index].cell_group_location_collections.remove(checking_cell_group_location_dependency_cell_group_location_collections_index);
+                                let checking_cell_group_location_collection_id = &cell_group_location_dependencies[cell_group_location_dependencies_index].cell_group_location_collections[checking_cell_group_location_dependency_cell_group_location_collections_index];
+                                let checking_cell_group_id_and_location_tuples = self.cell_group_id_and_location_tuples_per_cell_group_location_collection_id.get(checking_cell_group_location_collection_id).unwrap();
+                                if checking_cell_group_id_and_location_tuples.contains(invalid_cell_group_id_and_location_tuple) {
+                                    // if it does, remove it from this dependency
+                                    cell_group_location_dependencies[cell_group_location_dependencies_index].cell_group_location_collections.remove(checking_cell_group_location_dependency_cell_group_location_collections_index);
+                                }
+
+                                checking_cell_group_location_dependency_cell_group_location_collections_index -= 1;
                             }
+                        }
 
-                            checking_cell_group_location_dependency_cell_group_location_collections_index -= 1;
+                        // go through the future cell group location dependencies and perform the same search
+
+                        // NOTE performing these checks in future cell group location collections actually makes the algorithm less efficient
+                        if false
+                        {
+                            let mut checking_cell_group_location_dependency_index = cell_group_location_dependencies.len() - 1;
+                            while checking_cell_group_location_dependency_index > cell_group_location_dependencies_index {
+
+                                let mut checking_cell_group_location_dependency_cell_group_location_collections_index = cell_group_location_dependencies[checking_cell_group_location_dependency_index].cell_group_location_collections.len() - 1;
+                                while checking_cell_group_location_dependency_cell_group_location_collections_index > cell_group_location_dependency_cell_group_location_collections_index {
+
+                                    // check if this cell group location collection contains the same bad pair of cell group ID and location
+
+                                    let checking_cell_group_location_collection_id = &cell_group_location_dependencies[checking_cell_group_location_dependency_index].cell_group_location_collections[checking_cell_group_location_dependency_cell_group_location_collections_index];
+                                    let checking_cell_group_id_and_location_tuples = self.cell_group_id_and_location_tuples_per_cell_group_location_collection_id.get(checking_cell_group_location_collection_id).unwrap();
+                                    if checking_cell_group_id_and_location_tuples.contains(invalid_cell_group_id_and_location_tuple) && checking_cell_group_id_and_location_tuples.contains(cell_group_id_and_location_tuple) {
+                                        // if it does, remove it from this dependency
+                                        cell_group_location_dependencies[checking_cell_group_location_dependency_index].cell_group_location_collections.remove(checking_cell_group_location_dependency_cell_group_location_collections_index);
+                                    }
+
+                                    checking_cell_group_location_dependency_cell_group_location_collections_index -= 1;
+                                }
+
+                                if cell_group_location_dependencies[checking_cell_group_location_dependency_index].cell_group_location_collections.len() == 0 {
+                                    cell_group_location_dependencies.remove(checking_cell_group_location_dependency_index);
+                                }
+
+                                checking_cell_group_location_dependency_index -= 1;
+                            }
                         }
                     }
                 }
@@ -275,11 +310,13 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
 
         is_at_least_one_reduction_performed
     }
+    #[time_graph::instrument]
     pub fn get_validated_cell_group_location_dependencies(&mut self) -> Vec<CellGroupLocationDependency<TCellGroupIdentifier, TCellGroupLocationCollectionIdentifier>> {
 
         // cache cell group IDs
         let cell_group_ids: Vec<TCellGroupIdentifier> = self.cell_group_collection.cell_group_per_cell_group_id.keys().cloned().collect();
 
+        let mut iterations_total = 0;
         let mut is_at_least_one_cell_group_location_dependency_reduced = true;
         while is_at_least_one_cell_group_location_dependency_reduced {
             is_at_least_one_cell_group_location_dependency_reduced = false;
@@ -295,7 +332,10 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
                     }
                 }
             }
+
+            iterations_total += 1;
         }
+        //println!("iterations_total: {}", iterations_total);
 
         // at this point the existing dependent cell group location collection sets per cell group location collection are the only valid combinations
 
@@ -306,6 +346,7 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
         }
         validated_cell_group_location_dependencies
     }
+    #[time_graph::instrument]
     pub fn filter_invalid_cell_group_location_collections(cell_group_collection: CellGroupCollection<TCellGroupIdentifier, TCellGroupType>, cell_group_location_collections: Vec<CellGroupLocationCollection<TCellGroupLocationCollectionIdentifier, TCellGroupIdentifier>>) -> Vec<CellGroupLocationCollection<TCellGroupLocationCollectionIdentifier, TCellGroupIdentifier>> {
 
         // construct the necessary data structures to test this cell group location collection as if each individual cell group can be located where it is defined in the cell group location collection
@@ -315,10 +356,10 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
         for (cell_group_location_collection_index, cell_group_location_collection) in cell_group_location_collections.into_iter().enumerate() {
             let mut inner_cell_group_location_collections: Vec<CellGroupLocationCollection<String, TCellGroupIdentifier>> = Vec::new();
             let mut inner_cell_group_location_dependencies: Vec<CellGroupLocationDependency<TCellGroupIdentifier, String>> = Vec::new();
-            let mut inner_cell_group_location_ids: HashSet<String> = HashSet::new();
+            let mut inner_cell_group_location_ids: BTreeSet<String> = BTreeSet::new();
             for (cell_group_index, (cell_group_id, location)) in cell_group_location_collection.location_per_cell_group_id.iter().enumerate() {
 
-                let mut location_per_cell_group_id: HashMap<TCellGroupIdentifier, (i32, i32)> = HashMap::new();
+                let mut location_per_cell_group_id: BTreeMap<TCellGroupIdentifier, (i32, i32)> = BTreeMap::new();
                 for (other_cell_group_index, (other_cell_group_id, other_location)) in cell_group_location_collection.location_per_cell_group_id.iter().enumerate() {
                     if other_cell_group_index != cell_group_index {
                         location_per_cell_group_id.insert(other_cell_group_id.clone(), other_location.clone());
@@ -355,21 +396,21 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
 
 #[derive(Clone, Debug)]
 pub struct CellGroupCollection<TCellGroupIdentifier, TCellGroupType> {
-    cell_group_per_cell_group_id: HashMap<TCellGroupIdentifier, CellGroup<TCellGroupIdentifier, TCellGroupType>>,
-    detection_cells_per_cell_group_type_per_cell_group_id: HashMap<TCellGroupIdentifier, HashMap<TCellGroupType, Vec<(i32, i32)>>>,
-    adjacent_cell_group_ids_per_cell_group_id: HashMap<TCellGroupIdentifier, HashSet<TCellGroupIdentifier>>
+    cell_group_per_cell_group_id: BTreeMap<TCellGroupIdentifier, CellGroup<TCellGroupIdentifier, TCellGroupType>>,
+    detection_cells_per_cell_group_type_per_cell_group_id: BTreeMap<TCellGroupIdentifier, BTreeMap<TCellGroupType, Vec<(i32, i32)>>>,
+    adjacent_cell_group_ids_per_cell_group_id: BTreeMap<TCellGroupIdentifier, BTreeSet<TCellGroupIdentifier>>
 }
 
-impl<TCellGroupIdentifier: Hash + Eq + std::fmt::Debug + Clone, TCellGroupType: Hash + Eq + std::fmt::Debug + Clone> CellGroupCollection<TCellGroupIdentifier, TCellGroupType> {
+impl<TCellGroupIdentifier: Hash + Eq + std::fmt::Debug + Clone + Ord, TCellGroupType: Hash + Eq + std::fmt::Debug + Clone + Ord> CellGroupCollection<TCellGroupIdentifier, TCellGroupType> {
     pub fn new(
         cell_groups: Vec<CellGroup<TCellGroupIdentifier, TCellGroupType>>,
-        detection_offsets_per_cell_group_type_pair: HashMap<(TCellGroupType, TCellGroupType), Vec<(i32, i32)>>,
+        detection_offsets_per_cell_group_type_pair: BTreeMap<(TCellGroupType, TCellGroupType), Vec<(i32, i32)>>,
         adjacent_cell_group_id_pairs: Vec<(TCellGroupIdentifier, TCellGroupIdentifier)>
     ) -> Self {
 
-        // create cell group lookup hashmap
+        // create cell group lookup BTreeMap
 
-        let mut cell_group_per_cell_group_id: HashMap<TCellGroupIdentifier, CellGroup<TCellGroupIdentifier, TCellGroupType>> = HashMap::new();
+        let mut cell_group_per_cell_group_id: BTreeMap<TCellGroupIdentifier, CellGroup<TCellGroupIdentifier, TCellGroupType>> = BTreeMap::new();
 
         {
             for cell_group in cell_groups.into_iter() {
@@ -377,24 +418,24 @@ impl<TCellGroupIdentifier: Hash + Eq + std::fmt::Debug + Clone, TCellGroupType: 
             }
         }
 
-        // construct adjacent cell group cache nested hashmap
+        // construct adjacent cell group cache nested BTreeMap
 
-        let mut adjacent_cell_group_ids_per_cell_group_id: HashMap<TCellGroupIdentifier, HashSet<TCellGroupIdentifier>> = HashMap::new();
+        let mut adjacent_cell_group_ids_per_cell_group_id: BTreeMap<TCellGroupIdentifier, BTreeSet<TCellGroupIdentifier>> = BTreeMap::new();
 
         {
             for adjacent_cell_group_id_pair in adjacent_cell_group_id_pairs.iter() {
                 for (from_cell_group_id, to_cell_group_id) in [(adjacent_cell_group_id_pair.0.clone(), adjacent_cell_group_id_pair.1.clone()), (adjacent_cell_group_id_pair.1.clone(), adjacent_cell_group_id_pair.0.clone())] {
                     if !adjacent_cell_group_ids_per_cell_group_id.contains_key(&from_cell_group_id) {
-                        adjacent_cell_group_ids_per_cell_group_id.insert(from_cell_group_id.clone(), HashSet::new());
+                        adjacent_cell_group_ids_per_cell_group_id.insert(from_cell_group_id.clone(), BTreeSet::new());
                     }
                     adjacent_cell_group_ids_per_cell_group_id.get_mut(&from_cell_group_id).unwrap().insert(to_cell_group_id);
                 }
             }
 
-            // create an empty hashset for any cell groups that do not have an adjacency dependency
+            // create an empty BTreeSet for any cell groups that do not have an adjacency dependency
             for cell_group_id in cell_group_per_cell_group_id.keys() {
                 if !adjacent_cell_group_ids_per_cell_group_id.contains_key(cell_group_id) {
-                    adjacent_cell_group_ids_per_cell_group_id.insert(cell_group_id.clone(), HashSet::new());
+                    adjacent_cell_group_ids_per_cell_group_id.insert(cell_group_id.clone(), BTreeSet::new());
                 }
             }
         }
@@ -402,17 +443,17 @@ impl<TCellGroupIdentifier: Hash + Eq + std::fmt::Debug + Clone, TCellGroupType: 
         // construct detection cell groups from provided cell groups
 
         // construct detection cell cache
-        let mut detection_cells_per_cell_group_type_per_cell_group_id: HashMap<TCellGroupIdentifier, HashMap<TCellGroupType, Vec<(i32, i32)>>> = HashMap::new();
+        let mut detection_cells_per_cell_group_type_per_cell_group_id: BTreeMap<TCellGroupIdentifier, BTreeMap<TCellGroupType, Vec<(i32, i32)>>> = BTreeMap::new();
 
         {
-            // construct detection cache nested hashmap
-            let mut detection_offsets_per_cell_group_type_per_cell_group_type: HashMap<TCellGroupType, HashMap<TCellGroupType, Vec<(i32, i32)>>> = HashMap::new();
+            // construct detection cache nested BTreeMap
+            let mut detection_offsets_per_cell_group_type_per_cell_group_type: BTreeMap<TCellGroupType, BTreeMap<TCellGroupType, Vec<(i32, i32)>>> = BTreeMap::new();
 
             {
                 for (cell_group_type_pair, detection_offsets) in detection_offsets_per_cell_group_type_pair.iter() {
                     for (from_cell_group_type, to_cell_group_type) in [(&cell_group_type_pair.0, &cell_group_type_pair.1), (&cell_group_type_pair.1, &cell_group_type_pair.0)] {
                         if !detection_offsets_per_cell_group_type_per_cell_group_type.contains_key(from_cell_group_type) {
-                            detection_offsets_per_cell_group_type_per_cell_group_type.insert(from_cell_group_type.clone(), HashMap::new());
+                            detection_offsets_per_cell_group_type_per_cell_group_type.insert(from_cell_group_type.clone(), BTreeMap::new());
                         }
                         if detection_offsets_per_cell_group_type_per_cell_group_type.get(from_cell_group_type).unwrap().contains_key(to_cell_group_type) {
                             panic!("Found duplicate detection offset cell group type pair ({:?}, {:?})", from_cell_group_type, to_cell_group_type);
@@ -434,7 +475,7 @@ impl<TCellGroupIdentifier: Hash + Eq + std::fmt::Debug + Clone, TCellGroupType: 
                         let mut detection_cells: Vec<(i32, i32)> = Vec::new();
 
                         {
-                            let mut traveled_cells: HashSet<(i32, i32)> = HashSet::new();
+                            let mut traveled_cells: BTreeSet<(i32, i32)> = BTreeSet::new();
                             for cell in cell_group.cells.iter() {
                                 if !traveled_cells.contains(cell) {
                                     traveled_cells.insert(cell.to_owned());
@@ -451,7 +492,7 @@ impl<TCellGroupIdentifier: Hash + Eq + std::fmt::Debug + Clone, TCellGroupType: 
                         }
 
                         if !detection_cells_per_cell_group_type_per_cell_group_id.contains_key(&cell_group.id) {
-                            detection_cells_per_cell_group_type_per_cell_group_id.insert(cell_group.id.clone(), HashMap::new());
+                            detection_cells_per_cell_group_type_per_cell_group_id.insert(cell_group.id.clone(), BTreeMap::new());
                         }
                         if detection_cells_per_cell_group_type_per_cell_group_id.get(&cell_group.id).unwrap().contains_key(cell_group_type) {
                             panic!("Unexpected duplicate cell group type {:?} for detection cells of cell group {:?}.", cell_group_type, cell_group.id);
@@ -468,13 +509,13 @@ impl<TCellGroupIdentifier: Hash + Eq + std::fmt::Debug + Clone, TCellGroupType: 
             adjacent_cell_group_ids_per_cell_group_id: adjacent_cell_group_ids_per_cell_group_id
         }
     }
-    fn get_cell_group_per_cell_group_id(&self) -> &HashMap<TCellGroupIdentifier, CellGroup<TCellGroupIdentifier, TCellGroupType>> {
+    fn get_cell_group_per_cell_group_id(&self) -> &BTreeMap<TCellGroupIdentifier, CellGroup<TCellGroupIdentifier, TCellGroupType>> {
         &self.cell_group_per_cell_group_id
     }
-    fn get_adjacent_cell_group_ids_per_cell_group_id(&self) -> &HashMap<TCellGroupIdentifier, HashSet<TCellGroupIdentifier>> {
+    fn get_adjacent_cell_group_ids_per_cell_group_id(&self) -> &BTreeMap<TCellGroupIdentifier, BTreeSet<TCellGroupIdentifier>> {
         &self.adjacent_cell_group_ids_per_cell_group_id
     }
-    fn get_detection_cells_per_cell_group_type_per_cell_group_id(&self) -> &HashMap<TCellGroupIdentifier, HashMap<TCellGroupType, Vec<(i32, i32)>>> {
+    fn get_detection_cells_per_cell_group_type_per_cell_group_id(&self) -> &BTreeMap<TCellGroupIdentifier, BTreeMap<TCellGroupType, Vec<(i32, i32)>>> {
         &self.detection_cells_per_cell_group_type_per_cell_group_id
     }
 }
@@ -496,11 +537,11 @@ mod cell_group_manager_tests {
     fn initialize_cell_group_collection() {
         init();
 
-        #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+        #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
         enum CellGroupType {}
 
         let cell_groups: Vec<CellGroup<String, CellGroupType>> = Vec::new();
-        let detection_offsets_per_cell_group_type_pair: HashMap<(CellGroupType, CellGroupType), Vec<(i32, i32)>> = HashMap::new();
+        let detection_offsets_per_cell_group_type_pair: BTreeMap<(CellGroupType, CellGroupType), Vec<(i32, i32)>> = BTreeMap::new();
         let adjacent_cell_group_id_pairs: Vec<(String, String)> = Vec::new();
         let _ = CellGroupCollection::new(cell_groups, detection_offsets_per_cell_group_type_pair, adjacent_cell_group_id_pairs);
     }
@@ -508,13 +549,13 @@ mod cell_group_manager_tests {
     #[rstest]
     fn one_cell_group_initialized() {
 
-        #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+        #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
         enum CellGroupType {
             Main
         }
 
         let mut cell_groups: Vec<CellGroup<String, CellGroupType>> = Vec::new();
-        let detection_offsets_per_cell_group_type_pair: HashMap<(CellGroupType, CellGroupType), Vec<(i32, i32)>> = HashMap::new();
+        let detection_offsets_per_cell_group_type_pair: BTreeMap<(CellGroupType, CellGroupType), Vec<(i32, i32)>> = BTreeMap::new();
         let adjacent_cell_group_id_pairs: Vec<(String, String)> = Vec::new();
 
         cell_groups.push(CellGroup {
@@ -530,13 +571,13 @@ mod cell_group_manager_tests {
     #[should_panic]
     fn one_cell_group_zero_dependencies_initialized() {
 
-        #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+        #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
         enum CellGroupType {
             Main
         }
 
         let mut cell_groups: Vec<CellGroup<String, CellGroupType>> = Vec::new();
-        let detection_offsets_per_cell_group_type_pair: HashMap<(CellGroupType, CellGroupType), Vec<(i32, i32)>> = HashMap::new();
+        let detection_offsets_per_cell_group_type_pair: BTreeMap<(CellGroupType, CellGroupType), Vec<(i32, i32)>> = BTreeMap::new();
         let adjacent_cell_group_id_pairs: Vec<(String, String)> = Vec::new();
 
         cell_groups.push(CellGroup {
@@ -556,13 +597,13 @@ mod cell_group_manager_tests {
     #[rstest]
     fn one_cell_group_one_dependency_validated() {
 
-        #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+        #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
         enum CellGroupType {
             Main
         }
 
         let mut cell_groups: Vec<CellGroup<String, CellGroupType>> = Vec::new();
-        let detection_offsets_per_cell_group_type_pair: HashMap<(CellGroupType, CellGroupType), Vec<(i32, i32)>> = HashMap::new();
+        let detection_offsets_per_cell_group_type_pair: BTreeMap<(CellGroupType, CellGroupType), Vec<(i32, i32)>> = BTreeMap::new();
         let adjacent_cell_group_id_pairs: Vec<(String, String)> = Vec::new();
 
         cell_groups.push(CellGroup {
@@ -597,13 +638,15 @@ mod cell_group_manager_tests {
     #[rstest]
     fn two_cell_groups_two_dependencies_validated() {
 
-        #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+        time_graph::enable_data_collection(true);
+
+        #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
         enum CellGroupType {
             Main
         }
 
         let mut cell_groups: Vec<CellGroup<String, CellGroupType>> = Vec::new();
-        let detection_offsets_per_cell_group_type_pair: HashMap<(CellGroupType, CellGroupType), Vec<(i32, i32)>> = HashMap::new();
+        let detection_offsets_per_cell_group_type_pair: BTreeMap<(CellGroupType, CellGroupType), Vec<(i32, i32)>> = BTreeMap::new();
         let adjacent_cell_group_id_pairs: Vec<(String, String)> = Vec::new();
 
         let cell_groups_total = 4;
@@ -664,7 +707,7 @@ mod cell_group_manager_tests {
             // construct index incrementer for looping over locations per cell group
     
             let mut location_totals: Vec<usize> = Vec::new();
-            let mut cell_group_locations_per_cell_group_index: HashMap<usize, Vec<(i32, i32)>> = HashMap::new();
+            let mut cell_group_locations_per_cell_group_index: BTreeMap<usize, Vec<(i32, i32)>> = BTreeMap::new();
             for cell_group_index in 0..cell_groups_total {
                 let cell_group_size = cell_group_index + 1;
                 let mut locations: Vec<(i32, i32)> = Vec::new();
@@ -681,7 +724,7 @@ mod cell_group_manager_tests {
 
             println!("cell_group_locations_per_cell_group_index: {:?}", cell_group_locations_per_cell_group_index);
 
-            let mut unfiltered_cell_group_location_collection_ids_per_cell_group_index: HashMap<usize, Vec<String>> = HashMap::new();
+            let mut unfiltered_cell_group_location_collection_ids_per_cell_group_index: BTreeMap<usize, Vec<String>> = BTreeMap::new();
             let mut unfiltered_cell_group_location_collections: Vec<CellGroupLocationCollection<String, String>> = Vec::new();
 
             for excluded_cell_group_index in 0..cell_groups_total {
@@ -699,7 +742,7 @@ mod cell_group_manager_tests {
                     let location_indexes = index_incrementer.get();
                     //println!("cell group {} location_indexes: {:?}", excluded_cell_group_index, location_indexes);
         
-                    let mut location_per_cell_group_id: HashMap<String, (i32, i32)> = HashMap::new();
+                    let mut location_per_cell_group_id: BTreeMap<String, (i32, i32)> = BTreeMap::new();
         
                     for (location_index_index, location_index) in location_indexes.iter().enumerate() {
                         let cell_group_index: usize;
@@ -737,10 +780,10 @@ mod cell_group_manager_tests {
 
             println!("filter time: {:?}", filter_start_time.elapsed());
 
-            let mut filtered_cell_group_location_collection_ids_per_cell_group_index: HashMap<usize, Vec<String>> = HashMap::new();
+            let mut filtered_cell_group_location_collection_ids_per_cell_group_index: BTreeMap<usize, Vec<String>> = BTreeMap::new();
 
             {
-                let mut filtered_cell_group_location_collection_ids: HashSet<&String> = HashSet::new();
+                let mut filtered_cell_group_location_collection_ids: BTreeSet<&String> = BTreeSet::new();
                 for filtered_cell_group_location_collection in filtered_cell_group_location_collections.iter() {
                     filtered_cell_group_location_collection_ids.insert(&filtered_cell_group_location_collection.id);
                 }
@@ -775,15 +818,18 @@ mod cell_group_manager_tests {
             }
         }
 
+        println!("validating {} dependencies...", cell_group_location_dependencies.len());
+
         let mut cell_group_dependency_manager = CellGroupDependencyManager::new(cell_group_collection, cell_group_location_collections.clone(), cell_group_location_dependencies);
 
-        println!("validating...");
         let validating_start_time = Instant::now();
 
         let validated_cell_group_location_dependencies = cell_group_dependency_manager.get_validated_cell_group_location_dependencies();
 
         println!("validation time: {:?}", validating_start_time.elapsed());
         println!("validated: {:?}", validated_cell_group_location_dependencies);
+
+        println!("{}", time_graph::get_full_graph().as_dot());
 
         // all of the expected locations each cell group can exist at
         let expected_dependencies_total: usize = match cell_groups_total {
@@ -798,7 +844,7 @@ mod cell_group_manager_tests {
 
         // https://en.wikipedia.org/wiki/Square_pyramidal_number
         let cells_total: usize = (cell_groups_total * (cell_groups_total + 1) * (2 * cell_groups_total + 1)) / 6;
-        let mut permutations: HashSet<Vec<Vec<&str>>> = HashSet::new();
+        let mut permutations: BTreeSet<Vec<Vec<&str>>> = BTreeSet::new();
 
         for validated_cell_group_location_dependency in validated_cell_group_location_dependencies.iter() {
             let mut pixels: Vec<Vec<bool>> = Vec::new();
@@ -892,7 +938,7 @@ mod cell_group_manager_tests {
     #[rstest]
     fn simple_level_example() {
 
-        #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+        #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
         enum CellGroupType {
             Wall,
             WallAdjacent,
@@ -900,7 +946,7 @@ mod cell_group_manager_tests {
         }
 
         let cell_groups: Vec<CellGroup<String, CellGroupType>> = Vec::new();
-        let detection_offsets_per_cell_group_type_pair: HashMap<(CellGroupType, CellGroupType), Vec<(i32, i32)>> = HashMap::new();
+        let detection_offsets_per_cell_group_type_pair: BTreeMap<(CellGroupType, CellGroupType), Vec<(i32, i32)>> = BTreeMap::new();
         let adjacent_cell_group_id_pairs: Vec<(String, String)> = Vec::new();
 
         let cell_group_collection = CellGroupCollection::new(cell_groups, detection_offsets_per_cell_group_type_pair, adjacent_cell_group_id_pairs);

@@ -18,3 +18,5 @@ rstest = { version = "0.16.0" }
 uuid = { version = "1.2.2", features = ["v4"] }
 log = { version = "0.4.17" }
 pretty_env_logger = { version = "0.4.0" }
+nohash-hasher = { version = "0.2.0" }
+time-graph = { version = "0.1.3" }
