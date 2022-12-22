@@ -166,6 +166,8 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
     /// Returns true if at least one cell group location dependency was removed from at least one of the known dependent cell group location dependencies
     fn try_reduce_cell_group_location_dependency_for_cell_group(&mut self, cell_group_id: &TCellGroupIdentifier) -> bool {
 
+        let mut is_at_least_one_reduction_performed: bool = false;
+
         // load cached overlap locations per location
         let overlap_locations_per_location = self.overlap_locations_per_location_per_cell_group_id.get(cell_group_id).unwrap();
 
@@ -175,29 +177,29 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
         // load expected adjacent cell group IDs
         let expected_adjacent_cell_group_ids = self.cell_group_collection.get_adjacent_cell_group_ids_per_cell_group_id().get(cell_group_id).unwrap();
 
-        // collect invalid pairs of cell groups for when being at their respective locations never produces a valid combination
-        let mut invalid_cell_group_id_and_location_tuples_per_location: HashMap<(i32, i32), Vec<(TCellGroupIdentifier, (i32, i32))>> = HashMap::new();
+        let cell_group_location_dependencies = self.cell_group_location_dependencies_per_cell_group_id.get_mut(cell_group_id).unwrap();
+        let mut cell_group_location_dependencies_index: usize = 0;
 
-        // collect the cell group location dependencies that fully invalidate their cell group location collections (since that would mean there is no valid state for this dependency)
-        let mut invalid_cell_group_location_dependency_indexes: Vec<usize> = Vec::new();
+        while cell_group_location_dependencies_index < cell_group_location_dependencies.len() {
 
-        for (cell_group_location_dependency_index, cell_group_location_dependency) in self.cell_group_location_dependencies_per_cell_group_id.get(cell_group_id).unwrap().iter().enumerate() {
+            let cell_group_location_dependency_location = &cell_group_location_dependencies[cell_group_location_dependencies_index].location;
 
             // load cached overlap locations
-            let overlap_locations = overlap_locations_per_location.get(&cell_group_location_dependency.location).unwrap();
+            let overlap_locations = overlap_locations_per_location.get(cell_group_location_dependency_location).unwrap();
 
             // load cached detection locations per cell group type
-            let detection_locations_per_cell_group_type = detection_locations_per_cell_group_type_per_location.get(&cell_group_location_dependency.location).unwrap();
+            let detection_locations_per_cell_group_type = detection_locations_per_cell_group_type_per_location.get(cell_group_location_dependency_location).unwrap();
 
             // if no cell group location collections are possible at this location, then this entire cell group location dependency is invalid (as opposed to the cell group location collections being invalid)
-            let mut is_at_least_one_cell_group_location_collection_possible: bool = cell_group_location_dependency.cell_group_location_collections.is_empty();  // do not get rid of this dependency if there are no actual dependencies
+            let mut is_at_least_one_cell_group_location_collection_possible: bool = cell_group_location_dependencies[cell_group_location_dependencies_index].cell_group_location_collections.is_empty();  // do not get rid of this dependency if there are no actual dependencies
 
-            for cell_group_location_collection_id in cell_group_location_dependency.cell_group_location_collections.iter() {
+            let mut cell_group_location_dependency_cell_group_location_collections_index: usize = 0;
+            while cell_group_location_dependency_cell_group_location_collections_index < cell_group_location_dependencies[cell_group_location_dependencies_index].cell_group_location_collections.len() {
 
                 // assume that the cell group location collection is valid until at least one cell group is found to be invalid
                 let mut is_valid_cell_group_location_collection: bool = true;
 
-                for ((located_cell_group_id, located_cell_group_type, location), located_cells) in self.located_cells_per_cell_group_id_and_cell_group_type_and_location_tuple_per_cell_group_location_collection_id.get(cell_group_location_collection_id).unwrap().iter() {
+                for ((located_cell_group_id, located_cell_group_type, location), located_cells) in self.located_cells_per_cell_group_id_and_cell_group_type_and_location_tuple_per_cell_group_location_collection_id.get(&cell_group_location_dependencies[cell_group_location_dependencies_index].cell_group_location_collections[cell_group_location_dependency_cell_group_location_collections_index]).unwrap().iter() {
                     
                     //println!("checking {:?} at {:?} against {:?}", cell_group_id, cell_group_location_dependency.location, (located_cell_group_id, located_cell_group_type, location, located_cells));
                     let is_adjacency_expected = expected_adjacent_cell_group_ids.contains(located_cell_group_id);
@@ -230,66 +232,44 @@ impl<TCellGroupLocationCollectionIdentifier: Hash + Eq + std::fmt::Debug + Clone
                     if !is_valid_cell_group {
                         is_valid_cell_group_location_collection = false;
                         
-                        // store that this cell group at this location is invalid for the current cell group at its location
-                        if !invalid_cell_group_id_and_location_tuples_per_location.contains_key(&cell_group_location_dependency.location) {
-                            invalid_cell_group_id_and_location_tuples_per_location.insert(cell_group_location_dependency.location, Vec::new());
-                        }
-                        //println!("found invalid cell group ID {:?} at location {:?}", located_cell_group_id, location);
-                        invalid_cell_group_id_and_location_tuples_per_location.get_mut(&cell_group_location_dependency.location).unwrap().push((located_cell_group_id.clone(), location.clone()));
+                        // TODO allow for a boolean condition that would stop it from checking ahead, only removing the cell group location collections as they are discovered
 
-                        // not breaking here for two reasons:
-                        //  there is already cached data used for each loop
-                        //  this logic may find more than one pair of cell group and location issues (instead of having to iterate over the same dependency again)
-                        // TODO allow for a boolean condition for either removing all invalid cell group and location pairs upon finding them versus waiting until after searching all dependencies (as is done currently)
+                        let invalid_cell_group_id_and_location_tuple = &(located_cell_group_id.clone(), location.clone());
+
+                        let mut checking_cell_group_location_dependency_cell_group_location_collections_index = cell_group_location_dependencies[cell_group_location_dependencies_index].cell_group_location_collections.len() - 1;
+                        while checking_cell_group_location_dependency_cell_group_location_collections_index > cell_group_location_dependency_cell_group_location_collections_index {
+
+                            // check if this cell group location collection contains the same bad pair of cell group ID and location
+
+                            let checking_cell_group_location_collection_id = &cell_group_location_dependencies[cell_group_location_dependencies_index].cell_group_location_collections[checking_cell_group_location_dependency_cell_group_location_collections_index];
+                            let checking_cell_group_id_and_location_tuples = self.cell_group_id_and_location_tuples_per_cell_group_location_collection_id.get(checking_cell_group_location_collection_id).unwrap();
+                            if checking_cell_group_id_and_location_tuples.contains(invalid_cell_group_id_and_location_tuple) {
+                                // if it does, remove it from this dependency
+                                cell_group_location_dependencies[cell_group_location_dependencies_index].cell_group_location_collections.remove(checking_cell_group_location_dependency_cell_group_location_collections_index);
+                            }
+
+                            checking_cell_group_location_dependency_cell_group_location_collections_index -= 1;
+                        }
                     }
                 }
 
                 if is_valid_cell_group_location_collection {
                     is_at_least_one_cell_group_location_collection_possible = true;
-                    //println!("discovered that at least one cell group location collection is valid");
+                    cell_group_location_dependency_cell_group_location_collections_index += 1;
+                }
+                else {
+                    // remove cell group location collection at this index since it was not valid
+                    cell_group_location_dependencies[cell_group_location_dependencies_index].cell_group_location_collections.remove(cell_group_location_dependency_cell_group_location_collections_index);
+                    is_at_least_one_reduction_performed = true;
                 }
             }
 
-            if !is_at_least_one_cell_group_location_collection_possible {
-                invalid_cell_group_location_dependency_indexes.push(cell_group_location_dependency_index);
-                invalid_cell_group_id_and_location_tuples_per_location.remove(&cell_group_location_dependency.location);
-                //println!("realized that all cell group location collections were invalid, so removing entire dependency {:?}", cell_group_location_dependency_index);
+            if !is_at_least_one_cell_group_location_collection_possible && cell_group_location_dependencies[cell_group_location_dependencies_index].cell_group_location_collections.is_empty() {
+                // TODO remove this dependency since it was not empty before but now has been fully reduced
+                cell_group_location_dependencies.remove(cell_group_location_dependencies_index);
             }
-        }
-
-        let is_at_least_one_reduction_performed: bool = !invalid_cell_group_location_dependency_indexes.is_empty() || !invalid_cell_group_id_and_location_tuples_per_location.is_empty();
-
-        // remove each invalid cell group location dependency since the current cell group at its location fails to satisfy any of the provided cell group location collections in the dependency
-
-        for cell_group_location_dependency_index in invalid_cell_group_location_dependency_indexes.into_iter().rev() {
-            //println!("removing cell group location {:?}", self.cell_group_location_dependencies_per_cell_group_id.get_mut(cell_group_id).unwrap()[cell_group_location_dependency_index]);
-            self.cell_group_location_dependencies_per_cell_group_id.get_mut(cell_group_id).unwrap().remove(cell_group_location_dependency_index);
-        }
-
-        // remove any invalid_cell_group_and_location_tuples_per_location for this cell group since the combinations of the two will always lead to invalid results
-
-        for (cell_group_location, invalid_cell_group_id_and_location_tuples) in invalid_cell_group_id_and_location_tuples_per_location.into_iter() {
-            for cell_group_location_dependency in self.cell_group_location_dependencies_per_cell_group_id.get_mut(cell_group_id).unwrap().iter_mut() {
-                if cell_group_location_dependency.location == cell_group_location {
-                    let mut invalid_cell_group_location_collection_id_indexes: Vec<usize> = Vec::new();
-                    for (cell_group_location_collection_id_index, cell_group_location_collection_id) in cell_group_location_dependency.cell_group_location_collections.iter().enumerate() {
-                        let mut is_cell_group_location_valid: bool = true;
-                        let cell_group_id_and_location_tuples = self.cell_group_id_and_location_tuples_per_cell_group_location_collection_id.get(cell_group_location_collection_id).unwrap();
-                        for invalid_cell_group_id_and_location_tuple in invalid_cell_group_id_and_location_tuples.iter() {
-                            if cell_group_id_and_location_tuples.contains(invalid_cell_group_id_and_location_tuple) {
-                                is_cell_group_location_valid = false;
-                                break;
-                            }
-                        }
-                        if !is_cell_group_location_valid {
-                            invalid_cell_group_location_collection_id_indexes.push(cell_group_location_collection_id_index);
-                        }
-                    }
-                    for invalid_cell_group_location_collection_id_index in invalid_cell_group_location_collection_id_indexes.into_iter().rev() {
-                        //println!("removing cell group location collection {:?} from dependency {:?}", cell_group_location_dependency.cell_group_location_collections[invalid_cell_group_location_collection_id_index], cell_group_location_dependency);
-                        cell_group_location_dependency.cell_group_location_collections.remove(invalid_cell_group_location_collection_id_index);
-                    }
-                }
+            else {
+                cell_group_location_dependencies_index += 1;
             }
         }
 
@@ -627,6 +607,14 @@ mod cell_group_manager_tests {
         let adjacent_cell_group_id_pairs: Vec<(String, String)> = Vec::new();
 
         let cell_groups_total = 4;
+
+        // Stats
+        //  3
+        //      2022-12-21  0.01s
+        //  4
+        //      2022-12-21  0.56s
+        //  5
+        //      2022-12-21  2339.69s
 
         let mut area_width: usize = 0;
         let mut area_height: usize = 0;
