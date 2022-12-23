@@ -12,7 +12,7 @@ pub struct CellGroup {
 /// This struct contains a specific arrangement of cell groups, each location specified per cell group
 #[derive(Clone, Debug)]
 pub struct CellGroupLocationCollection {
-    location_per_cell_group_index: Vec<Option<(i32, i32)>>
+    locations_per_cell_group_index: Vec<Vec<(i32, i32)>>
 }
 
 /// This struct specifies that "this" cell group location has "these" cell group location collections as dependencies such that if being at that location makes all of them invalid, then that location must be invalid
@@ -83,49 +83,60 @@ impl CellGroupDependencyManager for RawCellGroupDependencyManager {
             for cell_group_location_collection_index in cell_group_location_dependency.cell_group_location_collection_indexes.iter() {
                 let cell_group_location_collection = &self.cell_group_location_collections[*cell_group_location_collection_index];
                 let mut is_cell_group_location_collection_valid: bool = true;
-                for (cell_group_location_collection_cell_group_index, location_option) in cell_group_location_collection.location_per_cell_group_index.iter().enumerate() {
-                    if let Some(location) = location_option {
-                        let other_cell_group = &self.cell_groups[cell_group_location_collection_cell_group_index];
 
-                        // check detection cells
-                        let mut detection_cell_group_cell_locations: BTreeSet<(i32, i32)> = BTreeSet::new();
-                        for detection_offset in self.detection_offsets_per_cell_group_type_index_per_cell_group_type_index[cell_group.cell_group_type_index][other_cell_group.cell_group_type_index].iter() {
-                            detection_cell_group_cell_locations.insert((cell_group_location_dependency.location.0 + detection_offset.0, cell_group_location_dependency.location.1 + detection_offset.1));
-                        }
+                let mut index_incrementer = IndexIncrementer::from_vector_of_vector(&cell_group_location_collection.locations_per_cell_group_index);
+                let mut is_index_incrementer_successful = true;
+                while is_index_incrementer_successful {
+                    let location_index_options = index_incrementer.get();
 
-                        let is_adjacency_expected: bool = self.is_adjacent_cell_group_index_per_cell_group_index[cell_group_location_dependency.cell_group_index][cell_group_location_collection_cell_group_index];
-                        let mut is_adjacent: bool = false;
-                        let mut is_other_cell_group_valid = true;
-                        for other_cell in other_cell_group.cells.iter() {
-                            let other_cell_location = (location.0 + other_cell.0, location.1 + other_cell.1);
-                            if detection_cell_group_cell_locations.contains(&other_cell_location) || overlap_cell_group_cell_locations.contains(&other_cell_location) {
-                                is_other_cell_group_valid = false;
-                                break;
+                    for (location_index_options_index_as_cell_group_index, location_index_option) in location_index_options.into_iter().enumerate() {
+                        if let Some(location_index) = location_index_option {
+                            let location = &cell_group_location_collection.locations_per_cell_group_index[location_index_options_index_as_cell_group_index][location_index];
+                            let other_cell_group = &self.cell_groups[location_index_options_index_as_cell_group_index];
+    
+                            // check detection cells
+                            let mut detection_cell_group_cell_locations: BTreeSet<(i32, i32)> = BTreeSet::new();
+                            for detection_offset in self.detection_offsets_per_cell_group_type_index_per_cell_group_type_index[cell_group.cell_group_type_index][other_cell_group.cell_group_type_index].iter() {
+                                detection_cell_group_cell_locations.insert((cell_group_location_dependency.location.0 + detection_offset.0, cell_group_location_dependency.location.1 + detection_offset.1));
                             }
-                            if is_adjacency_expected && !is_adjacent {
-                                for overlap_cell_group_cell_location in overlap_cell_group_cell_locations.iter() {
-                                    let width_distance = (overlap_cell_group_cell_location.0 - other_cell_location.0).abs();
-                                    let height_distance = (overlap_cell_group_cell_location.1 - other_cell_location.1).abs();
-                                    if width_distance == 0 && height_distance == 1 ||
-                                        width_distance == 1 && height_distance == 0 {
-                                        
-                                        is_adjacent = true;
-                                        break;
+    
+                            let is_adjacency_expected: bool = self.is_adjacent_cell_group_index_per_cell_group_index[cell_group_location_dependency.cell_group_index][location_index_options_index_as_cell_group_index];
+                            let mut is_adjacent: bool = false;
+                            let mut is_other_cell_group_valid = true;
+                            for other_cell in other_cell_group.cells.iter() {
+                                let other_cell_location = (location.0 + other_cell.0, location.1 + other_cell.1);
+                                if detection_cell_group_cell_locations.contains(&other_cell_location) || overlap_cell_group_cell_locations.contains(&other_cell_location) {
+                                    is_other_cell_group_valid = false;
+                                    break;
+                                }
+                                if is_adjacency_expected && !is_adjacent {
+                                    for overlap_cell_group_cell_location in overlap_cell_group_cell_locations.iter() {
+                                        let width_distance = (overlap_cell_group_cell_location.0 - other_cell_location.0).abs();
+                                        let height_distance = (overlap_cell_group_cell_location.1 - other_cell_location.1).abs();
+                                        if width_distance == 0 && height_distance == 1 ||
+                                            width_distance == 1 && height_distance == 0 {
+                                            
+                                            is_adjacent = true;
+                                            break;
+                                        }
                                     }
                                 }
                             }
-                        }
-
-                        if is_adjacency_expected && !is_adjacent {
-                            is_other_cell_group_valid = false;
-                        }
-
-                        if !is_other_cell_group_valid {
-                            is_cell_group_location_collection_valid = false;
-                            break;
+    
+                            if is_adjacency_expected && !is_adjacent {
+                                is_other_cell_group_valid = false;
+                            }
+    
+                            if !is_other_cell_group_valid {
+                                is_cell_group_location_collection_valid = false;
+                                break;
+                            }
                         }
                     }
+
+                    is_index_incrementer_successful = index_incrementer.try_increment();
                 }
+                
                 if is_cell_group_location_collection_valid {
                     validated_cell_group_location_collection_indexes.push(cell_group_location_collection_index.clone());
                 }
@@ -155,54 +166,92 @@ impl CellGroupDependencyManager for RawCellGroupDependencyManager {
         let mut validated_cell_group_collection_locations: Vec<CellGroupLocationCollection> = Vec::new();
 
         for (cell_group_location_collection_index, cell_group_location_collection) in cell_group_location_collections.into_iter().enumerate() {
-            let mut inner_cell_group_location_collections: Vec<CellGroupLocationCollection> = Vec::new();
-            let mut inner_cell_group_location_dependencies: Vec<CellGroupLocationDependency> = Vec::new();
-            for (cell_group_index, location_option) in cell_group_location_collection.location_per_cell_group_index.iter().enumerate() {
-                if let Some(location) = location_option {
-                    let mut location_per_cell_group_index: Vec<Option<(i32, i32)>> = Vec::new();
-                    for (other_cell_group_index, other_location_option) in cell_group_location_collection.location_per_cell_group_index.iter().enumerate() {
-                        if other_location_option.is_none() || other_cell_group_index == cell_group_index {
-                            location_per_cell_group_index.push(None);
+
+            // get the expected number of valid results
+            let mut expected_cell_group_location_dependencies_total: usize = 0;
+            for locations in cell_group_location_collection.locations_per_cell_group_index.iter() {
+                if locations.len() != 0 {
+                    expected_cell_group_location_dependencies_total += 1;
+                }
+            }
+            let mut is_at_least_one_location_permutation_possible: bool = false;
+
+            let mut validated_locations_per_cell_group_index: Vec<Vec<(i32, i32)>> = Vec::new();
+            for _ in cell_group_location_collection.locations_per_cell_group_index.iter() {
+                validated_locations_per_cell_group_index.push(Vec::new());
+            }
+
+            let mut index_incrementer = IndexIncrementer::from_vector_of_vector(&cell_group_location_collection.locations_per_cell_group_index);
+            let mut is_index_incrementer_successful: bool = true;
+            while is_index_incrementer_successful {
+
+                let location_index_options = index_incrementer.get();
+
+                let mut inner_cell_group_location_collections: Vec<CellGroupLocationCollection> = Vec::new();
+                let mut inner_cell_group_location_dependencies: Vec<CellGroupLocationDependency> = Vec::new();
+                for (location_index_options_index_as_cell_group_index, location_index_option) in location_index_options.iter().enumerate() {
+                    if let Some(location_index) = location_index_option {
+                        let location = cell_group_location_collection.locations_per_cell_group_index[location_index_options_index_as_cell_group_index][*location_index];
+
+                        let mut locations_per_cell_group_index: Vec<Vec<(i32, i32)>> = Vec::new();
+                        for (other_location_index_options_index_as_cell_group_index, other_location_index_option) in location_index_options.iter().enumerate() {
+                            if other_location_index_option.is_none() || other_location_index_options_index_as_cell_group_index == location_index_options_index_as_cell_group_index {
+                                locations_per_cell_group_index.push(vec![]);
+                            }
+                            else {
+                                let other_location = &cell_group_location_collection.locations_per_cell_group_index[other_location_index_options_index_as_cell_group_index][other_location_index_option.unwrap()];
+                                locations_per_cell_group_index.push(vec![*other_location]);
+                            }
                         }
-                        else {
-                            location_per_cell_group_index.push(Some(other_location_option.unwrap()));
+
+                        let inner_cell_group_location_collection_index: usize = inner_cell_group_location_collections.len();
+                        let inner_cell_group_location_collection = CellGroupLocationCollection {
+                            locations_per_cell_group_index: locations_per_cell_group_index
+                        };
+
+                        inner_cell_group_location_collections.push(inner_cell_group_location_collection);
+
+                        let cell_group_location_dependency = CellGroupLocationDependency {
+                            cell_group_index: location_index_options_index_as_cell_group_index,
+                            location: location,
+                            cell_group_location_collection_indexes: vec![inner_cell_group_location_collection_index]
+                        };
+
+                        inner_cell_group_location_dependencies.push(cell_group_location_dependency);
+                    }
+                }
+
+                let cell_group_dependency_manager = RawCellGroupDependencyManager::new(
+                    cell_groups.clone(),
+                    detection_offsets_per_cell_group_type_index_per_cell_group_type_index.clone(),
+                    is_adjacent_cell_group_index_per_cell_group_index.clone(),
+                    inner_cell_group_location_collections,
+                    inner_cell_group_location_dependencies
+                );
+                let validated_cell_group_dependencies = cell_group_dependency_manager.get_validated_cell_group_location_dependencies();
+
+                if validated_cell_group_dependencies.len() == expected_cell_group_location_dependencies_total {
+
+                    // add the locations into the validated locations object
+
+                    for (location_index_options_index_as_cell_group_index, location_index_option) in location_index_options.into_iter().enumerate() {
+                        if let Some(location_index) = location_index_option {
+                            let location = cell_group_location_collection.locations_per_cell_group_index[location_index_options_index_as_cell_group_index][location_index];
+                            validated_locations_per_cell_group_index[location_index_options_index_as_cell_group_index].push(location);
                         }
                     }
 
-                    let inner_cell_group_location_collection_index: usize = inner_cell_group_location_collections.len();
-                    let inner_cell_group_location_collection = CellGroupLocationCollection {
-                        location_per_cell_group_index: location_per_cell_group_index
-                    };
-
-                    inner_cell_group_location_collections.push(inner_cell_group_location_collection);
-
-                    let cell_group_location_dependency = CellGroupLocationDependency {
-                        cell_group_index: cell_group_index,
-                        location: location.clone(),
-                        cell_group_location_collection_indexes: vec![inner_cell_group_location_collection_index]
-                    };
-
-                    inner_cell_group_location_dependencies.push(cell_group_location_dependency);
+                    // mark this cell group location collection as having at least one valid location set
+                    is_at_least_one_location_permutation_possible = true;
                 }
+
+                is_index_incrementer_successful = index_incrementer.try_increment();
             }
 
-            let cell_group_dependency_manager = RawCellGroupDependencyManager::new(
-                cell_groups.clone(),
-                detection_offsets_per_cell_group_type_index_per_cell_group_type_index.clone(),
-                is_adjacent_cell_group_index_per_cell_group_index.clone(),
-                inner_cell_group_location_collections,
-                inner_cell_group_location_dependencies
-            );
-            let validated_cell_group_dependencies = cell_group_dependency_manager.get_validated_cell_group_location_dependencies();
-
-            let mut valid_location_per_cell_group_index_total: usize = 0;
-            for location_option in cell_group_location_collection.location_per_cell_group_index.iter() {
-                if location_option.is_some() {
-                    valid_location_per_cell_group_index_total += 1;
-                }
-            }
-            if validated_cell_group_dependencies.len() == valid_location_per_cell_group_index_total {
-                validated_cell_group_collection_locations.push(cell_group_location_collection);
+            if is_at_least_one_location_permutation_possible {
+                validated_cell_group_collection_locations.push(CellGroupLocationCollection {
+                    locations_per_cell_group_index: validated_locations_per_cell_group_index
+                });
             }
         }
         

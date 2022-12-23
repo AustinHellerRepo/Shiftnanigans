@@ -1,17 +1,19 @@
 pub struct IndexIncrementer {
     maximum_exclusive_indexes: Vec<usize>,
-    current_indexes: Vec<usize>,
+    current_indexes: Vec<Option<usize>>,
     current_indexes_length: usize
 }
 
 impl IndexIncrementer {
     pub fn new(maximum_exclusive_indexes: Vec<usize>) -> Self {
-        let mut current_indexes: Vec<usize> = Vec::new();
+        let mut current_indexes: Vec<Option<usize>> = Vec::new();
         let current_indexes_length: usize = maximum_exclusive_indexes.len();
         for (maximum_exclusive_index_index, maximum_exclusive_index) in maximum_exclusive_indexes.iter().enumerate() {
-            current_indexes.push(0);
             if maximum_exclusive_index == &0 {
-                panic!("Maximum exclusive index at {} must be greater than zero.", maximum_exclusive_index_index);
+                current_indexes.push(None);
+            }
+            else {
+                current_indexes.push(Some(0));
             }
         }
         IndexIncrementer {
@@ -20,29 +22,42 @@ impl IndexIncrementer {
             current_indexes_length: current_indexes_length
         }
     }
+    pub fn from_vector_of_vector<T>(vector_of_vector: &Vec<Vec<T>>) -> Self {
+        let mut maximum_exclusive_indexes: Vec<usize> = Vec::new();
+        for inner_vector in vector_of_vector.iter() {
+            maximum_exclusive_indexes.push(inner_vector.len());
+        }
+        IndexIncrementer::new(maximum_exclusive_indexes)
+    }
     pub fn try_increment(&mut self) -> bool {
         if self.current_indexes_length != 0 {
             let mut current_pointer_index = 0;
-            while self.current_indexes[current_pointer_index] + 1 == self.maximum_exclusive_indexes[current_pointer_index] {
-                self.current_indexes[current_pointer_index] = 0;
+            let mut current_index_option = self.current_indexes[current_pointer_index];
+            let mut maximum_exclusive_index = self.maximum_exclusive_indexes[current_pointer_index];
+            while maximum_exclusive_index == 0 || current_index_option.unwrap() + 1 == maximum_exclusive_index {
+                if maximum_exclusive_index != 0 {
+                    self.current_indexes[current_pointer_index] = Some(0);
+                }
                 current_pointer_index += 1;
                 if current_pointer_index == self.current_indexes_length {
-                    // we have cycled back around after reseting everything
+                    // we have reached the end
                     return false;
                 }
+                current_index_option = self.current_indexes[current_pointer_index];
+                maximum_exclusive_index = self.maximum_exclusive_indexes[current_pointer_index];
             }
-            self.current_indexes[current_pointer_index] += 1;
+            self.current_indexes[current_pointer_index] = Some(current_index_option.unwrap() + 1);
             return true;
         }
         return false;
     }
-    pub fn get(&self) -> Vec<usize> {
+    pub fn get(&self) -> Vec<Option<usize>> {
         self.current_indexes.clone()
     }
 }
 
 #[cfg(test)]
-mod segment_container_tests {
+mod index_incrementer_tests {
     use super::*;
     use rstest::rstest;
 
@@ -59,11 +74,16 @@ mod segment_container_tests {
     }
 
     #[rstest]
-    #[should_panic]
     fn increment_zero() {
         init();
 
-        let _ = IndexIncrementer::new(vec![0]);
+        let mut index_incrementer = IndexIncrementer::new(vec![0]);
+        for _ in 0..100 {
+            let indexes = index_incrementer.get();
+            assert_eq!(1, indexes.len());
+            assert!(indexes[0].is_none());
+            index_incrementer.try_increment();
+        }
     }
 
     #[rstest]
@@ -78,7 +98,7 @@ mod segment_container_tests {
 
         let mut index_incrementer = IndexIncrementer::new(vec![maximum_exclusive_index]);
         for index in 0..(maximum_exclusive_index * 10) {
-            assert_eq!(vec![index % maximum_exclusive_index], index_incrementer.get());
+            assert_eq!(vec![Some(index % maximum_exclusive_index)], index_incrementer.get());
             let is_successful = index_incrementer.try_increment();
             if (index + 1) % maximum_exclusive_index == 0 {
                 assert!(!is_successful);
@@ -87,7 +107,7 @@ mod segment_container_tests {
                 assert!(is_successful);
             }
         }
-        assert_eq!(vec![0], index_incrementer.get());
+        assert_eq!(vec![Some(0)], index_incrementer.get());
     }
 
     #[rstest]
@@ -100,8 +120,8 @@ mod segment_container_tests {
 
         let mut index_incrementer = IndexIncrementer::new(vec![first_maximum_exclusive_index, second_maximum_exclusive_index]);
         for index in 0..(first_maximum_exclusive_index * second_maximum_exclusive_index) {
-            assert_eq!(index % first_maximum_exclusive_index, index_incrementer.get()[0]);
-            assert_eq!(index / first_maximum_exclusive_index, index_incrementer.get()[1]);
+            assert_eq!(Some(index % first_maximum_exclusive_index), index_incrementer.get()[0]);
+            assert_eq!(Some(index / first_maximum_exclusive_index), index_incrementer.get()[1]);
             let is_successful = index_incrementer.try_increment();
             if (index + 1) % (first_maximum_exclusive_index * second_maximum_exclusive_index) == 0 {
                 assert!(!is_successful);
@@ -110,6 +130,6 @@ mod segment_container_tests {
                 assert!(is_successful);
             }
         }
-        assert_eq!(vec![0, 0], index_incrementer.get());
+        assert_eq!(vec![Some(0), Some(0)], index_incrementer.get());
     }
 }
