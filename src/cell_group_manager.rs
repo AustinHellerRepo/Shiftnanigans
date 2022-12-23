@@ -446,7 +446,7 @@ mod cell_group_manager_tests {
         let validated_cell_group_location_dependencies = cell_group_dependency_manager.get_validated_cell_group_location_dependencies();
 
         println!("validation time: {:?}", validating_start_time.elapsed());
-        println!("validated: {:?}", validated_cell_group_location_dependencies);
+        println!("validated: {:?}", validated_cell_group_location_dependencies.len());
 
         println!("{}", time_graph::get_full_graph().as_dot());
 
@@ -455,6 +455,7 @@ mod cell_group_manager_tests {
             2 => 6,
             3 => 14,
             4 => 4 + 4 + 8 + 22,
+            5 => 116,  // TODO manually verify
             _ => {
                 panic!("Unexpected number of cell groups: {}", cell_groups_total);
             }
@@ -508,7 +509,7 @@ mod cell_group_manager_tests {
                 }
 
                 let is_printed: bool;
-                if validated_cell_group_location_dependency.cell_group_index == 0 && false {
+                if validated_cell_group_location_dependency.cell_group_index == 0 && true {
                     is_printed = true;
                 }
                 else {
@@ -539,10 +540,13 @@ mod cell_group_manager_tests {
             }
         }
 
+        println!("permutations: {}", permutations.len());
+
         let expected_permutations_total: usize = match cell_groups_total {
             2 => 4,
             3 => 8,
             4 => 96,
+            5 => 6400,
             _ => {
                 panic!("Unexpected number of cell groups: {}", cell_groups_total);
             }
