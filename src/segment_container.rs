@@ -1,4 +1,4 @@
-use bitvec::vec::BitVec;
+use bitvec::{vec::BitVec, bits};
 use uuid::Uuid;
 
 /// This struct is an unfixed line segment.
@@ -128,6 +128,132 @@ impl SegmentContainer {
             mask.push(true);
         }
         SegmentContainer::get_segment_location_permutations_within_bounding_length_and_padding_excluding_mask(&self.segments, &mut mask, length, padding, 0)
+    }
+}
+
+pub struct SegmentPermutationIncrementer {
+    segments: Vec<Segment>,
+    bounding_length: usize,
+    padding: usize,
+    current_mask: BitVec,
+    current_segment_index: usize,
+    current_other_segments_current_length: usize,
+    current_other_segments_maximum_inclusive_length: usize,
+    current_other_segments_all_possible_positions: Vec<Vec<LocatedSegment>>,
+    current_segment_position: usize,
+    current_segment_position_maximum_inclusive: usize,
+    current_other_segment_snapshot_index: Option<usize>
+}
+
+impl SegmentPermutationIncrementer {
+    pub fn new(segments: Vec<Segment>, bounding_length: usize, padding: usize) -> Self {
+        
+        let mut mask: BitVec = BitVec::with_capacity(segments.len());
+        mask.resize(segments.len(), true);
+        mask.set(0, false);
+
+        let mut current_other_segments_current_length = 0;
+        for (other_segment_index, other_segment) in segments.iter().enumerate() {
+            if mask[other_segment_index] {
+                if current_other_segments_current_length == 0 {
+                    current_other_segments_current_length += other_segment.length;
+                }
+                else {
+                    current_other_segments_current_length += other_segment.length + padding;
+                }
+            }
+        }
+
+        let other_position_offset = bounding_length - current_other_segments_current_length;
+        let other_segments_all_possible_positions = SegmentContainer::get_segment_location_permutations_within_bounding_length_and_padding_excluding_mask(&segments, &mut mask, current_other_segments_current_length, padding, other_position_offset);
+
+        let current_other_segments_maximum_inclusive_length = bounding_length - segments[0].length - padding;
+
+        let current_segment_position_maximum_inclusive = bounding_length - current_other_segments_current_length - segments[0].length - padding;
+
+        SegmentPermutationIncrementer {
+            segments: segments,
+            bounding_length: bounding_length,
+            padding: padding,
+            current_mask: mask,
+            current_segment_index: 0,
+            current_other_segments_current_length: current_other_segments_current_length,
+            current_other_segments_maximum_inclusive_length: current_other_segments_maximum_inclusive_length,
+            current_other_segments_all_possible_positions: other_segments_all_possible_positions,
+            current_segment_position: 0,
+            current_segment_position_maximum_inclusive: current_segment_position_maximum_inclusive,
+            current_other_segment_snapshot_index: None
+        }
+    }
+    pub fn try_get_next_segment_location_permutation(&mut self) -> Option<Vec<LocatedSegment>> {
+
+        // try to increment the current other segment current length
+
+        // start at first snapshot or roll over to next current_segment_position
+        if self.current_other_segment_snapshot_index.is_none() || self.current_other_segment_snapshot_index.unwrap() + 1 == self.current_other_segments_all_possible_positions.len() {
+
+            // if current_other_segment_snapshot_index increment woult take it outside of bounds...
+            if self.current_other_segment_snapshot_index.unwrap() + 1 == self.current_other_segments_all_possible_positions.len() {
+
+                // if current_segment_position increment would take it outside of bounds...
+                if self.current_segment_position + 1 > self.current_segment_position_maximum_inclusive {
+
+                    // if current_other_segments_current_length increment would take it outside of bounds...
+                    if self.current_other_segments_current_length + 1 > self.current_other_segments_maximum_inclusive_length {
+                    
+                        // increment the current segment index
+                        self.current_segment_index += 1;
+                        if self.current_segment_index == self.segments.len() {
+                            return None;
+                        }
+                        self.current_mask.set(self.current_segment_index - 1, true);
+                        self.current_mask.set(self.current_segment_index, false);
+
+                        let mut other_segments_total_length = 0;
+                        for (other_segment_index, other_segment) in self.segments.iter().enumerate() {
+                            if self.current_mask[other_segment_index] {
+                                if other_segments_total_length == 0 {
+                                    other_segments_total_length += other_segment.length;
+                                }
+                                else {
+                                    other_segments_total_length += other_segment.length + self.padding;
+                                }
+                            }
+                        }
+
+                        self.current_other_segments_current_length = other_segments_total_length;
+                        self.current_other_segments_maximum_inclusive_length = self.bounding_length - self.segments[self.current_segment_index].length - self.padding;
+                    }
+                    else {
+                        self.current_other_segments_current_length += 1;
+                    }
+
+                    let other_position_offset = self.bounding_length - self.current_other_segments_current_length;
+                    self.current_other_segments_all_possible_positions = SegmentContainer::get_segment_location_permutations_within_bounding_length_and_padding_excluding_mask(&self.segments, &mut self.current_mask, self.current_other_segments_current_length, self.padding, other_position_offset);
+
+                    self.current_segment_position = 0;
+                    self.current_segment_position_maximum_inclusive = self.bounding_length - self.current_other_segments_current_length - self.segments[self.current_segment_index].length - self.padding;
+                }
+                else {
+                    self.current_segment_position += 1;
+                }
+            }
+
+            self.current_other_segment_snapshot_index = Some(0);
+        }
+        else {
+            self.current_other_segment_snapshot_index = Some(self.current_other_segment_snapshot_index.unwrap() + 1);
+        }
+
+        let mut snapshot: Vec<LocatedSegment> = Vec::new();
+        snapshot.push(LocatedSegment {
+            segment_index: self.current_segment_index,
+            position: self.current_segment_position
+        });
+        for other_segment_snapshot_segment in self.current_other_segments_all_possible_positions[self.current_other_segment_snapshot_index.unwrap()].iter() {
+            snapshot.push(other_segment_snapshot_segment.clone());
+        }
+        return Some(snapshot);
     }
 }
 
