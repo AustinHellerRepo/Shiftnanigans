@@ -354,9 +354,7 @@ impl<'a> RecursiveSegmentPermutationIncrementer<'a> {
 }
 
 pub struct SegmentPermutationIncrementer<'a> {
-    segments: &'a Vec<Segment>,
-    bounding_length: usize,
-    padding: usize,
+    segments_length: usize,
     recursive_segment_permutation_incrementer: RecursiveSegmentPermutationIncrementer<'a>
 }
 
@@ -373,15 +371,16 @@ impl<'a> SegmentPermutationIncrementer<'a> {
         let wrapped_mask = Rc::new(RefCell::new(mask));
 
         SegmentPermutationIncrementer {
-            segments: segments,
-            bounding_length: bounding_length,
-            padding: padding,
+            segments_length: segments.len(),
             recursive_segment_permutation_incrementer: RecursiveSegmentPermutationIncrementer::new(segments, bounding_length, padding, wrapped_mask, 0, 0)
         }
     }
     #[time_graph::instrument]
-    pub fn try_get_next_segment_location_permutation(&mut self) -> Option<Vec<LocatedSegment>> {
+    pub fn try_get_next_segment_location_permutations(&mut self) -> Option<Vec<LocatedSegment>> {
         self.recursive_segment_permutation_incrementer.try_get_next_snapshot()
+    }
+    pub fn get_segments_length(&self) -> usize {
+        self.segments_length
     }
 }
 
@@ -477,7 +476,7 @@ mod segment_container_tests {
 
         let mut segment_permutation_incrementer: SegmentPermutationIncrementer = SegmentPermutationIncrementer::new(&segments, smallest_bounding_length, 1);
 
-        let segment_location_permutation = segment_permutation_incrementer.try_get_next_segment_location_permutation();
+        let segment_location_permutation = segment_permutation_incrementer.try_get_next_segment_location_permutations();
 
         assert!(segment_location_permutation.is_some());
 
@@ -512,7 +511,7 @@ mod segment_container_tests {
         let mut permutations_total = 0;
         let mut is_get_next_segment_location_permutation_successful = true;
         while is_get_next_segment_location_permutation_successful {
-            let segment_location_permutation = segment_permutation_incrementer.try_get_next_segment_location_permutation();
+            let segment_location_permutation = segment_permutation_incrementer.try_get_next_segment_location_permutations();
             //println!("segment_location_permutation: {:?}", segment_location_permutation);
 
             if permutations_total == 0 {
