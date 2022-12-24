@@ -476,11 +476,11 @@ mod segment_container_tests {
 
         let mut segment_permutation_incrementer: SegmentPermutationIncrementer = SegmentPermutationIncrementer::new(&segments, smallest_bounding_length, 1);
 
-        let segment_location_permutation = segment_permutation_incrementer.try_get_next_segment_location_permutations();
+        let segment_location_permutations = segment_permutation_incrementer.try_get_next_segment_location_permutations();
 
-        assert!(segment_location_permutation.is_some());
+        assert!(segment_location_permutations.is_some());
 
-        println!("segment_location_permutation: {:?}", segment_location_permutation);
+        println!("segment_location_permutation: {:?}", segment_location_permutations);
 
         println!("{}", time_graph::get_full_graph().as_dot());
     }
@@ -511,14 +511,14 @@ mod segment_container_tests {
         let mut permutations_total = 0;
         let mut is_get_next_segment_location_permutation_successful = true;
         while is_get_next_segment_location_permutation_successful {
-            let segment_location_permutation = segment_permutation_incrementer.try_get_next_segment_location_permutations();
+            let segment_location_permutations = segment_permutation_incrementer.try_get_next_segment_location_permutations();
             //println!("segment_location_permutation: {:?}", segment_location_permutation);
 
             if permutations_total == 0 {
                 // the first one must succeed
-                assert!(segment_location_permutation.is_some());
+                assert!(segment_location_permutations.is_some());
             }
-            if segment_location_permutation.is_none() {
+            if segment_location_permutations.is_none() {
                 is_get_next_segment_location_permutation_successful = false;
             }
             else {
