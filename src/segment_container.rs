@@ -1,3 +1,5 @@
+use std::{rc::Rc, cell::RefCell};
+
 use bitvec::{vec::BitVec, bits};
 use uuid::Uuid;
 
@@ -38,11 +40,13 @@ pub struct SegmentContainer {
 }
 
 impl SegmentContainer {
+    #[time_graph::instrument]
     pub fn new(segments: Vec<Segment>) -> Self {
         SegmentContainer {
             segments: segments
         }
     }
+    #[time_graph::instrument]
     fn get_segment_location_permutations_within_bounding_length_and_padding_excluding_mask(segments: &Vec<Segment>, mask: &mut BitVec, length: usize, padding: usize, position_offset: usize) -> Vec<Vec<LocatedSegment>> {
         debug!("get all possible positions when mask {}, length {}, and position offset {}", mask, length, position_offset);
         let mut snapshots: Vec<Vec<LocatedSegment>> = Vec::new();
@@ -122,6 +126,7 @@ impl SegmentContainer {
         }
         snapshots
     }
+    #[time_graph::instrument]
     pub fn get_segment_location_permutations_within_bounding_length(&self, length: usize, padding: usize) -> Vec<Vec<LocatedSegment>> {
         let mut mask: BitVec = BitVec::new();
         for _ in 0..self.segments.len() {
@@ -131,87 +136,154 @@ impl SegmentContainer {
     }
 }
 
-pub struct SegmentPermutationIncrementer {
-    segments: Vec<Segment>,
+#[derive(Debug)]
+struct RecursiveSegmentPermutationIncrementer<'a> {
+    segments: &'a Vec<Segment>,
     bounding_length: usize,
     padding: usize,
-    current_mask: BitVec,
+    position_offset: usize,
+    depth: usize,
+    // iterate over mask
+    current_mask: Rc<RefCell<BitVec>>,  // TODO check if having the mask as a property is more efficient than passing it in to try_get_next_snapshot as a mutable reference
     current_segment_index: usize,
+    // iterate over other segment's length
     current_other_segments_current_length: usize,
     current_other_segments_maximum_inclusive_length: usize,
-    current_other_segments_all_possible_positions: Vec<Vec<LocatedSegment>>,
-    current_segment_position: usize,
-    current_segment_position_maximum_inclusive: usize,
-    current_other_segment_snapshot_index: Option<usize>
+    // iterate over other segment's snapshot
+    current_other_segments_recursive_segment_permutation_incrementer: Box<Option<RecursiveSegmentPermutationIncrementer<'a>>>,
+    current_other_segments_snapshot: Vec<LocatedSegment>,
+    // iterate over current segment's position
+    current_segment_position: Option<usize>,
+    current_segment_position_maximum_inclusive: usize
 }
 
-impl SegmentPermutationIncrementer {
-    pub fn new(segments: Vec<Segment>, bounding_length: usize, padding: usize) -> Self {
-        
-        let mut mask: BitVec = BitVec::with_capacity(segments.len());
-        mask.resize(segments.len(), true);
-        mask.set(0, false);
+impl<'a> RecursiveSegmentPermutationIncrementer<'a> {
+    fn new(segments: &'a Vec<Segment>, bounding_length: usize, padding: usize, current_mask: Rc<RefCell<BitVec>>, position_offset: usize, depth: usize) -> Self {
 
-        let mut current_other_segments_current_length = 0;
+        //println!("{:?}: new RecursiveSegmentPermutationIncrementer: {:?}", depth, position_offset);
+
+        // TODO consider refactoring such that all "current" properties are options that then can be initialized during the first call to try_get_next_snapshot
+
+        let mut current_segment_index: usize = 0;
+        while current_segment_index < segments.len() && !current_mask.borrow()[current_segment_index] {
+            current_segment_index += 1;
+        }
+        if current_segment_index == segments.len() {
+            panic!("Unexpected lack of available positions in mask at this depth of recursion.");
+        }
+        current_mask.borrow_mut().set(current_segment_index, false);
+
+        let mut other_segments_total_length = 0;
         for (other_segment_index, other_segment) in segments.iter().enumerate() {
-            if mask[other_segment_index] {
-                if current_other_segments_current_length == 0 {
-                    current_other_segments_current_length += other_segment.length;
+            if current_mask.borrow()[other_segment_index] {
+                if other_segments_total_length == 0 {
+                    other_segments_total_length += other_segment.length;
                 }
                 else {
-                    current_other_segments_current_length += other_segment.length + padding;
+                    other_segments_total_length += other_segment.length + padding;
                 }
             }
         }
 
-        let other_position_offset = bounding_length - current_other_segments_current_length;
-        let other_segments_all_possible_positions = SegmentContainer::get_segment_location_permutations_within_bounding_length_and_padding_excluding_mask(&segments, &mut mask, current_other_segments_current_length, padding, other_position_offset);
+        let current_other_segments_current_length = other_segments_total_length;
 
-        let current_other_segments_maximum_inclusive_length = bounding_length - segments[0].length - padding;
+        let current_other_segments_maximum_inclusive_length: usize;
+        if other_segments_total_length == 0 {
+            current_other_segments_maximum_inclusive_length = 0;
+        }
+        else {
+            current_other_segments_maximum_inclusive_length = bounding_length - segments[current_segment_index].length - padding;
+        }
+    
+        let mut current_other_segments_recursive_segment_permutation_incrementer: Box<Option<RecursiveSegmentPermutationIncrementer>>;
+        let current_other_segments_snapshot: Vec<LocatedSegment>;
 
-        let current_segment_position_maximum_inclusive = bounding_length - current_other_segments_current_length - segments[0].length - padding;
+        if current_other_segments_current_length == 0 {
+            // there are no other segments to iterate over
+            current_other_segments_recursive_segment_permutation_incrementer = Box::new(None);
+            current_other_segments_snapshot = vec![];
+        }
+        else {
+            let other_position_offset = bounding_length - current_other_segments_current_length;
 
-        SegmentPermutationIncrementer {
+            //println!("{:?}: other_position_offset {:?} = bounding_length {:?} - current_other_segments_current_length {:?}", depth, other_position_offset, bounding_length, current_other_segments_current_length);
+
+            current_other_segments_recursive_segment_permutation_incrementer = Box::new(Some(RecursiveSegmentPermutationIncrementer::new(
+                segments,
+                current_other_segments_current_length,
+                padding,
+                current_mask.clone(),
+                position_offset + other_position_offset,
+                depth + 1
+            )));
+            let other_segments_recursive_segment_permutation_incrementer = current_other_segments_recursive_segment_permutation_incrementer.as_mut().as_mut().unwrap();
+            current_other_segments_snapshot = other_segments_recursive_segment_permutation_incrementer.try_get_next_snapshot().expect("The newly created RecursiveSegmentPermutationIncrementer should have at least one valid state within it.");
+        }
+
+        RecursiveSegmentPermutationIncrementer {
             segments: segments,
             bounding_length: bounding_length,
             padding: padding,
-            current_mask: mask,
-            current_segment_index: 0,
+            position_offset: position_offset,
+            current_mask: current_mask,
+            current_segment_index: current_segment_index,
             current_other_segments_current_length: current_other_segments_current_length,
             current_other_segments_maximum_inclusive_length: current_other_segments_maximum_inclusive_length,
-            current_other_segments_all_possible_positions: other_segments_all_possible_positions,
-            current_segment_position: 0,
-            current_segment_position_maximum_inclusive: current_segment_position_maximum_inclusive,
-            current_other_segment_snapshot_index: None
+            current_other_segments_recursive_segment_permutation_incrementer: current_other_segments_recursive_segment_permutation_incrementer,
+            current_other_segments_snapshot: current_other_segments_snapshot,
+            current_segment_position: None,
+            current_segment_position_maximum_inclusive: 0,
+            depth: depth
         }
     }
-    pub fn try_get_next_segment_location_permutation(&mut self) -> Option<Vec<LocatedSegment>> {
+    fn try_get_next_snapshot(&mut self) -> Option<Vec<LocatedSegment>> {
 
         // try to increment the current other segment current length
 
         // start at first snapshot or roll over to next current_segment_position
-        if self.current_other_segment_snapshot_index.is_none() || self.current_other_segment_snapshot_index.unwrap() + 1 == self.current_other_segments_all_possible_positions.len() {
 
-            // if current_other_segment_snapshot_index increment woult take it outside of bounds...
-            if self.current_other_segment_snapshot_index.unwrap() + 1 == self.current_other_segments_all_possible_positions.len() {
+        // if current_segment_position increment would take it outside of bounds...
+        if self.current_segment_position.is_none() || self.current_segment_position.unwrap() + 1 > self.current_segment_position_maximum_inclusive {
 
-                // if current_segment_position increment would take it outside of bounds...
-                if self.current_segment_position + 1 > self.current_segment_position_maximum_inclusive {
+            if !self.current_segment_position.is_none() && self.current_segment_position.unwrap() + 1 > self.current_segment_position_maximum_inclusive {
+
+                let is_next_other_segments_current_length_required: bool;
+                if self.current_other_segments_recursive_segment_permutation_incrementer.is_none() {
+                    // this was the leaf node of the recursive algorithm
+                    is_next_other_segments_current_length_required = true;
+                }
+                else {
+                    let other_segments_recursive_segment_permutation_incrementer = self.current_other_segments_recursive_segment_permutation_incrementer.as_mut().as_mut().unwrap();
+                    let current_other_segments_snapshot_option = other_segments_recursive_segment_permutation_incrementer.try_get_next_snapshot();
+
+                    if let Some(current_other_segments_snapshot) = current_other_segments_snapshot_option {
+                        self.current_other_segments_snapshot = current_other_segments_snapshot;
+                        is_next_other_segments_current_length_required = false;
+                    }
+                    else {
+                        is_next_other_segments_current_length_required = true;
+                    }
+                }
+
+                if is_next_other_segments_current_length_required {
 
                     // if current_other_segments_current_length increment would take it outside of bounds...
                     if self.current_other_segments_current_length + 1 > self.current_other_segments_maximum_inclusive_length {
-                    
+                                
                         // increment the current segment index
+                        self.current_mask.borrow_mut().set(self.current_segment_index, true);
                         self.current_segment_index += 1;
+                        while self.current_segment_index < self.segments.len() && !self.current_mask.borrow()[self.current_segment_index] {
+                            self.current_segment_index += 1;
+                        }
                         if self.current_segment_index == self.segments.len() {
                             return None;
                         }
-                        self.current_mask.set(self.current_segment_index - 1, true);
-                        self.current_mask.set(self.current_segment_index, false);
+                        self.current_mask.borrow_mut().set(self.current_segment_index, false);
 
                         let mut other_segments_total_length = 0;
                         for (other_segment_index, other_segment) in self.segments.iter().enumerate() {
-                            if self.current_mask[other_segment_index] {
+                            if self.current_mask.borrow()[other_segment_index] {
                                 if other_segments_total_length == 0 {
                                     other_segments_total_length += other_segment.length;
                                 }
@@ -228,32 +300,88 @@ impl SegmentPermutationIncrementer {
                         self.current_other_segments_current_length += 1;
                     }
 
-                    let other_position_offset = self.bounding_length - self.current_other_segments_current_length;
-                    self.current_other_segments_all_possible_positions = SegmentContainer::get_segment_location_permutations_within_bounding_length_and_padding_excluding_mask(&self.segments, &mut self.current_mask, self.current_other_segments_current_length, self.padding, other_position_offset);
+                    if self.current_other_segments_current_length == 0 {
+                        // there are no other segments to iterate over
+                        self.current_other_segments_recursive_segment_permutation_incrementer = Box::new(None);
+                        self.current_other_segments_snapshot = vec![];
+                    }
+                    else {
+                        let other_position_offset = self.bounding_length - self.current_other_segments_current_length;
 
-                    self.current_segment_position = 0;
-                    self.current_segment_position_maximum_inclusive = self.bounding_length - self.current_other_segments_current_length - self.segments[self.current_segment_index].length - self.padding;
-                }
-                else {
-                    self.current_segment_position += 1;
+                        self.current_other_segments_recursive_segment_permutation_incrementer = Box::new(Some(RecursiveSegmentPermutationIncrementer::new(
+                            self.segments,
+                            self.current_other_segments_current_length,
+                            self.padding,
+                            self.current_mask.clone(),
+                            self.position_offset + other_position_offset,
+                            self.depth + 1
+                        )));
+                        let other_segments_recursive_segment_permutation_incrementer = self.current_other_segments_recursive_segment_permutation_incrementer.as_mut().as_mut().unwrap();
+                        self.current_other_segments_snapshot = other_segments_recursive_segment_permutation_incrementer.try_get_next_snapshot().expect("The newly created RecursiveSegmentPermutationIncrementer should have at least one valid state within it.");
+                    }
                 }
             }
+            
+            self.current_segment_position = Some(0);
 
-            self.current_other_segment_snapshot_index = Some(0);
+            if self.position_offset == 0 {
+                if self.current_other_segments_current_length == 0 {
+                    self.current_segment_position_maximum_inclusive = self.bounding_length - self.segments[self.current_segment_index].length;
+                }
+                else {
+                    self.current_segment_position_maximum_inclusive = self.bounding_length - self.current_other_segments_current_length - self.segments[self.current_segment_index].length - self.padding;
+                }                
+            }
+            else {
+                self.current_segment_position_maximum_inclusive = 0;
+            }
         }
         else {
-            self.current_other_segment_snapshot_index = Some(self.current_other_segment_snapshot_index.unwrap() + 1);
+            self.current_segment_position = Some(self.current_segment_position.unwrap() + 1);
         }
 
         let mut snapshot: Vec<LocatedSegment> = Vec::new();
         snapshot.push(LocatedSegment {
             segment_index: self.current_segment_index,
-            position: self.current_segment_position
+            position: self.current_segment_position.unwrap() + self.position_offset
         });
-        for other_segment_snapshot_segment in self.current_other_segments_all_possible_positions[self.current_other_segment_snapshot_index.unwrap()].iter() {
+        // TODO consider doing snapshot.extend here (or something like it)
+        for other_segment_snapshot_segment in self.current_other_segments_snapshot.drain(0..) {
             snapshot.push(other_segment_snapshot_segment.clone());
         }
         return Some(snapshot);
+    }
+}
+
+pub struct SegmentPermutationIncrementer<'a> {
+    segments: &'a Vec<Segment>,
+    bounding_length: usize,
+    padding: usize,
+    recursive_segment_permutation_incrementer: RecursiveSegmentPermutationIncrementer<'a>
+}
+
+impl<'a> SegmentPermutationIncrementer<'a> {
+    #[time_graph::instrument]
+    pub fn new(segments: &'a Vec<Segment>, bounding_length: usize, padding: usize) -> Self {
+        
+        if segments.len() == 0 {
+            panic!("Must contain at least one segment.");
+        }
+
+        let mut mask = BitVec::with_capacity(segments.len());
+        mask.resize(segments.len(), true);
+        let wrapped_mask = Rc::new(RefCell::new(mask));
+
+        SegmentPermutationIncrementer {
+            segments: segments,
+            bounding_length: bounding_length,
+            padding: padding,
+            recursive_segment_permutation_incrementer: RecursiveSegmentPermutationIncrementer::new(segments, bounding_length, padding, wrapped_mask, 0, 0)
+        }
+    }
+    #[time_graph::instrument]
+    pub fn try_get_next_segment_location_permutation(&mut self) -> Option<Vec<LocatedSegment>> {
+        self.recursive_segment_permutation_incrementer.try_get_next_snapshot()
     }
 }
 
@@ -280,10 +408,128 @@ mod segment_container_tests {
     fn initialize_segment_container() {
         init();
 
-        let _segment_container: SegmentContainer = SegmentContainer::new(vec![
+        let _: SegmentContainer = SegmentContainer::new(vec![
             Segment::new(2),
             Segment::new(3)
         ]);
+    }
+
+    #[rstest]
+    #[should_panic]
+    fn initialize_segment_permutation_incrementer_zero_segments() {
+        init();
+
+        let segments = vec![];
+
+        let _: SegmentPermutationIncrementer = SegmentPermutationIncrementer::new(&segments, 0, 0);
+    }
+
+    #[rstest]
+    #[case(1)]
+    #[case(2)]
+    #[case(3)]
+    #[case(10)]
+    fn initialize_segment_permutation_incrementer_more_than_zero_segments(#[case] segments_total: usize) {
+        init();
+
+        let mut segments: Vec<Segment> = Vec::new();
+        for segment_index in 0..segments_total {
+            segments.push(Segment::new(segment_index + 1));
+        }
+
+        let smallest_bounding_length: usize = ((segments_total * (segments_total + 1)) / 2) as usize + (segments_total - 1);
+
+        let _: SegmentPermutationIncrementer = SegmentPermutationIncrementer::new(&segments, smallest_bounding_length, 1);
+    }
+
+    #[rstest]
+    #[case(11)]
+    fn initialize_segment_permutation_incrementer_large_number_of_segments(#[case] segments_total: usize) {
+        init();
+
+        time_graph::enable_data_collection(true);
+
+        let mut segments: Vec<Segment> = Vec::new();
+        for segment_index in 0..segments_total {
+            segments.push(Segment::new(segment_index + 1));
+        }
+
+        let smallest_bounding_length: usize = ((segments_total * (segments_total + 1)) / 2) as usize + (segments_total - 1);
+
+        let _: SegmentPermutationIncrementer = SegmentPermutationIncrementer::new(&segments, smallest_bounding_length, 1);
+
+        println!("{}", time_graph::get_full_graph().as_dot());
+    }
+
+    #[rstest]
+    #[case(2)]
+    fn get_segment_permutation_small_number_of_segments(#[case] segments_total: usize) {
+        init();
+
+        time_graph::enable_data_collection(true);
+
+        let mut segments: Vec<Segment> = Vec::new();
+        for segment_index in 0..segments_total {
+            segments.push(Segment::new(segment_index + 1));
+        }
+
+        let smallest_bounding_length: usize = ((segments_total * (segments_total + 1)) / 2) as usize + (segments_total - 1);
+
+        let mut segment_permutation_incrementer: SegmentPermutationIncrementer = SegmentPermutationIncrementer::new(&segments, smallest_bounding_length, 1);
+
+        let segment_location_permutation = segment_permutation_incrementer.try_get_next_segment_location_permutation();
+
+        assert!(segment_location_permutation.is_some());
+
+        println!("segment_location_permutation: {:?}", segment_location_permutation);
+
+        println!("{}", time_graph::get_full_graph().as_dot());
+    }
+
+    #[rstest]
+    #[case(1)]
+    #[case(2)]
+    #[case(3)]
+    #[case(4)]
+    #[case(5)]
+    #[case(10)]
+    fn get_segment_permutation_large_number_of_segments(#[case] segments_total: usize) {
+        init();
+
+        time_graph::enable_data_collection(true);
+
+        let mut segments: Vec<Segment> = Vec::new();
+        for segment_index in 0..segments_total {
+            segments.push(Segment::new(segment_index + 1));
+        }
+
+        let smallest_bounding_length: usize = ((segments_total * (segments_total + 1)) / 2) as usize + (segments_total - 1);
+
+        println!("{:?}: smallest_bounding_length: {:?}", segments_total, smallest_bounding_length);
+
+        let mut segment_permutation_incrementer: SegmentPermutationIncrementer = SegmentPermutationIncrementer::new(&segments, smallest_bounding_length, 1);
+
+        let mut permutations_total = 0;
+        let mut is_get_next_segment_location_permutation_successful = true;
+        while is_get_next_segment_location_permutation_successful {
+            let segment_location_permutation = segment_permutation_incrementer.try_get_next_segment_location_permutation();
+            //println!("segment_location_permutation: {:?}", segment_location_permutation);
+
+            if permutations_total == 0 {
+                // the first one must succeed
+                assert!(segment_location_permutation.is_some());
+            }
+            if segment_location_permutation.is_none() {
+                is_get_next_segment_location_permutation_successful = false;
+            }
+            else {
+                permutations_total += 1;
+            }
+        }
+
+        println!("{:?}: permutations_total: {:?}", segments_total, permutations_total);
+
+        println!("{}", time_graph::get_full_graph().as_dot());
     }
 
     #[rstest]
@@ -537,5 +783,29 @@ mod segment_container_tests {
 
         assert_eq!(60, permutations.len());
 
+    }
+
+    #[rstest]
+    fn get_all_possible_positions_within_bounding_length_with_ten_segments_size_incrementing_bounds_sixty_four_padding_one() {
+        init();
+
+        let segments = vec![
+            Segment::new(1),
+            Segment::new(2),
+            Segment::new(3),
+            Segment::new(4),
+            Segment::new(5),
+            Segment::new(6),
+            Segment::new(7),
+            Segment::new(8),
+            Segment::new(9),
+            Segment::new(10)
+        ];
+
+        let segment_container: SegmentContainer = SegmentContainer::new(segments.clone());
+
+        let permutations = segment_container.get_segment_location_permutations_within_bounding_length(64, 1);
+
+        assert_eq!(60, permutations.len());
     }
 }
