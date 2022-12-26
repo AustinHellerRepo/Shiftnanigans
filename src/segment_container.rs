@@ -354,7 +354,9 @@ impl<'a> RecursiveSegmentPermutationIncrementer<'a> {
 }
 
 pub struct SegmentPermutationIncrementer<'a> {
-    segments_length: usize,
+    segments: &'a Vec<Segment>,
+    bounding_length: usize,
+    padding: usize,
     recursive_segment_permutation_incrementer: RecursiveSegmentPermutationIncrementer<'a>
 }
 
@@ -371,7 +373,9 @@ impl<'a> SegmentPermutationIncrementer<'a> {
         let wrapped_mask = Rc::new(RefCell::new(mask));
 
         SegmentPermutationIncrementer {
-            segments_length: segments.len(),
+            segments: segments,
+            bounding_length: bounding_length,
+            padding: padding,
             recursive_segment_permutation_incrementer: RecursiveSegmentPermutationIncrementer::new(segments, bounding_length, padding, wrapped_mask, 0, 0)
         }
     }
@@ -380,7 +384,13 @@ impl<'a> SegmentPermutationIncrementer<'a> {
         self.recursive_segment_permutation_incrementer.try_get_next_snapshot()
     }
     pub fn get_segments_length(&self) -> usize {
-        self.segments_length
+        self.segments.len()
+    }
+    pub fn reset(&mut self) {
+        let mut mask = BitVec::with_capacity(self.segments.len());
+        mask.resize(self.segments.len(), true);
+        let wrapped_mask = Rc::new(RefCell::new(mask));
+        self.recursive_segment_permutation_incrementer = RecursiveSegmentPermutationIncrementer::new(self.segments, self.bounding_length, self.padding, wrapped_mask, 0, 0);
     }
 }
 

@@ -1,21 +1,25 @@
+use std::{rc::Rc, collections::BTreeMap};
+
 use crate::{segment_container::{SegmentPermutationIncrementer}, index_incrementer::IndexIncrementer};
 
 #[derive(Debug)]
-pub struct IndexedElement<T> {
+pub struct IndexedElement<'a, T> {
     pub index: usize,
-    pub element: T
+    pub element: &'a T
 }
 
 pub trait ElementIndexer {
     type T;
     fn try_get_next_indexed_elements(&mut self) -> Option<Vec<IndexedElement<Self::T>>>;
+    fn reset(&mut self);
 }
 
 pub struct SegmentPermutationIncrementerElementIndexer<'a> {
     element_indexes: &'a Vec<usize>,
     segment_permutation_incrementer: SegmentPermutationIncrementer<'a>,
     origin_location: (i32, i32),
-    is_horizontal: bool
+    is_horizontal: bool,
+    calculated_location_per_position: BTreeMap<usize, (i32, i32)>
 }
 
 impl<'a> ElementIndexer for SegmentPermutationIncrementerElementIndexer<'a> {
@@ -25,22 +29,31 @@ impl<'a> ElementIndexer for SegmentPermutationIncrementerElementIndexer<'a> {
         let segment_location_permutations_option = self.segment_permutation_incrementer.try_get_next_segment_location_permutations();
         if let Some(segment_location_permutations) = segment_location_permutations_option {
             let mut indexed_elements: Vec<IndexedElement<(i32, i32)>> = Vec::new();
+            for segment_location in segment_location_permutations.iter() {
+                let is_calculated_location_cached = self.calculated_location_per_position.contains_key(&segment_location.position);
+                if !is_calculated_location_cached {
+                    let element: (i32, i32);
+                    if self.is_horizontal {
+                        element = (self.origin_location.0 + segment_location.position as i32, self.origin_location.1);
+                    }
+                    else {
+                        element = (self.origin_location.0, self.origin_location.1 + segment_location.position as i32);
+                    }
+                    self.calculated_location_per_position.insert(segment_location.position, element);
+                }
+            }
             for segment_location in segment_location_permutations.into_iter() {
-                let element: (i32, i32);
-                if self.is_horizontal {
-                    element = (self.origin_location.0 + segment_location.position as i32, self.origin_location.1);
-                }
-                else {
-                    element = (self.origin_location.0, self.origin_location.1 + segment_location.position as i32);
-                }
                 indexed_elements.push(IndexedElement {
                     index: self.element_indexes[segment_location.segment_index],
-                    element: element
+                    element: self.calculated_location_per_position.get(&segment_location.position).unwrap()
                 });
             }
             return Some(indexed_elements);
         }
         return None;
+    }
+    fn reset(&mut self) {
+        self.segment_permutation_incrementer.reset();
     }
 }
 
@@ -55,20 +68,21 @@ impl<'a> SegmentPermutationIncrementerElementIndexer<'a> {
             element_indexes: element_indexes,
             segment_permutation_incrementer: segment_permutation_incrementer,
             origin_location: origin_location,
-            is_horizontal: is_horizontal
+            is_horizontal: is_horizontal,
+            calculated_location_per_position: BTreeMap::new()
         }
     }
 }
 
-pub struct IndexIncrementerElementIndexer<'a> {
+pub struct IndexIncrementerElementIndexer<'a, TElement> {
     element_indexes: &'a Vec<usize>,
     index_incrementer: IndexIncrementer,
-    locations_per_element: Vec<Vec<(i32, i32)>>,
+    locations_per_element: Vec<Vec<TElement>>,
     is_last_increment_successful: bool
 }
 
-impl<'a> ElementIndexer for IndexIncrementerElementIndexer<'a> {
-    type T = (i32, i32);
+impl<'a, TElement> ElementIndexer for IndexIncrementerElementIndexer<'a, TElement> {
+    type T = TElement;
 
     fn try_get_next_indexed_elements(&mut self) -> Option<Vec<IndexedElement<Self::T>>> {
         if !self.is_last_increment_successful {
@@ -77,10 +91,10 @@ impl<'a> ElementIndexer for IndexIncrementerElementIndexer<'a> {
         let location_index_per_element_index = self.index_incrementer.get();
         self.is_last_increment_successful = self.index_incrementer.try_increment();
 
-        let mut indexed_elements: Vec<IndexedElement<(i32, i32)>> = Vec::new();
+        let mut indexed_elements: Vec<IndexedElement<TElement>> = Vec::new();
         for (element_index, location_index) in location_index_per_element_index.iter().enumerate() {
             let locations = &self.locations_per_element[element_index];
-            let element = locations[location_index.unwrap()];
+            let element = &locations[location_index.unwrap()];
             indexed_elements.push(IndexedElement {
                 index: self.element_indexes[element_index],
                 element: element
@@ -88,10 +102,13 @@ impl<'a> ElementIndexer for IndexIncrementerElementIndexer<'a> {
         }
         return Some(indexed_elements);
     }
+    fn reset(&mut self) {
+        self.index_incrementer.reset();
+    }
 }
 
-impl<'a> IndexIncrementerElementIndexer<'a> {
-    pub fn new(element_indexes: &'a Vec<usize>, locations_per_element: Vec<Vec<(i32, i32)>>) -> Self {
+impl<'a, TElement> IndexIncrementerElementIndexer<'a, TElement> {
+    pub fn new(element_indexes: &'a Vec<usize>, locations_per_element: Vec<Vec<TElement>>) -> Self {
 
         if locations_per_element.len() != element_indexes.len() {
             panic!("Unexpected mismatch of lengths between element_indexes {} and locations_per_element {}.", element_indexes.len(), locations_per_element.len());
@@ -103,6 +120,43 @@ impl<'a> IndexIncrementerElementIndexer<'a> {
             index_incrementer: index_incrementer,
             locations_per_element: locations_per_element,
             is_last_increment_successful: true
+        }
+    }
+}
+
+pub struct ElementIndexerIncrementer<'a, T> {
+    element_indexers: Vec<Box<dyn ElementIndexer<T = T>>>,
+    previous_indexed_elements: Vec<Option<Rc<Vec<IndexedElement<'a, T>>>>>
+}
+
+impl<'a, T> ElementIndexerIncrementer<'a, T> {
+    pub fn new(element_indexers: Vec<Box<dyn ElementIndexer<T = T>>>) -> Self {
+        let mut previous_indexed_elements: Vec<Option<Rc<Vec<IndexedElement<T>>>>> = Vec::new();
+        for _ in element_indexers.iter() {
+            previous_indexed_elements.push(None);
+        }
+        ElementIndexerIncrementer {
+            element_indexers: element_indexers,
+            previous_indexed_elements: previous_indexed_elements
+        }
+    }
+    pub fn try_get_next_indexed_elements_per_element_indexer(&mut self) -> Option<Vec<Rc<Vec<IndexedElement<T>>>>>{
+        let mut indexed_elements_per_element_indexer: Vec<Rc<Vec<IndexedElement<T>>>> = Vec::new();
+        let mut is_previous_element_indexer_incremented: bool = false;
+        let mut is_last_element_indexer_cycled: bool = self.element_indexers.is_empty();
+        let mut element_indexer_index: usize = 0;
+        let element_indexers_length: usize = self.element_indexers.len();
+        while element_indexer_index < element_indexers_length {
+            if self.previous_indexed_elements[element_indexer_index].is_none() {
+                let indexed_elements = self.element_indexers[element_indexer_index].try_get_next_indexed_elements().unwrap();
+                self.previous_indexed_elements[element_indexer_index] = Some(Rc::new(indexed_elements));
+            }
+        }
+        if is_last_element_indexer_cycled {
+            None
+        }
+        else {
+            Some(indexed_elements_per_element_indexer)
         }
     }
 }
@@ -205,11 +259,11 @@ mod element_indexer_tests {
         let indexed_elements = indexed_elements_option.unwrap();
         assert_eq!(3, indexed_elements.len());
         assert_eq!(0, indexed_elements[0].index);
-        assert_eq!((10, 100), indexed_elements[0].element);
+        assert_eq!(&(10, 100), indexed_elements[0].element);
         assert_eq!(1, indexed_elements[1].index);
-        assert_eq!((12, 100), indexed_elements[1].element);
+        assert_eq!(&(12, 100), indexed_elements[1].element);
         assert_eq!(4, indexed_elements[2].index);
-        assert_eq!((15, 100), indexed_elements[2].element);
+        assert_eq!(&(15, 100), indexed_elements[2].element);
 
         let indexed_elements_option = element_indexer.try_get_next_indexed_elements();
         println!("indexed_elements_option: {:?}", indexed_elements_option);
@@ -218,11 +272,11 @@ mod element_indexer_tests {
         let indexed_elements = indexed_elements_option.unwrap();
         assert_eq!(3, indexed_elements.len());
         assert_eq!(0, indexed_elements[0].index);
-        assert_eq!((10, 100), indexed_elements[0].element);
+        assert_eq!(&(10, 100), indexed_elements[0].element);
         assert_eq!(4, indexed_elements[1].index);
-        assert_eq!((12, 100), indexed_elements[1].element);
+        assert_eq!(&(12, 100), indexed_elements[1].element);
         assert_eq!(1, indexed_elements[2].index);
-        assert_eq!((16, 100), indexed_elements[2].element);
+        assert_eq!(&(16, 100), indexed_elements[2].element);
 
         let indexed_elements_option = element_indexer.try_get_next_indexed_elements();
         println!("indexed_elements_option: {:?}", indexed_elements_option);
@@ -231,11 +285,11 @@ mod element_indexer_tests {
         let indexed_elements = indexed_elements_option.unwrap();
         assert_eq!(3, indexed_elements.len());
         assert_eq!(1, indexed_elements[0].index);
-        assert_eq!((10, 100), indexed_elements[0].element);
+        assert_eq!(&(10, 100), indexed_elements[0].element);
         assert_eq!(0, indexed_elements[1].index);
-        assert_eq!((13, 100), indexed_elements[1].element);
+        assert_eq!(&(13, 100), indexed_elements[1].element);
         assert_eq!(4, indexed_elements[2].index);
-        assert_eq!((15, 100), indexed_elements[2].element);
+        assert_eq!(&(15, 100), indexed_elements[2].element);
 
         let indexed_elements_option = element_indexer.try_get_next_indexed_elements();
         println!("indexed_elements_option: {:?}", indexed_elements_option);
@@ -244,11 +298,11 @@ mod element_indexer_tests {
         let indexed_elements = indexed_elements_option.unwrap();
         assert_eq!(3, indexed_elements.len());
         assert_eq!(1, indexed_elements[0].index);
-        assert_eq!((10, 100), indexed_elements[0].element);
+        assert_eq!(&(10, 100), indexed_elements[0].element);
         assert_eq!(4, indexed_elements[1].index);
-        assert_eq!((13, 100), indexed_elements[1].element);
+        assert_eq!(&(13, 100), indexed_elements[1].element);
         assert_eq!(0, indexed_elements[2].index);
-        assert_eq!((17, 100), indexed_elements[2].element);
+        assert_eq!(&(17, 100), indexed_elements[2].element);
 
         let indexed_elements_option = element_indexer.try_get_next_indexed_elements();
         println!("indexed_elements_option: {:?}", indexed_elements_option);
@@ -257,11 +311,11 @@ mod element_indexer_tests {
         let indexed_elements = indexed_elements_option.unwrap();
         assert_eq!(3, indexed_elements.len());
         assert_eq!(4, indexed_elements[0].index);
-        assert_eq!((10, 100), indexed_elements[0].element);
+        assert_eq!(&(10, 100), indexed_elements[0].element);
         assert_eq!(0, indexed_elements[1].index);
-        assert_eq!((14, 100), indexed_elements[1].element);
+        assert_eq!(&(14, 100), indexed_elements[1].element);
         assert_eq!(1, indexed_elements[2].index);
-        assert_eq!((16, 100), indexed_elements[2].element);
+        assert_eq!(&(16, 100), indexed_elements[2].element);
 
         let indexed_elements_option = element_indexer.try_get_next_indexed_elements();
         println!("indexed_elements_option: {:?}", indexed_elements_option);
@@ -270,11 +324,11 @@ mod element_indexer_tests {
         let indexed_elements = indexed_elements_option.unwrap();
         assert_eq!(3, indexed_elements.len());
         assert_eq!(4, indexed_elements[0].index);
-        assert_eq!((10, 100), indexed_elements[0].element);
+        assert_eq!(&(10, 100), indexed_elements[0].element);
         assert_eq!(1, indexed_elements[1].index);
-        assert_eq!((14, 100), indexed_elements[1].element);
+        assert_eq!(&(14, 100), indexed_elements[1].element);
         assert_eq!(0, indexed_elements[2].index);
-        assert_eq!((17, 100), indexed_elements[2].element);
+        assert_eq!(&(17, 100), indexed_elements[2].element);
 
         let indexed_elements_option = element_indexer.try_get_next_indexed_elements();
         println!("indexed_elements_option: {:?}", indexed_elements_option);
@@ -321,8 +375,25 @@ mod element_indexer_tests {
 
         let mut expected_iterations_total = 1;
         for segment_index in 0..segments_total {
-            expected_iterations_total *= (segment_index + 1);
+            expected_iterations_total *= segment_index + 1;
         }
         assert_eq!(expected_iterations_total, iterations_total);
+    }
+    #[rstest]
+    fn get_element_indexer_incrementer_zero_element_indexers() {
+        let element_indexers: Vec<Box<dyn ElementIndexer<T = String>>> = Vec::new();
+        let mut element_indexer_incrementer = ElementIndexerIncrementer::new(element_indexers);
+        let indexed_elements_per_element_indexer = element_indexer_incrementer.try_get_next_indexed_elements_per_element_indexer();
+        assert!(indexed_elements_per_element_indexer.is_none());
+    }
+    #[rstest]
+    fn get_element_indexer_incrementer_one_element_indexer_index_incrementer() {
+        let element_indexers: Vec<Box<dyn ElementIndexer<T = String>>> = Vec::new();
+        element_indexers.push(Box::new(IndexIncrementerElementIndexer::new(
+            
+        )));
+        let mut element_indexer_incrementer = ElementIndexerIncrementer::new(element_indexers);
+        let indexed_elements_per_element_indexer = element_indexer_incrementer.try_get_next_indexed_elements_per_element_indexer();
+        assert!(indexed_elements_per_element_indexer.is_none());
     }
 }

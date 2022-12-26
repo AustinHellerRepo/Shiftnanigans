@@ -54,6 +54,16 @@ impl IndexIncrementer {
     pub fn get(&self) -> Vec<Option<usize>> {
         self.current_indexes.clone()
     }
+    pub fn reset(&mut self) {
+        for (maximum_exclusive_index_index, maximum_exclusive_index) in self.maximum_exclusive_indexes.iter().enumerate() {
+            if maximum_exclusive_index == &0 {
+                self.current_indexes[maximum_exclusive_index_index] = None;
+            }
+            else {
+                self.current_indexes[maximum_exclusive_index_index] = Some(0);
+            }
+        }
+    }
 }
 
 #[cfg(test)]
