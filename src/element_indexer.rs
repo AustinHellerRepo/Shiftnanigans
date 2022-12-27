@@ -1,4 +1,4 @@
-use std::{rc::Rc, collections::BTreeMap};
+use std::{rc::Rc, collections::BTreeMap, cell::RefCell};
 
 use crate::{segment_container::{SegmentPermutationIncrementer}, index_incrementer::IndexIncrementer};
 
@@ -125,7 +125,7 @@ impl<'a, TElement> IndexIncrementerElementIndexer<'a, TElement> {
 }
 
 pub struct ElementIndexerIncrementer<'a, T> {
-    element_indexers: Vec<Box<dyn ElementIndexer<T = T>>>,
+    element_indexers: Vec<RefCell<Box<dyn ElementIndexer<T = T>>>>,
     previous_indexed_elements: Vec<Option<Rc<Vec<IndexedElement<'a, T>>>>>
 }
 
@@ -135,8 +135,12 @@ impl<'a, T> ElementIndexerIncrementer<'a, T> {
         for _ in element_indexers.iter() {
             previous_indexed_elements.push(None);
         }
+        let mut wrapped_element_indexers: Vec<RefCell<Box<dyn ElementIndexer<T = T>>>> = Vec::new();
+        for element_indexer in element_indexers.into_iter() {
+            wrapped_element_indexers.push(RefCell::new(element_indexer));
+        }
         ElementIndexerIncrementer {
-            element_indexers: element_indexers,
+            element_indexers: wrapped_element_indexers,
             previous_indexed_elements: previous_indexed_elements
         }
     }
@@ -148,7 +152,8 @@ impl<'a, T> ElementIndexerIncrementer<'a, T> {
         let element_indexers_length: usize = self.element_indexers.len();
         while element_indexer_index < element_indexers_length {
             if self.previous_indexed_elements[element_indexer_index].is_none() {
-                let indexed_elements = self.element_indexers[element_indexer_index].try_get_next_indexed_elements().unwrap();
+                let mut element_indexer = self.element_indexers[element_indexer_index].borrow_mut();
+                let indexed_elements = element_indexer.try_get_next_indexed_elements().unwrap();
                 self.previous_indexed_elements[element_indexer_index] = Some(Rc::new(indexed_elements));
             }
         }
