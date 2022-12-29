@@ -85,6 +85,7 @@ impl<TElement> ElementIndexer for IndexIncrementerElementIndexer<TElement> {
     }
     fn reset(&mut self) {
         self.index_incrementer.reset();
+        self.is_last_increment_successful = true;
     }
 }
 
@@ -141,7 +142,7 @@ impl<T: Clone + std::fmt::Debug> ElementIndexerIncrementer<T> {
                     let elements_option = self.element_indexers[element_indexer_index].try_get_next_elements();
                     if elements_option.is_none() {
                         self.element_indexers[element_indexer_index].reset();
-                        let elements = self.element_indexers[element_indexer_index].try_get_next_elements().unwrap();
+                        let elements = self.element_indexers[element_indexer_index].try_get_next_elements().expect("The element indexer was just reset so the first set of elements should not be None.");
                         self.previous_elements[element_indexer_index] = Some(Rc::new(elements));
                         if element_indexer_index + 1 == element_indexers_length {
                             is_last_element_indexer_cycled = true;
@@ -344,7 +345,89 @@ mod element_indexer_tests {
         let elements_option = element_indexer_incrementer.try_get_next_elements();
         assert!(elements_option.is_some());
         let elements = elements_option.unwrap();
+        assert_eq!(2, elements.len());
         assert_eq!(&String::from("1/3"), elements[0].as_ref());
-        //assert!(elements_option.is_none());
+        assert_eq!(&String::from("1/2"), elements[1].as_ref());
+        let elements_option = element_indexer_incrementer.try_get_next_elements();
+        assert!(elements_option.is_some());
+        let elements = elements_option.unwrap();
+        assert_eq!(2, elements.len());
+        assert_eq!(&String::from("2/3"), elements[0].as_ref());
+        assert_eq!(&String::from("1/2"), elements[1].as_ref());
+        let elements_option = element_indexer_incrementer.try_get_next_elements();
+        assert!(elements_option.is_some());
+        let elements = elements_option.unwrap();
+        assert_eq!(2, elements.len());
+        assert_eq!(&String::from("3/3"), elements[0].as_ref());
+        assert_eq!(&String::from("1/2"), elements[1].as_ref());
+        let elements_option = element_indexer_incrementer.try_get_next_elements();
+        assert!(elements_option.is_some());
+        let elements = elements_option.unwrap();
+        assert_eq!(2, elements.len());
+        assert_eq!(&String::from("1/3"), elements[0].as_ref());
+        assert_eq!(&String::from("2/2"), elements[1].as_ref());
+        let elements_option = element_indexer_incrementer.try_get_next_elements();
+        assert!(elements_option.is_some());
+        let elements = elements_option.unwrap();
+        assert_eq!(2, elements.len());
+        assert_eq!(&String::from("2/3"), elements[0].as_ref());
+        assert_eq!(&String::from("2/2"), elements[1].as_ref());
+        let elements_option = element_indexer_incrementer.try_get_next_elements();
+        assert!(elements_option.is_some());
+        let elements = elements_option.unwrap();
+        assert_eq!(2, elements.len());
+        assert_eq!(&String::from("3/3"), elements[0].as_ref());
+        assert_eq!(&String::from("2/2"), elements[1].as_ref());
+        let elements_option = element_indexer_incrementer.try_get_next_elements();
+        assert!(elements_option.is_none());
+    }
+    #[rstest]
+    fn get_element_indexer_incrementer_two_element_indexer_index_incrementers() {
+        let mut element_indexers: Vec<Box<dyn ElementIndexer<T = String>>> = Vec::new();
+        element_indexers.push(Box::new(IndexIncrementerElementIndexer::new(
+            vec![vec![String::from("1/3"), String::from("2/3"), String::from("3/3")]]
+        )));
+        element_indexers.push(Box::new(IndexIncrementerElementIndexer::new(
+            vec![vec![String::from("1/2"), String::from("2/2")]]
+        )));
+        let mut element_indexer_incrementer = ElementIndexerIncrementer::new(element_indexers);
+        let elements_option = element_indexer_incrementer.try_get_next_elements();
+        assert!(elements_option.is_some());
+        let elements = elements_option.unwrap();
+        assert_eq!(2, elements.len());
+        assert_eq!(&String::from("1/3"), elements[0].as_ref());
+        assert_eq!(&String::from("1/2"), elements[1].as_ref());
+        let elements_option = element_indexer_incrementer.try_get_next_elements();
+        assert!(elements_option.is_some());
+        let elements = elements_option.unwrap();
+        assert_eq!(2, elements.len());
+        assert_eq!(&String::from("2/3"), elements[0].as_ref());
+        assert_eq!(&String::from("1/2"), elements[1].as_ref());
+        let elements_option = element_indexer_incrementer.try_get_next_elements();
+        assert!(elements_option.is_some());
+        let elements = elements_option.unwrap();
+        assert_eq!(2, elements.len());
+        assert_eq!(&String::from("3/3"), elements[0].as_ref());
+        assert_eq!(&String::from("1/2"), elements[1].as_ref());
+        let elements_option = element_indexer_incrementer.try_get_next_elements();
+        assert!(elements_option.is_some());
+        let elements = elements_option.unwrap();
+        assert_eq!(2, elements.len());
+        assert_eq!(&String::from("1/3"), elements[0].as_ref());
+        assert_eq!(&String::from("2/2"), elements[1].as_ref());
+        let elements_option = element_indexer_incrementer.try_get_next_elements();
+        assert!(elements_option.is_some());
+        let elements = elements_option.unwrap();
+        assert_eq!(2, elements.len());
+        assert_eq!(&String::from("2/3"), elements[0].as_ref());
+        assert_eq!(&String::from("2/2"), elements[1].as_ref());
+        let elements_option = element_indexer_incrementer.try_get_next_elements();
+        assert!(elements_option.is_some());
+        let elements = elements_option.unwrap();
+        assert_eq!(2, elements.len());
+        assert_eq!(&String::from("3/3"), elements[0].as_ref());
+        assert_eq!(&String::from("2/2"), elements[1].as_ref());
+        let elements_option = element_indexer_incrementer.try_get_next_elements();
+        assert!(elements_option.is_none());
     }
 }
