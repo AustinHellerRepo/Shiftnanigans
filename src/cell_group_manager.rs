@@ -2,6 +2,7 @@ use std::{collections::{BTreeMap, BTreeSet}, hash::Hash, marker::PhantomData, ti
 use bitvec::vec::BitVec;
 use uuid::Uuid;
 use crate::index_incrementer::{self, IndexIncrementer};
+use crate::segment_permutation_incrementer::{SegmentPermutationIncrementer};
 
 #[derive(Clone, Debug)]
 pub struct CellGroup {
@@ -9,7 +10,7 @@ pub struct CellGroup {
     cell_group_type_index: usize  // each type can have relationship attributes (detection location offsets, etc.)
 }
 
-/// This struct contains a specific arrangement of cell groups, each location specified per cell group
+/// This struct contains a specific arrangement of cell groups and all possible locations specified per cell group
 #[derive(Clone, Debug)]
 pub struct CellGroupLocationCollection {
     locations_per_cell_group_index: Vec<Vec<(i32, i32)>>
