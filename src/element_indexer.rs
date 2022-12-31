@@ -134,8 +134,7 @@ impl<'a, T: Clone + std::fmt::Debug> ElementIndexerIncrementer<'a, T> {
         let element_indexers_length: usize = self.element_indexers.len();
         while element_indexer_index < element_indexers_length {
             if self.previous_elements[element_indexer_index].is_none() {
-                let element_indexer = &mut self.element_indexers[element_indexer_index];
-                let elements = element_indexer.try_get_next_elements().unwrap();
+                let elements = self.element_indexers[element_indexer_index].try_get_next_elements().unwrap();
                 self.previous_elements[element_indexer_index] = Some(Rc::new(elements));
             }
             else {
