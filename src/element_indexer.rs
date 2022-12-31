@@ -459,4 +459,100 @@ mod element_indexer_tests {
         let elements_option = element_indexer_incrementer.try_get_next_elements();
         assert!(elements_option.is_none()); 
     }
+    #[rstest]
+    fn get_element_indexer_incrementer_two_segment_permutation_incrementer_element_indexers() {
+        let first_segments = vec![Segment::new(1), Segment::new(2)];
+        let mut first_segment_permutation_incrementer_element_indexer = SegmentPermutationIncrementerElementIndexer::new(
+            SegmentPermutationIncrementer::new(&first_segments, 4, 1),
+            (10, 100),
+            true
+        );
+        let second_segments = vec![Segment::new(3)];
+        let mut second_segment_permutation_incrementer_element_indexer = SegmentPermutationIncrementerElementIndexer::new(
+            SegmentPermutationIncrementer::new(&second_segments, 4, 1),
+            (20, 30),
+            false
+        );
+        let mut element_indexers: Vec<&mut dyn ElementIndexer<T = (i32, i32)>> = Vec::new();
+        element_indexers.push(&mut first_segment_permutation_incrementer_element_indexer);
+        element_indexers.push(&mut second_segment_permutation_incrementer_element_indexer);
+        let mut element_indexer_incrementer = ElementIndexerIncrementer::new(element_indexers);
+        let elements_option = element_indexer_incrementer.try_get_next_elements();
+        assert!(elements_option.is_some());
+        let elements = elements_option.unwrap();
+        assert_eq!(3, elements.len());
+        assert_eq!(&(10, 100), elements[0].as_ref());
+        assert_eq!(&(12, 100), elements[1].as_ref());
+        assert_eq!(&(20, 30), elements[2].as_ref());
+        let elements_option = element_indexer_incrementer.try_get_next_elements();
+        assert!(elements_option.is_some());
+        let elements = elements_option.unwrap();
+        assert_eq!(3, elements.len());
+        assert_eq!(&(13, 100), elements[0].as_ref());
+        assert_eq!(&(10, 100), elements[1].as_ref());
+        assert_eq!(&(20, 30), elements[2].as_ref());
+        let elements_option = element_indexer_incrementer.try_get_next_elements();
+        assert!(elements_option.is_some());
+        let elements = elements_option.unwrap();
+        assert_eq!(3, elements.len());
+        assert_eq!(&(10, 100), elements[0].as_ref());
+        assert_eq!(&(12, 100), elements[1].as_ref());
+        assert_eq!(&(20, 31), elements[2].as_ref());
+        let elements_option = element_indexer_incrementer.try_get_next_elements();
+        assert!(elements_option.is_some());
+        let elements = elements_option.unwrap();
+        assert_eq!(3, elements.len());
+        assert_eq!(&(13, 100), elements[0].as_ref());
+        assert_eq!(&(10, 100), elements[1].as_ref());
+        assert_eq!(&(20, 31), elements[2].as_ref());
+        let elements_option = element_indexer_incrementer.try_get_next_elements();
+        assert!(elements_option.is_none()); 
+    }
+    #[rstest]
+    fn get_element_indexer_incrementer_one_segment_permutation_incrementer_element_indexer_and_one_index_incrementer_element_indexer() {
+        let segments = vec![Segment::new(1), Segment::new(2)];
+        let mut segment_permutation_incrementer_element_indexer = SegmentPermutationIncrementerElementIndexer::new(
+            SegmentPermutationIncrementer::new(&segments, 4, 1),
+            (10, 100),
+            true
+        );
+        let mut index_incrementer_element_indexer = IndexIncrementerElementIndexer::new(
+            vec![vec![(20, 30), (21, 31)]]
+        );
+        let mut element_indexers: Vec<&mut dyn ElementIndexer<T = (i32, i32)>> = Vec::new();
+        element_indexers.push(&mut segment_permutation_incrementer_element_indexer);
+        element_indexers.push(&mut index_incrementer_element_indexer);
+        let mut element_indexer_incrementer = ElementIndexerIncrementer::new(element_indexers);
+        let elements_option = element_indexer_incrementer.try_get_next_elements();
+        assert!(elements_option.is_some());
+        let elements = elements_option.unwrap();
+        assert_eq!(3, elements.len());
+        assert_eq!(&(10, 100), elements[0].as_ref());
+        assert_eq!(&(12, 100), elements[1].as_ref());
+        assert_eq!(&(20, 30), elements[2].as_ref());
+        let elements_option = element_indexer_incrementer.try_get_next_elements();
+        assert!(elements_option.is_some());
+        let elements = elements_option.unwrap();
+        assert_eq!(3, elements.len());
+        assert_eq!(&(13, 100), elements[0].as_ref());
+        assert_eq!(&(10, 100), elements[1].as_ref());
+        assert_eq!(&(20, 30), elements[2].as_ref());
+        let elements_option = element_indexer_incrementer.try_get_next_elements();
+        assert!(elements_option.is_some());
+        let elements = elements_option.unwrap();
+        assert_eq!(3, elements.len());
+        assert_eq!(&(10, 100), elements[0].as_ref());
+        assert_eq!(&(12, 100), elements[1].as_ref());
+        assert_eq!(&(21, 31), elements[2].as_ref());
+        let elements_option = element_indexer_incrementer.try_get_next_elements();
+        assert!(elements_option.is_some());
+        let elements = elements_option.unwrap();
+        assert_eq!(3, elements.len());
+        assert_eq!(&(13, 100), elements[0].as_ref());
+        assert_eq!(&(10, 100), elements[1].as_ref());
+        assert_eq!(&(21, 31), elements[2].as_ref());
+        let elements_option = element_indexer_incrementer.try_get_next_elements();
+        assert!(elements_option.is_none()); 
+    }
+
 }
