@@ -435,9 +435,9 @@ mod element_indexer_tests {
     }
     #[rstest]
     fn get_element_indexer_incrementer_one_segment_permutation_incrementer_element_indexer() {
-        let segments = vec![Segment::new(1), Segment::new(2), Segment::new(3)];
+        let segments = vec![Segment::new(1), Segment::new(2)];
         let mut segment_permutation_incrementer_element_indexer = SegmentPermutationIncrementerElementIndexer::new(
-            SegmentPermutationIncrementer::new(&segments, 8, 1),
+            SegmentPermutationIncrementer::new(&segments, 4, 1),
             (10, 100),
             true
         );
@@ -447,9 +447,16 @@ mod element_indexer_tests {
         let elements_option = element_indexer_incrementer.try_get_next_elements();
         assert!(elements_option.is_some());
         let elements = elements_option.unwrap();
-        assert_eq!(3, elements.len());
+        assert_eq!(2, elements.len());
         assert_eq!(&(10, 100), elements[0].as_ref());
         assert_eq!(&(12, 100), elements[1].as_ref());
-        assert_eq!(&(15, 100), elements[2].as_ref());
+        let elements_option = element_indexer_incrementer.try_get_next_elements();
+        assert!(elements_option.is_some());
+        let elements = elements_option.unwrap();
+        assert_eq!(2, elements.len());
+        assert_eq!(&(13, 100), elements[0].as_ref());
+        assert_eq!(&(10, 100), elements[1].as_ref());
+        let elements_option = element_indexer_incrementer.try_get_next_elements();
+        assert!(elements_option.is_none()); 
     }
 }
