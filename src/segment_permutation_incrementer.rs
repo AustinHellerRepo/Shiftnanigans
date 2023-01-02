@@ -34,8 +34,8 @@ impl LocatedSegment {
 }
 
 #[derive(Debug)]
-struct RecursiveSegmentPermutationIncrementer<'a> {
-    segments: &'a Vec<Segment>,
+struct RecursiveSegmentPermutationIncrementer {
+    segments: Rc<Vec<Segment>>,
     bounding_length: usize,
     padding: usize,
     position_offset: usize,
@@ -47,15 +47,15 @@ struct RecursiveSegmentPermutationIncrementer<'a> {
     current_other_segments_current_length: usize,
     current_other_segments_maximum_inclusive_length: usize,
     // iterate over other segment's snapshot
-    current_other_segments_recursive_segment_permutation_incrementer: Box<Option<RecursiveSegmentPermutationIncrementer<'a>>>,
+    current_other_segments_recursive_segment_permutation_incrementer: Box<Option<RecursiveSegmentPermutationIncrementer>>,
     current_other_segments_snapshot: Vec<LocatedSegment>,
     // iterate over current segment's position
     current_segment_position: Option<usize>,
     current_segment_position_maximum_inclusive: usize
 }
 
-impl<'a> RecursiveSegmentPermutationIncrementer<'a> {
-    fn new(segments: &'a Vec<Segment>, bounding_length: usize, padding: usize, current_mask: Rc<RefCell<BitVec>>, position_offset: usize, depth: usize) -> Self {
+impl RecursiveSegmentPermutationIncrementer {
+    fn new(segments: Rc<Vec<Segment>>, bounding_length: usize, padding: usize, current_mask: Rc<RefCell<BitVec>>, position_offset: usize, depth: usize) -> Self {
 
         //println!("{:?}: new RecursiveSegmentPermutationIncrementer: {:?}", depth, position_offset);
 
@@ -106,7 +106,7 @@ impl<'a> RecursiveSegmentPermutationIncrementer<'a> {
             //println!("{:?}: other_position_offset {:?} = bounding_length {:?} - current_other_segments_current_length {:?}", depth, other_position_offset, bounding_length, current_other_segments_current_length);
 
             current_other_segments_recursive_segment_permutation_incrementer = Box::new(Some(RecursiveSegmentPermutationIncrementer::new(
-                segments,
+                segments.clone(),
                 current_other_segments_current_length,
                 padding,
                 current_mask.clone(),
@@ -206,7 +206,7 @@ impl<'a> RecursiveSegmentPermutationIncrementer<'a> {
                         let other_position_offset = self.bounding_length - self.current_other_segments_current_length;
 
                         self.current_other_segments_recursive_segment_permutation_incrementer = Box::new(Some(RecursiveSegmentPermutationIncrementer::new(
-                            self.segments,
+                            self.segments.clone(),
                             self.current_other_segments_current_length,
                             self.padding,
                             self.current_mask.clone(),
@@ -221,7 +221,7 @@ impl<'a> RecursiveSegmentPermutationIncrementer<'a> {
             
             self.current_segment_position = Some(0);
 
-            if self.position_offset == 0 {
+            if self.depth == 0 {
                 if self.current_other_segments_current_length == 0 {
                     self.current_segment_position_maximum_inclusive = self.bounding_length - self.segments[self.current_segment_index].length;
                 }
@@ -243,42 +243,55 @@ impl<'a> RecursiveSegmentPermutationIncrementer<'a> {
             position: self.current_segment_position.unwrap() + self.position_offset
         });
         // TODO consider doing snapshot.extend here (or something like it)
-        for other_segment_snapshot_segment in self.current_other_segments_snapshot.drain(0..) {
+        //for other_segment_snapshot_segment in self.current_other_segments_snapshot.drain(0..) {
+        //    snapshot.push(other_segment_snapshot_segment.clone());
+        //}
+        for other_segment_snapshot_segment in self.current_other_segments_snapshot.iter() {
             snapshot.push(other_segment_snapshot_segment.clone());
         }
+        debug!("{}: snapshot: {:?}", self.depth, snapshot);
         return Some(snapshot);
     }
 }
 
-pub struct SegmentPermutationIncrementer<'a> {
-    segments: &'a Vec<Segment>,
+#[derive(Debug)]
+pub struct SegmentPermutationIncrementer {
+    segments: Rc<Vec<Segment>>,
     bounding_length: usize,
     padding: usize,
-    recursive_segment_permutation_incrementer: RecursiveSegmentPermutationIncrementer<'a>
+    recursive_segment_permutation_incrementer: Option<RecursiveSegmentPermutationIncrementer>
 }
 
-impl<'a> SegmentPermutationIncrementer<'a> {
+impl SegmentPermutationIncrementer {
     #[time_graph::instrument]
-    pub fn new(segments: &'a Vec<Segment>, bounding_length: usize, padding: usize) -> Self {
+    pub fn new(segments: Rc<Vec<Segment>>, bounding_length: usize, padding: usize) -> Self {
         
+        let recursive_segment_permutation_incrementer: Option<RecursiveSegmentPermutationIncrementer>;
         if segments.len() == 0 {
-            panic!("Must contain at least one segment.");
+            recursive_segment_permutation_incrementer = None;
         }
-
-        let mut mask = BitVec::with_capacity(segments.len());
-        mask.resize(segments.len(), true);
-        let wrapped_mask = Rc::new(RefCell::new(mask));
+        else {
+            let mut mask = BitVec::with_capacity(segments.len());
+            mask.resize(segments.len(), true);
+            let wrapped_mask = Rc::new(RefCell::new(mask));
+            recursive_segment_permutation_incrementer = Some(RecursiveSegmentPermutationIncrementer::new(segments.clone(), bounding_length, padding, wrapped_mask, 0, 0));
+        }
 
         SegmentPermutationIncrementer {
             segments: segments,
             bounding_length: bounding_length,
             padding: padding,
-            recursive_segment_permutation_incrementer: RecursiveSegmentPermutationIncrementer::new(segments, bounding_length, padding, wrapped_mask, 0, 0)
+            recursive_segment_permutation_incrementer: recursive_segment_permutation_incrementer
         }
     }
     #[time_graph::instrument]
     pub fn try_get_next_segment_location_permutations(&mut self) -> Option<Vec<LocatedSegment>> {
-        self.recursive_segment_permutation_incrementer.try_get_next_snapshot()
+        if self.recursive_segment_permutation_incrementer.is_none() {
+            None
+        }
+        else {
+            self.recursive_segment_permutation_incrementer.as_mut().unwrap().try_get_next_snapshot()
+        }
     }
     pub fn get_segments_length(&self) -> usize {
         self.segments.len()
@@ -287,11 +300,11 @@ impl<'a> SegmentPermutationIncrementer<'a> {
         let mut mask = BitVec::with_capacity(self.segments.len());
         mask.resize(self.segments.len(), true);
         let wrapped_mask = Rc::new(RefCell::new(mask));
-        self.recursive_segment_permutation_incrementer = RecursiveSegmentPermutationIncrementer::new(self.segments, self.bounding_length, self.padding, wrapped_mask, 0, 0);
+        self.recursive_segment_permutation_incrementer = Some(RecursiveSegmentPermutationIncrementer::new(self.segments.clone(), self.bounding_length, self.padding, wrapped_mask, 0, 0));
     }
 }
 
-impl<'a> Iterator for SegmentPermutationIncrementer<'a> {
+impl Iterator for SegmentPermutationIncrementer {
     type Item = Vec<LocatedSegment>;
     fn next(&mut self) -> Option<Self::Item> {
         self.try_get_next_segment_location_permutations()
@@ -299,7 +312,7 @@ impl<'a> Iterator for SegmentPermutationIncrementer<'a> {
 }
 
 #[cfg(test)]
-mod segment_container_tests {
+mod segment_permutation_incrementer_tests {
     use super::*;
     use rstest::rstest;
 
@@ -318,13 +331,12 @@ mod segment_container_tests {
     }
 
     #[rstest]
-    #[should_panic]
     fn initialize_segment_permutation_incrementer_zero_segments() {
         init();
 
         let segments = vec![];
 
-        let _: SegmentPermutationIncrementer = SegmentPermutationIncrementer::new(&segments, 0, 0);
+        let _: SegmentPermutationIncrementer = SegmentPermutationIncrementer::new(Rc::new(segments), 0, 0);
     }
 
     #[rstest]
@@ -342,7 +354,7 @@ mod segment_container_tests {
 
         let smallest_bounding_length: usize = ((segments_total * (segments_total + 1)) / 2) as usize + (segments_total - 1);
 
-        let _: SegmentPermutationIncrementer = SegmentPermutationIncrementer::new(&segments, smallest_bounding_length, 1);
+        let _: SegmentPermutationIncrementer = SegmentPermutationIncrementer::new(Rc::new(segments), smallest_bounding_length, 1);
     }
 
     #[rstest]
@@ -359,7 +371,7 @@ mod segment_container_tests {
 
         let smallest_bounding_length: usize = ((segments_total * (segments_total + 1)) / 2) as usize + (segments_total - 1);
 
-        let _: SegmentPermutationIncrementer = SegmentPermutationIncrementer::new(&segments, smallest_bounding_length, 1);
+        let _: SegmentPermutationIncrementer = SegmentPermutationIncrementer::new(Rc::new(segments), smallest_bounding_length, 1);
 
         println!("{}", time_graph::get_full_graph().as_dot());
     }
@@ -378,7 +390,7 @@ mod segment_container_tests {
 
         let smallest_bounding_length: usize = ((segments_total * (segments_total + 1)) / 2) as usize + (segments_total - 1);
 
-        let mut segment_permutation_incrementer: SegmentPermutationIncrementer = SegmentPermutationIncrementer::new(&segments, smallest_bounding_length, 1);
+        let mut segment_permutation_incrementer: SegmentPermutationIncrementer = SegmentPermutationIncrementer::new(Rc::new(segments), smallest_bounding_length, 1);
 
         let segment_location_permutations = segment_permutation_incrementer.try_get_next_segment_location_permutations();
 
@@ -410,7 +422,7 @@ mod segment_container_tests {
 
         println!("{:?}: smallest_bounding_length: {:?}", segments_total, smallest_bounding_length);
 
-        let mut segment_permutation_incrementer: SegmentPermutationIncrementer = SegmentPermutationIncrementer::new(&segments, smallest_bounding_length, 1);
+        let mut segment_permutation_incrementer: SegmentPermutationIncrementer = SegmentPermutationIncrementer::new(Rc::new(segments), smallest_bounding_length, 1);
 
         let mut permutations_total = 0;
         let mut is_get_next_segment_location_permutation_successful = true;
@@ -443,7 +455,7 @@ mod segment_container_tests {
         init();
         
         let segments: Vec<Segment> = Vec::new();
-        let segment_permutation_incrementer: SegmentPermutationIncrementer = SegmentPermutationIncrementer::new(&segments, 0, 0);
+        let segment_permutation_incrementer: SegmentPermutationIncrementer = SegmentPermutationIncrementer::new(Rc::new(segments), bounding_length, 1);
         let permutations = segment_permutation_incrementer.into_iter().collect::<Vec<Vec<LocatedSegment>>>();
         assert_eq!(0, permutations.len());
     }
@@ -457,7 +469,7 @@ mod segment_container_tests {
         
         let segments: Vec<Segment> = vec![Segment::new(1)];
         let segment_permutation_incrementer: SegmentPermutationIncrementer = SegmentPermutationIncrementer::new(
-            &segments,
+            Rc::new(segments),
             bounding_length,
             1
         );
@@ -479,7 +491,7 @@ mod segment_container_tests {
         
         let segments: Vec<Segment> = vec![Segment::new(2)];
         let segment_permutation_incrementer: SegmentPermutationIncrementer = SegmentPermutationIncrementer::new(
-            &segments,
+            Rc::new(segments),
             bounding_length,
             1
         );
@@ -498,7 +510,7 @@ mod segment_container_tests {
 
         let segments: Vec<Segment> = vec![Segment::new(1), Segment::new(1)];
         let segment_permutation_incrementer: SegmentPermutationIncrementer = SegmentPermutationIncrementer::new(
-            &segments,
+            Rc::new(segments),
             3,
             1
         );
@@ -518,14 +530,9 @@ mod segment_container_tests {
     fn get_all_possible_positions_within_bounding_length_with_two_segments_size_one_bounds_five_padding_two() {
         init();
 
-        let segments = vec![
-            Segment::new(1),
-            Segment::new(1)
-        ];
-
-        let segments: Vec<Segment> = vec![Segment::new(1), Segment::new(1)];
+        let segments: Rc<Vec<Segment>> = Rc::new(vec![Segment::new(1), Segment::new(1)]);
         let segment_permutation_incrementer: SegmentPermutationIncrementer = SegmentPermutationIncrementer::new(
-            &segments,
+            segments.clone(),
             5,
             2
         );
@@ -542,7 +549,7 @@ mod segment_container_tests {
             permutations_total += 1;
             for print_index in 0..5 {
                 let mut is_found = false;
-                for located_segment in snapshot {
+                for located_segment in snapshot.iter() {
                     if print_index >= located_segment.position && print_index < located_segment.position + segments[located_segment.segment_index].length {
                         print!("{}", located_segment.segment_index);
                         is_found = true;
@@ -565,7 +572,7 @@ mod segment_container_tests {
 
         let segments: Vec<Segment> = vec![Segment::new(2), Segment::new(2)];
         let segment_permutation_incrementer: SegmentPermutationIncrementer = SegmentPermutationIncrementer::new(
-            &segments,
+            Rc::new(segments),
             6,
             1
         );
@@ -611,9 +618,9 @@ mod segment_container_tests {
     fn get_all_possible_positions_within_bounding_length_with_three_segments_size_two_bounds_ten_padding_one() {
         init();
 
-        let segments: Vec<Segment> = vec![Segment::new(2), Segment::new(2), Segment::new(2)];
+        let segments: Rc<Vec<Segment>> = Rc::new(vec![Segment::new(2), Segment::new(2), Segment::new(2)]);
         let segment_permutation_incrementer: SegmentPermutationIncrementer = SegmentPermutationIncrementer::new(
-            &segments,
+            segments.clone(),
             10,
             1
         );
@@ -719,7 +726,7 @@ mod segment_container_tests {
         ];
 
         let segment_permutation_incrementer: SegmentPermutationIncrementer = SegmentPermutationIncrementer::new(
-            &segments,
+            Rc::new(segments),
             64,
             1
         );

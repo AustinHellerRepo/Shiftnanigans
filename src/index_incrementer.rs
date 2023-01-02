@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub struct IndexIncrementer {
     maximum_exclusive_indexes: Vec<usize>,
     current_indexes: Vec<Option<usize>>,
