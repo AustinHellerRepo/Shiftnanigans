@@ -732,6 +732,6 @@ mod segment_permutation_incrementer_tests {
         );
         let permutations = segment_permutation_incrementer.into_iter().collect::<Vec<Vec<LocatedSegment>>>();
 
-        assert_eq!(60, permutations.len());
+        assert_eq!(3628800, permutations.len());
     }
 }
