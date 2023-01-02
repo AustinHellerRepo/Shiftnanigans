@@ -1,8 +1,8 @@
 use std::{collections::{BTreeMap, BTreeSet}, hash::Hash, marker::PhantomData, time::Instant, rc::Rc};
 use bitvec::vec::BitVec;
 use uuid::Uuid;
-use crate::{index_incrementer::{self, IndexIncrementer}, element_indexer::{ElementIndexer, ElementIndexerIncrementer}};
-use crate::segment_permutation_incrementer::{SegmentPermutationIncrementer};
+
+use super::element_indexer_incrementer::ElementIndexerIncrementer;
 
 #[derive(Debug)]
 pub struct CellGroup {
@@ -150,7 +150,7 @@ impl Iterator for CellGroupDependencyIncrementer {
 mod cell_group_manager_tests {
     use std::{time::{Duration, Instant}, cell::RefCell};
 
-    use crate::element_indexer::IndexIncrementerElementIndexer;
+    use crate::incrementer::element_indexer_incrementer::{IndexIncrementerElementIndexer, ElementIndexer};
 
     use super::*;
     use bitvec::bits;

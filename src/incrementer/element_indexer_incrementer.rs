@@ -1,6 +1,6 @@
 use std::{rc::Rc, collections::BTreeMap, cell::RefCell};
 
-use crate::{segment_permutation_incrementer::{SegmentPermutationIncrementer}, index_incrementer::IndexIncrementer};
+use super::{segment_permutation_incrementer::SegmentPermutationIncrementer, index_incrementer::IndexIncrementer};
 
 pub trait ElementIndexer {
     type T: std::fmt::Debug;
@@ -191,9 +191,9 @@ impl<T: Clone + std::fmt::Debug> ElementIndexerIncrementer<T> {
 
 #[cfg(test)]
 mod element_indexer_tests {
-    use crate::segment_permutation_incrementer::Segment;
 
     use super::*;
+    use super::super::segment_permutation_incrementer::Segment;
     use rstest::rstest;
 
     fn init() {

@@ -1,7 +1,5 @@
-pub mod segment_permutation_incrementer;
-pub mod index_incrementer;
-pub mod element_indexer;
-pub mod cell_group_dependency_incrementer;
+pub mod incrementer;
 // TODO bloom filter wrapper over hashset
+pub mod shifter;
 extern crate pretty_env_logger;
 #[macro_use] extern crate log;
