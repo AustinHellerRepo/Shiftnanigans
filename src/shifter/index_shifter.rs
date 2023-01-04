@@ -73,6 +73,12 @@ impl<T> Shifter for IndexShifter<T> {
         }
     }
     fn try_increment(&mut self) -> bool {
+        if self.current_shift_index.is_none() {
+            return false;
+        }
+        else if self.current_shift_index.unwrap() == self.states_per_shift_index.len() {
+            return false;
+        }
         let current_shift_index = self.current_shift_index.unwrap();
         let current_state_index_option = self.current_state_index_per_shift_index[current_shift_index];
         if current_state_index_option.is_none() {
@@ -126,7 +132,7 @@ mod index_shifter_tests {
 
     fn init() {
         std::env::set_var("RUST_LOG", "trace");
-        //pretty_env_logger::try_init();
+        pretty_env_logger::try_init();
     }
 
     #[rstest]
@@ -135,5 +141,51 @@ mod index_shifter_tests {
 
         let states_per_shift_index: Vec<Vec<Rc<(i32, i32)>>> = Vec::new();
         let _ = IndexShifter::new(&states_per_shift_index);
+    }
+
+    #[rstest]
+    #[case(1, 1)]
+    #[case(1, 2)]
+    #[case(2, 1)]
+    #[case(2, 2)]
+    #[case(3, 1)]
+    #[case(3, 2)]
+    #[case(3, 3)]
+    #[case(1, 3)]
+    #[case(2, 3)]
+    fn shift_through_different_states(#[case] states_total: usize, #[case] shifts_total: usize) {
+        init();
+
+        let mut states_per_shift_index: Vec<Vec<Rc<(i32, i32)>>> = Vec::new();
+        for shift_index in 0..shifts_total {
+            let mut states: Vec<Rc<(i32, i32)>> = Vec::new();
+            for state_index in 0..states_total {
+                states.push(Rc::new((state_index as i32, shift_index as i32)));
+            }
+            states_per_shift_index.push(states);
+        }
+        let mut index_shifter = IndexShifter::new(&states_per_shift_index);
+        for _ in 0..10 {
+            assert!(!index_shifter.try_backward());
+            for index in 0..(shifts_total * states_total) {
+                debug!("index: {:?}", index);
+                if index % states_total == 0 {
+                    assert!(!index_shifter.try_increment());
+                    assert!(index_shifter.try_forward());
+                }
+                assert!(index_shifter.try_increment());
+                let get_option = index_shifter.get();
+                assert!(get_option.is_some());
+                let get = get_option.unwrap();
+                assert_eq!(index as i32 % states_total as i32, get.0);
+                assert_eq!(index as i32 / states_total as i32, get.1);
+            }
+            assert!(!index_shifter.try_forward());
+            for index in 0..shifts_total {
+                debug!("index: {:?}", index);
+                assert!(index_shifter.try_backward());
+            }
+        }
+        assert!(!index_shifter.try_backward());
     }
 }

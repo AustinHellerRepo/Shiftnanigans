@@ -87,11 +87,13 @@ impl Shifter for SegmentPermutationShifter {
         // calculate position of chosen segment in "other segments"
 
         if self.is_shifted_outside {
+            debug!("try_forward: already shifted outside");
             return false;
         }
         else {
             if self.current_mask.count_zeros() == 0 {
                 self.is_shifted_outside = true;
+                debug!("try_forward: discovered that there are no zeros, so shifting outside");
                 return false;
             }
             else {
@@ -115,6 +117,7 @@ impl Shifter for SegmentPermutationShifter {
                             let current_initial_position = previous_position_offset + previous_segment_length + self.padding;
                             self.current_initial_position_offset_per_shift_index.push_back(current_initial_position);
                         }
+                        self.current_position_offset_per_shift_index.push_back(None);
 
                         let segment_length = self.segments[mask_index].length;
                         self.current_remaining_maximum_bounding_length -= segment_length;
@@ -123,6 +126,7 @@ impl Shifter for SegmentPermutationShifter {
                             self.current_remaining_maximum_bounding_length -= self.padding;
                             self.current_remaining_minimum_bounding_length -= self.padding;
                         }
+                        debug!("try_forward: found the next segment at index {:?}", mask_index);
                         return true;
                     }
                 }
@@ -131,22 +135,27 @@ impl Shifter for SegmentPermutationShifter {
         }
     }
     fn try_backward(&mut self) -> bool {
-        if self.current_mask.count_ones() == 0 {
-            return false;
-        }
-        else {
+        if self.current_mask.count_ones() != 0 {
             if self.is_shifted_outside {
                 self.is_shifted_outside = false;
-                return true;
+                debug!("try_backward: shifted outside");
             }
             else {
                 let current_segment_index = self.current_segment_index_per_shift_index.pop_back().unwrap();
                 self.current_mask.set(current_segment_index, false);
                 self.current_remaining_maximum_bounding_length = self.current_bounding_length_per_shift_index.pop_back().unwrap();
                 self.current_remaining_minimum_bounding_length = self.current_minimum_bounding_length_per_shift_index.pop_back().unwrap();
-                return true;
+                self.current_initial_position_offset_per_shift_index.pop_back();
+                self.current_position_offset_per_shift_index.pop_back();
+                debug!("try_backward: moved to previous state with mask {:?}", self.current_mask);
             }
         }
+        if self.current_mask.count_ones() == 0 {
+            debug!("try_backward: nothing is selected, so cannot increment");
+            return false;
+        }
+        debug!("try_backward: at least one thing is selected");
+        return true;
     }
     fn try_increment(&mut self) -> bool {
         let current_shift_index = self.current_segment_index_per_shift_index.len() - 1;
@@ -157,6 +166,24 @@ impl Shifter for SegmentPermutationShifter {
         else {
             let current_bounding_length = self.current_bounding_length_per_shift_index[current_shift_index];
             if current_bounding_length == self.current_minimum_bounding_length_per_shift_index[current_shift_index] {
+                let current_segment_index = self.current_segment_index_per_shift_index[current_shift_index];
+                for next_segment_index in (current_segment_index + 1)..self.segments.len() {
+                    if !self.current_mask[next_segment_index] {
+                        // found the next mask index
+                        self.current_mask.set(current_segment_index, false);
+                        self.current_mask.set(next_segment_index, true);
+                        self.current_segment_index_per_shift_index[current_shift_index] = next_segment_index;
+                        let current_segment_length = self.segments[current_segment_index].length;
+                        let next_segment_length = self.segments[next_segment_index].length;
+                        self.current_remaining_maximum_bounding_length += current_segment_length;
+                        self.current_remaining_minimum_bounding_length += current_segment_length;
+                        self.current_bounding_length_per_shift_index[current_shift_index] = self.current_remaining_maximum_bounding_length;
+                        self.current_remaining_maximum_bounding_length -= next_segment_length;
+                        self.current_remaining_minimum_bounding_length -= next_segment_length;
+                        self.current_position_offset_per_shift_index[current_shift_index] = Some(self.current_initial_position_offset_per_shift_index[current_shift_index]);
+                        return true;
+                    }
+                }
                 return false;
             }
             else {
@@ -186,7 +213,7 @@ mod segment_permutation_shifter_tests {
 
     fn init() {
         std::env::set_var("RUST_LOG", "trace");
-        //pretty_env_logger::try_init();
+        pretty_env_logger::try_init();
     }
 
     #[rstest]
@@ -196,4 +223,116 @@ mod segment_permutation_shifter_tests {
         let segments: Vec<Segment> = Vec::new();
         let _ = SegmentPermutationShifter::new(Rc::new(segments), (10, 100), 5, true, 1);
     }
+    
+    #[rstest]
+    #[case(vec![Segment::new(1)], (10, 100), 3, true, 1)]
+    #[case(vec![Segment::new(1), Segment::new(1)], (10, 100), 3, true, 1)]
+    #[case(vec![Segment::new(1), Segment::new(1), Segment::new(1)], (10, 100), 3, true, 1)]
+    #[case(vec![Segment::new(1), Segment::new(1), Segment::new(1), Segment::new(1)], (10, 100), 3, true, 1)]
+    fn shift_forward_and_backward_for_multiple_segments(#[case] segments: Vec<Segment>, #[case] origin: (i32, i32), #[case] bounding_length: usize, #[case] is_horizontal: bool, #[case] padding: usize) {
+        init();
+        
+        let segments_length = segments.len();
+        let mut segment_permutation_shifter = SegmentPermutationShifter::new(Rc::new(segments), origin, bounding_length, is_horizontal, padding);
+        for index in 0..10 {
+            debug!("index: {:?}", index);
+            assert!(!segment_permutation_shifter.try_backward());
+            assert!(segment_permutation_shifter.try_forward());
+            assert!(!segment_permutation_shifter.try_backward());
+            for _ in 0..segments_length {
+                assert!(segment_permutation_shifter.try_forward());
+                assert!(segment_permutation_shifter.try_increment());
+            }
+            assert!(!segment_permutation_shifter.try_forward());
+            assert!(segment_permutation_shifter.try_backward());
+            assert!(!segment_permutation_shifter.try_forward());
+            for _ in 0..segments_length {
+                assert!(segment_permutation_shifter.try_backward());
+            }
+        }
+    }
+
+    #[rstest]
+    #[case(vec![Segment::new(1)], (10, 100), 3, true, 1)]
+    #[case(vec![Segment::new(1)], (10, 100), 3, false, 1)]
+    #[case(vec![Segment::new(2)], (10, 100), 3, true, 1)]
+    #[case(vec![Segment::new(2)], (10, 100), 3, false, 1)]
+    #[case(vec![Segment::new(3)], (10, 100), 3, true, 1)]
+    #[case(vec![Segment::new(3)], (10, 100), 3, false, 1)]
+    fn permutate_through_different_segments_one_segment(#[case] segments: Vec<Segment>, #[case] origin: (i32, i32), #[case] bounding_length: usize, #[case] is_horizontal: bool, #[case] padding: usize) {
+        init();
+        
+        let segment_length = segments[0].length;
+        let mut segment_permutation_shifter = SegmentPermutationShifter::new(Rc::new(segments), origin, bounding_length, is_horizontal, padding);
+        for index in 0..10 {
+            debug!("index: {:?}", index);
+            assert!(!segment_permutation_shifter.try_backward());
+            assert!(segment_permutation_shifter.try_forward());
+            assert!(!segment_permutation_shifter.try_backward());
+            assert!(segment_permutation_shifter.try_forward());
+            assert!(!segment_permutation_shifter.try_forward());
+            assert!(segment_permutation_shifter.try_backward());
+            assert!(!segment_permutation_shifter.try_forward());
+            assert!(segment_permutation_shifter.try_backward());
+        }
+        for index in 0..=(bounding_length - segment_length) {
+            assert!(segment_permutation_shifter.try_increment());
+            let get_option = segment_permutation_shifter.get();
+            assert!(get_option.is_some());
+            let get = get_option.unwrap();
+            if is_horizontal {
+                assert_eq!(origin.0 + index as i32, get.0);
+                assert_eq!(origin.1, get.1);
+            }
+            else {
+                assert_eq!(origin.0, get.0);
+                assert_eq!(origin.1 + index as i32, get.1);
+            }
+        }
+        assert!(!segment_permutation_shifter.try_increment());
+    }
+
+    #[rstest]
+    fn permutations_of_one_and_two_and_three_length_segments_with_one_padding_with_smallest_bounding_length() {
+        init();
+
+        let segments: Vec<Segment> = vec![
+            Segment::new(1),
+            Segment::new(2),
+            Segment::new(3)
+        ];
+        let mut segment_permutation_shifter = SegmentPermutationShifter::new(
+            Rc::new(segments),
+            (10, 100),
+            8,
+            true,
+            1
+        );
+        assert!(segment_permutation_shifter.try_forward());
+        assert!(segment_permutation_shifter.try_increment());
+        assert_eq!(&(10, 100), segment_permutation_shifter.get().unwrap().as_ref());
+        assert!(segment_permutation_shifter.try_forward());
+        assert!(segment_permutation_shifter.try_increment());
+        assert_eq!(&(12, 100), segment_permutation_shifter.get().unwrap().as_ref());
+        assert!(segment_permutation_shifter.try_forward());
+        assert!(segment_permutation_shifter.try_increment());
+        assert_eq!(&(15, 100), segment_permutation_shifter.get().unwrap().as_ref());
+        assert!(!segment_permutation_shifter.try_forward());
+        assert!(segment_permutation_shifter.try_backward());
+        assert!(!segment_permutation_shifter.try_increment());  // cannot increment when all segments have been selected in mask
+        assert!(segment_permutation_shifter.try_backward());
+        assert!(segment_permutation_shifter.try_increment());  // pull the 3rd segment as the 2nd shift
+        assert_eq!(&(12, 100), segment_permutation_shifter.get().unwrap().as_ref());
+        assert!(segment_permutation_shifter.try_forward());
+        assert!(segment_permutation_shifter.try_increment());  // pull the 2nd segment as the 3rd shift
+        assert_eq!(&(16, 100), segment_permutation_shifter.get().unwrap().as_ref());
+    }
 }
+
+
+
+
+
+
+
+

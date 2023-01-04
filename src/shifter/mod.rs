@@ -1,5 +1,6 @@
 pub mod index_shifter;
 pub mod segment_permutation_shifter;
+pub mod encapsulated_shifter;
 use std::rc::Rc;
 
 /// Purpose:
