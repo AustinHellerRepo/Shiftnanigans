@@ -111,15 +111,10 @@ impl<T> Shifter for IndexShifter<T> {
             }
         }
     }
-    fn get(&self) -> Option<Rc<T>> {
+    fn get(&self) -> Rc<T> {
         let current_shift_index = self.current_shift_index.unwrap();
-        let current_state_index_option = self.current_state_index_per_shift_index[current_shift_index];
-        if current_state_index_option.is_none() {
-            return None;
-        }
-        else {
-            return Some(self.states_per_shift_index[current_shift_index][current_state_index_option.unwrap()].clone());
-        }
+        let current_state_index = self.current_state_index_per_shift_index[current_shift_index].unwrap();
+        return self.states_per_shift_index[current_shift_index][current_state_index].clone();
     }
 }
 
@@ -174,9 +169,7 @@ mod index_shifter_tests {
                     assert!(index_shifter.try_forward());
                 }
                 assert!(index_shifter.try_increment());
-                let get_option = index_shifter.get();
-                assert!(get_option.is_some());
-                let get = get_option.unwrap();
+                let get = index_shifter.get();
                 assert_eq!(index as i32 % states_total as i32, get.0);
                 assert_eq!(index as i32 / states_total as i32, get.1);
             }

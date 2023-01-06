@@ -13,5 +13,5 @@ trait Shifter {
     fn try_forward(&mut self) -> bool;
     fn try_backward(&mut self) -> bool;
     fn try_increment(&mut self) -> bool;
-    fn get(&self) -> Option<Rc<Self::T>>;
+    fn get(&self) -> Rc<Self::T>;
 }
