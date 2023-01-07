@@ -1,5 +1,7 @@
 use std::{rc::Rc, cell::RefCell};
-use super::{Shifter, ShiftedElement};
+use crate::IndexedElement;
+
+use super::{Shifter};
 
 pub struct EncapsulatedShifter<T> {
     shifters: Vec<Rc<RefCell<dyn Shifter<T = T>>>>,
@@ -24,6 +26,7 @@ impl<T> EncapsulatedShifter<T> {
         }
     }
 }
+
 impl<T> Shifter for EncapsulatedShifter<T> {
     type T = T;
 
@@ -76,7 +79,7 @@ impl<T> Shifter for EncapsulatedShifter<T> {
         let is_current_shifter_try_increment_successful = self.shifters[current_shifter_index].borrow_mut().try_increment();
         return is_current_shifter_try_increment_successful;
     }
-    fn get(&self) -> ShiftedElement<Self::T> {
+    fn get(&self) -> IndexedElement<Self::T> {
         let current_shifter_index = self.current_shifter_index.unwrap();
         let mut current_shifter_get = self.shifters[current_shifter_index].borrow_mut().get();
         current_shifter_get.index += self.index_offset_per_shifter[current_shifter_index];
@@ -113,6 +116,9 @@ mod encapsulated_shifter_tests {
         }
         for _ in 0..10 {
             assert!(!encapsulated_shifter.try_backward());
+        }
+        for _ in 0..10 {
+            encapsulated_shifter.reset();
         }
     }
 

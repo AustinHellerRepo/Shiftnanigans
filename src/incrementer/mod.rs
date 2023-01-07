@@ -1,4 +1,13 @@
-pub mod index_incrementer;
-pub mod segment_permutation_incrementer;
-pub mod cell_group_dependency_incrementer;
-pub mod element_indexer_incrementer;
+use std::rc::Rc;
+
+use crate::IndexedElement;
+
+pub mod shifting_cell_group_dependency_incrementer;
+
+pub trait Incrementer {
+    type T;
+
+    fn try_increment(&mut self) -> bool;
+    fn get(&self) -> Vec<IndexedElement<Self::T>>;
+    fn reset(&mut self);
+}

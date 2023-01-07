@@ -1,6 +1,8 @@
 use std::{collections::VecDeque, rc::Rc};
 
-use super::{Shifter, ShiftedElement};
+use crate::IndexedElement;
+
+use super::{Shifter};
 
 pub struct IndexShifter<T> {
     current_shift_index: Option<usize>,
@@ -114,11 +116,11 @@ impl<T> Shifter for IndexShifter<T> {
             }
         }
     }
-    fn get(&self) -> ShiftedElement<T> {
+    fn get(&self) -> IndexedElement<T> {
         let current_shift_index = self.current_shift_index.unwrap();
         let current_state_index = self.current_state_index_per_shift_index[current_shift_index].unwrap();
         let element = self.states_per_shift_index[current_shift_index][current_state_index].clone();
-        return ShiftedElement::new(element, current_shift_index);
+        return IndexedElement::new(element, current_shift_index);
     }
     fn length(&self) -> usize {
         return self.shifts_length;
@@ -134,7 +136,7 @@ mod index_shifter_tests {
 
     fn init() {
         std::env::set_var("RUST_LOG", "trace");
-        pretty_env_logger::try_init();
+        //pretty_env_logger::try_init();
     }
 
     #[rstest]

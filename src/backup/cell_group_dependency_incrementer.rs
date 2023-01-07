@@ -150,7 +150,7 @@ impl Iterator for CellGroupDependencyIncrementer {
 mod cell_group_manager_tests {
     use std::{time::{Duration, Instant}, cell::RefCell};
 
-    use crate::incrementer::element_indexer_incrementer::{IndexIncrementerElementIndexer, ElementIndexer};
+    use crate::backup::element_indexer_incrementer::{IndexIncrementerElementIndexer, ElementIndexer};
 
     use super::*;
     use bitvec::bits;

@@ -1,6 +1,8 @@
 use std::{rc::Rc, collections::VecDeque};
 use bitvec::vec::BitVec;
-use super::{Shifter, ShiftedElement};
+use crate::IndexedElement;
+
+use super::{Shifter};
 
 /// This struct is an unfixed line segment.
 #[derive(Clone, Debug)]
@@ -211,7 +213,7 @@ impl Shifter for SegmentPermutationShifter {
             }
         }
     }
-    fn get(&self) -> ShiftedElement<(i32, i32)> {
+    fn get(&self) -> IndexedElement<(i32, i32)> {
         let current_position_offset = self.current_position_offset_per_shift_index.back().unwrap().unwrap();
         let current_segment_index = *self.current_segment_index_per_shift_index.back().unwrap();
         let position: Rc<(i32, i32)>;
@@ -221,7 +223,7 @@ impl Shifter for SegmentPermutationShifter {
         else {
             position = Rc::new((self.origin.0, self.origin.1 + current_position_offset as i32));
         }
-        return ShiftedElement::new(position, current_segment_index);
+        return IndexedElement::new(position, current_segment_index);
     }
     fn length(&self) -> usize {
         return self.segments_length;
