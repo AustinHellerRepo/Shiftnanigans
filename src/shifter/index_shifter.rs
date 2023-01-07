@@ -1,21 +1,24 @@
 use std::{collections::VecDeque, rc::Rc};
 
-use super::Shifter;
+use super::{Shifter, ShiftedElement};
 
 pub struct IndexShifter<T> {
     current_shift_index: Option<usize>,
     current_state_index_per_shift_index: VecDeque<Option<usize>>,
     is_incremented_at_least_once_per_shift_index: VecDeque<bool>,
-    states_per_shift_index: Vec<Vec<Rc<T>>>
+    states_per_shift_index: Vec<Vec<Rc<T>>>,
+    shifts_length: usize
 }
 
 impl<T> IndexShifter<T> {
     pub fn new(states_per_shift_index: &Vec<Vec<Rc<T>>>) -> Self {
+        let shifts_length: usize = states_per_shift_index.len();
         IndexShifter {
             current_shift_index: None,
             current_state_index_per_shift_index: VecDeque::new(),
             is_incremented_at_least_once_per_shift_index: VecDeque::new(),
-            states_per_shift_index: states_per_shift_index.clone()
+            states_per_shift_index: states_per_shift_index.clone(),
+            shifts_length: shifts_length
         }
     }
 }
@@ -111,10 +114,14 @@ impl<T> Shifter for IndexShifter<T> {
             }
         }
     }
-    fn get(&self) -> Rc<T> {
+    fn get(&self) -> ShiftedElement<T> {
         let current_shift_index = self.current_shift_index.unwrap();
         let current_state_index = self.current_state_index_per_shift_index[current_shift_index].unwrap();
-        return self.states_per_shift_index[current_shift_index][current_state_index].clone();
+        let element = self.states_per_shift_index[current_shift_index][current_state_index].clone();
+        return ShiftedElement::new(element, current_shift_index);
+    }
+    fn length(&self) -> usize {
+        return self.shifts_length;
     }
 }
 
@@ -170,8 +177,8 @@ mod index_shifter_tests {
                 }
                 assert!(index_shifter.try_increment());
                 let get = index_shifter.get();
-                assert_eq!(index as i32 % states_total as i32, get.0);
-                assert_eq!(index as i32 / states_total as i32, get.1);
+                assert_eq!(index as i32 % states_total as i32, get.element.0);
+                assert_eq!(index as i32 / states_total as i32, get.element.1);
             }
             assert!(!index_shifter.try_forward());
             for index in 0..shifts_total {
