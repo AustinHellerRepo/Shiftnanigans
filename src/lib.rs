@@ -7,6 +7,7 @@ pub mod backup;
 extern crate pretty_env_logger;
 #[macro_use] extern crate log;
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct IndexedElement<T> {
     element: Rc<T>,
     index: usize
