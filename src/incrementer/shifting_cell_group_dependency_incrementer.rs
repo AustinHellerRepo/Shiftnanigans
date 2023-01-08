@@ -27,15 +27,6 @@ pub struct CellGroupDependency {
     encapsulated_shifter: EncapsulatedShifter<(u8, u8)>
 }
 
-impl CellGroupDependency {
-    fn new(cell_group_index_mapping: Vec<usize>, encapsulated_shifter: EncapsulatedShifter<(u8, u8)>) -> Self {
-        CellGroupDependency {
-            cell_group_index_mapping: cell_group_index_mapping,
-            encapsulated_shifter: encapsulated_shifter
-        }
-    }
-}
-
 pub struct ShiftingCellGroupDependencyIncrementer {
     cell_groups: Vec<CellGroup>,
     cell_group_dependencies: Vec<CellGroupDependency>,
