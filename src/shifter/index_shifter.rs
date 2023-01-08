@@ -8,18 +8,42 @@ pub struct IndexShifter<T> {
     current_shift_index: Option<usize>,
     current_state_index_per_shift_index: VecDeque<Option<usize>>,
     is_incremented_at_least_once_per_shift_index: VecDeque<bool>,
-    states_per_shift_index: Vec<Vec<Rc<T>>>,
+    possible_states: Vec<Rc<T>>,
+    state_indexes_per_shift_index: Vec<Vec<usize>>,
     shifts_length: usize
 }
 
-impl<T> IndexShifter<T> {
+impl<T: PartialEq> IndexShifter<T> {
     pub fn new(states_per_shift_index: &Vec<Vec<Rc<T>>>) -> Self {
         let shifts_length: usize = states_per_shift_index.len();
+        let mut possible_states: Vec<Rc<T>> = Vec::new();
+        let mut state_indexes_per_shift_index: Vec<Vec<usize>> = Vec::new();
+        for states in states_per_shift_index.iter() {
+            let mut state_indexes: Vec<usize> = Vec::new();
+            for state in states.iter() {
+                let mut state_index: usize = 0;
+                let mut is_existing = false;
+                for (existing_state_index, existing_state) in possible_states.iter().enumerate() {
+                    if existing_state == state {
+                        state_index = existing_state_index;
+                        is_existing = true;
+                        break;
+                    }
+                }
+                if !is_existing {
+                    state_index = possible_states.len();
+                    possible_states.push(state.clone());
+                }
+                state_indexes.push(state_index);
+            }
+            state_indexes_per_shift_index.push(state_indexes);
+        }
         IndexShifter {
             current_shift_index: None,
             current_state_index_per_shift_index: VecDeque::new(),
             is_incremented_at_least_once_per_shift_index: VecDeque::new(),
-            states_per_shift_index: states_per_shift_index.clone(),
+            possible_states: possible_states,
+            state_indexes_per_shift_index: state_indexes_per_shift_index,
             shifts_length: shifts_length
         }
     }
@@ -30,7 +54,7 @@ impl<T> Shifter for IndexShifter<T> {
 
     fn try_forward(&mut self) -> bool {
         if self.current_shift_index.is_none() {
-            if self.states_per_shift_index.len() == 0 {
+            if self.shifts_length == 0 {
                 return false;
             }
             else {
@@ -42,13 +66,13 @@ impl<T> Shifter for IndexShifter<T> {
         }
         else {
             let current_shift_index: usize = self.current_shift_index.unwrap();
-            if current_shift_index == self.states_per_shift_index.len() {
+            if current_shift_index == self.shifts_length {
                 return false;
             }
             else {
                 let next_shift_index = current_shift_index + 1;
                 self.current_shift_index = Some(next_shift_index);
-                if next_shift_index == self.states_per_shift_index.len() {
+                if next_shift_index == self.shifts_length {
                     // if the shifter moves past the end, fail at this point so that when the next shifter fails to move backward, the idea is that you always try to have the previous shifter move backward too and then increment.
                     return false;
                 }
@@ -64,7 +88,7 @@ impl<T> Shifter for IndexShifter<T> {
         }
         else {
             let current_shift_index = self.current_shift_index.unwrap();
-            if current_shift_index != self.states_per_shift_index.len() {
+            if current_shift_index != self.shifts_length {
                 self.current_state_index_per_shift_index.pop_back();
             }
             if current_shift_index == 0 {
@@ -81,13 +105,13 @@ impl<T> Shifter for IndexShifter<T> {
         if self.current_shift_index.is_none() {
             return false;
         }
-        else if self.current_shift_index.unwrap() == self.states_per_shift_index.len() {
+        else if self.current_shift_index.unwrap() == self.shifts_length {
             return false;
         }
         let current_shift_index = self.current_shift_index.unwrap();
         let current_state_index_option = self.current_state_index_per_shift_index[current_shift_index];
         if current_state_index_option.is_none() {
-            if self.states_per_shift_index[current_shift_index].len() == 0 {
+            if self.state_indexes_per_shift_index[current_shift_index].len() == 0 {
                 if !self.is_incremented_at_least_once_per_shift_index[current_shift_index] {
                     self.is_incremented_at_least_once_per_shift_index[current_shift_index] = true;
                     return true;
@@ -103,27 +127,34 @@ impl<T> Shifter for IndexShifter<T> {
         }
         else {
             let current_state_index = current_state_index_option.unwrap();
-            if current_state_index == self.states_per_shift_index[current_shift_index].len() {
+            if current_state_index == self.state_indexes_per_shift_index[current_shift_index].len() {
                 return false;
             }
             else {
                 let next_state_index = current_state_index + 1;
                 self.current_state_index_per_shift_index[current_shift_index] = Some(next_state_index);
-                if next_state_index == self.states_per_shift_index[current_shift_index].len() {
+                if next_state_index == self.state_indexes_per_shift_index[current_shift_index].len() {
                     return false;
                 }
                 return true;
             }
         }
     }
-    fn get(&self) -> IndexedElement<T> {
+    fn get_indexed_element(&self) -> IndexedElement<T> {
+        let (element_index, state_index) = self.get_element_index_and_state_index();
+        let element = self.possible_states[state_index].clone();
+        return IndexedElement::new(element, element_index);
+    }
+    fn get_length(&self) -> usize {
+        return self.shifts_length;
+    }
+    fn get_element_index_and_state_index(&self) -> (usize, usize) {
         let current_shift_index = self.current_shift_index.unwrap();
         let current_state_index = self.current_state_index_per_shift_index[current_shift_index].unwrap();
-        let element = self.states_per_shift_index[current_shift_index][current_state_index].clone();
-        return IndexedElement::new(element, current_shift_index);
+        return (current_shift_index, self.state_indexes_per_shift_index[current_shift_index][current_state_index]);
     }
-    fn length(&self) -> usize {
-        return self.shifts_length;
+    fn get_states(&self) -> Vec<Rc<Self::T>> {
+        return self.possible_states.clone();
     }
 }
 
@@ -178,9 +209,13 @@ mod index_shifter_tests {
                     assert!(index_shifter.try_forward());
                 }
                 assert!(index_shifter.try_increment());
-                let get = index_shifter.get();
-                assert_eq!(index as i32 % states_total as i32, get.element.0);
-                assert_eq!(index as i32 / states_total as i32, get.element.1);
+                let indexed_element = index_shifter.get_indexed_element();
+                assert_eq!(index as i32 % states_total as i32, indexed_element.element.0);
+                assert_eq!(index as i32 / states_total as i32, indexed_element.element.1);
+                let (element_index, state_index) = index_shifter.get_element_index_and_state_index();
+                assert_eq!(element_index, indexed_element.index);
+                let state = index_shifter.get_states()[state_index].clone();
+                assert_eq!(state, indexed_element.element);
             }
             assert!(!index_shifter.try_forward());
             for index in 0..shifts_total {

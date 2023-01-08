@@ -36,9 +36,10 @@ impl LocatedSegment {
 
 pub struct SegmentPermutationShifter {
     segments: Rc<Vec<Segment>>,
-    origin: (i32, i32),
+    origin: (u8, u8),
     is_horizontal: bool,
     padding: usize,
+    possible_locations: Vec<Rc<(u8, u8)>>,
     current_mask: BitVec,
     current_segment_index_per_shift_index: VecDeque<usize>,
     current_bounding_length_per_shift_index: VecDeque<usize>,
@@ -53,7 +54,7 @@ pub struct SegmentPermutationShifter {
 }
 
 impl SegmentPermutationShifter {
-    pub fn new(segments: Rc<Vec<Segment>>, origin: (i32, i32), bounding_length: usize, is_horizontal: bool, padding: usize) -> Self {
+    pub fn new(segments: Rc<Vec<Segment>>, origin: (u8, u8), bounding_length: usize, is_horizontal: bool, padding: usize) -> Self {
         let segments_length = segments.len();
 
         let mut current_mask: BitVec = BitVec::with_capacity(segments_length);
@@ -67,11 +68,27 @@ impl SegmentPermutationShifter {
             current_remaining_minimum_bounding_length += segment.length;
         }
 
+        let mut possible_locations: Vec<Rc<(u8, u8)>> = Vec::new();
+        let mut current_possible_location = origin.clone();
+        if is_horizontal {
+            for _ in 0..bounding_length {
+                possible_locations.push(Rc::new(current_possible_location));
+                current_possible_location.0 += 1;
+            }
+        }
+        else {
+            for _ in 0..bounding_length {
+                possible_locations.push(Rc::new(current_possible_location));
+                current_possible_location.1 += 1;
+            }
+        }
+
         SegmentPermutationShifter {
             segments: segments,
             origin: origin,
             is_horizontal: is_horizontal,
             padding: padding,
+            possible_locations: possible_locations,
             current_mask: current_mask,
             current_segment_index_per_shift_index: VecDeque::new(),
             current_bounding_length_per_shift_index: VecDeque::new(),
@@ -88,7 +105,7 @@ impl SegmentPermutationShifter {
 }
 
 impl Shifter for SegmentPermutationShifter {
-    type T = (i32, i32);
+    type T = (u8, u8);
 
     fn try_forward(&mut self) -> bool {
         // calculate bounding length for the next "other segments"
@@ -213,19 +230,26 @@ impl Shifter for SegmentPermutationShifter {
             }
         }
     }
-    fn get(&self) -> IndexedElement<(i32, i32)> {
-        let current_position_offset = self.current_position_offset_per_shift_index.back().unwrap().unwrap();
-        let current_segment_index = *self.current_segment_index_per_shift_index.back().unwrap();
-        let position: Rc<(i32, i32)>;
+    fn get_indexed_element(&self) -> IndexedElement<(u8, u8)> {
+        let (current_segment_index, current_position_offset) = self.get_element_index_and_state_index();
+        let position: Rc<(u8, u8)>;
         if self.is_horizontal {
-            position = Rc::new((self.origin.0 + current_position_offset as i32, self.origin.1));
+            position = Rc::new((self.origin.0 + current_position_offset as u8, self.origin.1));
         }
         else {
-            position = Rc::new((self.origin.0, self.origin.1 + current_position_offset as i32));
+            position = Rc::new((self.origin.0, self.origin.1 + current_position_offset as u8));
         }
         return IndexedElement::new(position, current_segment_index);
     }
-    fn length(&self) -> usize {
+    fn get_element_index_and_state_index(&self) -> (usize, usize) {
+        let current_position_offset = self.current_position_offset_per_shift_index.back().unwrap().unwrap();
+        let current_segment_index = *self.current_segment_index_per_shift_index.back().unwrap();
+        return (current_segment_index, current_position_offset);
+    }
+    fn get_states(&self) -> Vec<Rc<Self::T>> {
+        return self.possible_locations.clone();
+    }
+    fn get_length(&self) -> usize {
         return self.segments_length;
     }
 }
@@ -255,7 +279,7 @@ mod segment_permutation_shifter_tests {
     #[case(vec![Segment::new(1), Segment::new(1)], (10, 100), 3, true, 1)]
     #[case(vec![Segment::new(1), Segment::new(1), Segment::new(1)], (10, 100), 3, true, 1)]
     #[case(vec![Segment::new(1), Segment::new(1), Segment::new(1), Segment::new(1)], (10, 100), 3, true, 1)]
-    fn shift_forward_and_backward_for_multiple_segments(#[case] segments: Vec<Segment>, #[case] origin: (i32, i32), #[case] bounding_length: usize, #[case] is_horizontal: bool, #[case] padding: usize) {
+    fn shift_forward_and_backward_for_multiple_segments(#[case] segments: Vec<Segment>, #[case] origin: (u8, u8), #[case] bounding_length: usize, #[case] is_horizontal: bool, #[case] padding: usize) {
         init();
         
         let segments_length = segments.len();
@@ -285,7 +309,7 @@ mod segment_permutation_shifter_tests {
     #[case(vec![Segment::new(2)], (10, 100), 3, false, 1)]
     #[case(vec![Segment::new(3)], (10, 100), 3, true, 1)]
     #[case(vec![Segment::new(3)], (10, 100), 3, false, 1)]
-    fn permutate_through_different_segments_one_segment(#[case] segments: Vec<Segment>, #[case] origin: (i32, i32), #[case] bounding_length: usize, #[case] is_horizontal: bool, #[case] padding: usize) {
+    fn permutate_through_different_segments_one_segment(#[case] segments: Vec<Segment>, #[case] origin: (u8, u8), #[case] bounding_length: usize, #[case] is_horizontal: bool, #[case] padding: usize) {
         init();
         
         let segment_length = segments[0].length;
@@ -303,14 +327,14 @@ mod segment_permutation_shifter_tests {
         }
         for index in 0..=(bounding_length - segment_length) {
             assert!(segment_permutation_shifter.try_increment());
-            let get = segment_permutation_shifter.get();
+            let indexed_element = segment_permutation_shifter.get_indexed_element();
             if is_horizontal {
-                assert_eq!(origin.0 + index as i32, get.element.0);
-                assert_eq!(origin.1, get.element.1);
+                assert_eq!(origin.0 + index as u8, indexed_element.element.0);
+                assert_eq!(origin.1, indexed_element.element.1);
             }
             else {
-                assert_eq!(origin.0, get.element.0);
-                assert_eq!(origin.1 + index as i32, get.element.1);
+                assert_eq!(origin.0, indexed_element.element.0);
+                assert_eq!(origin.1 + index as u8, indexed_element.element.1);
             }
         }
         assert!(!segment_permutation_shifter.try_increment());
@@ -336,13 +360,13 @@ mod segment_permutation_shifter_tests {
             let is_try_forward_at_end_required: bool = index % 2 == 0;
             assert!(segment_permutation_shifter.try_forward());  // move to 1st shift
             assert!(segment_permutation_shifter.try_increment());  // pull the 1st segment at the 1st shift
-            assert_eq!(&(10, 100), segment_permutation_shifter.get().element.as_ref());
+            assert_eq!(&(10, 100), segment_permutation_shifter.get_indexed_element().element.as_ref());
             assert!(segment_permutation_shifter.try_forward());  // move to the 2nd shift
             assert!(segment_permutation_shifter.try_increment());  // pull the 2nd segment at the 2nd shift
-            assert_eq!(&(12, 100), segment_permutation_shifter.get().element.as_ref());
+            assert_eq!(&(12, 100), segment_permutation_shifter.get_indexed_element().element.as_ref());
             assert!(segment_permutation_shifter.try_forward());  // move to the 3rd shift
             assert!(segment_permutation_shifter.try_increment());  // pull the 3rd segment at the 3rd shift
-            assert_eq!(&(15, 100), segment_permutation_shifter.get().element.as_ref());
+            assert_eq!(&(15, 100), segment_permutation_shifter.get_indexed_element().element.as_ref());
             if is_try_forward_at_end_required {
                 assert!(!segment_permutation_shifter.try_forward());  // cannot move past the end
                 assert!(segment_permutation_shifter.try_backward());  // moved back to the last shift
@@ -350,10 +374,10 @@ mod segment_permutation_shifter_tests {
             assert!(!segment_permutation_shifter.try_increment());  // cannot increment when all segments have been selected in mask
             assert!(segment_permutation_shifter.try_backward());  // moved back to the 2nd shift
             assert!(segment_permutation_shifter.try_increment());  // pull the 3rd segment as the 2nd shift
-            assert_eq!(&(12, 100), segment_permutation_shifter.get().element.as_ref());
+            assert_eq!(&(12, 100), segment_permutation_shifter.get_indexed_element().element.as_ref());
             assert!(segment_permutation_shifter.try_forward());  // moved forward to the 3rd shift
             assert!(segment_permutation_shifter.try_increment());  // pull the 2nd segment as the 3rd shift
-            assert_eq!(&(16, 100), segment_permutation_shifter.get().element.as_ref());
+            assert_eq!(&(16, 100), segment_permutation_shifter.get_indexed_element().element.as_ref());
             if is_try_forward_at_end_required {
                 assert!(!segment_permutation_shifter.try_forward());
                 assert!(segment_permutation_shifter.try_backward());
@@ -363,13 +387,13 @@ mod segment_permutation_shifter_tests {
             assert!(!segment_permutation_shifter.try_increment());  // cannot increment when no other segments to find
             assert!(segment_permutation_shifter.try_backward());  // moved back to the 1st shift
             assert!(segment_permutation_shifter.try_increment());  // pulled the 2nd segment as the 1st shift
-            assert_eq!(&(10, 100), segment_permutation_shifter.get().element.as_ref());
+            assert_eq!(&(10, 100), segment_permutation_shifter.get_indexed_element().element.as_ref());
             assert!(segment_permutation_shifter.try_forward());  // move to 2nd shift
             assert!(segment_permutation_shifter.try_increment());  // pull the 1st segment as the 2nd shift
-            assert_eq!(&(13, 100), segment_permutation_shifter.get().element.as_ref());
+            assert_eq!(&(13, 100), segment_permutation_shifter.get_indexed_element().element.as_ref());
             assert!(segment_permutation_shifter.try_forward());  // move to 3rd shift
             assert!(segment_permutation_shifter.try_increment());  // pull the 3rd segment as the 3rd shift
-            assert_eq!(&(15, 100), segment_permutation_shifter.get().element.as_ref());
+            assert_eq!(&(15, 100), segment_permutation_shifter.get_indexed_element().element.as_ref());
             if is_try_forward_at_end_required {
                 assert!(!segment_permutation_shifter.try_forward());  // already at the end
                 assert!(segment_permutation_shifter.try_backward());  // moved back to the last shift
@@ -377,10 +401,10 @@ mod segment_permutation_shifter_tests {
             assert!(!segment_permutation_shifter.try_increment());  // cannot increment since there are no mask bits left
             assert!(segment_permutation_shifter.try_backward());  // move back to the 2nd shift
             assert!(segment_permutation_shifter.try_increment());  // pull the 3rd segment as the 2nd shift
-            assert_eq!(&(13, 100), segment_permutation_shifter.get().element.as_ref());
+            assert_eq!(&(13, 100), segment_permutation_shifter.get_indexed_element().element.as_ref());
             assert!(segment_permutation_shifter.try_forward());  // move the to the 3rd shift
             assert!(segment_permutation_shifter.try_increment());  // pull the 1st segment as the 3rd shift
-            assert_eq!(&(17, 100), segment_permutation_shifter.get().element.as_ref());
+            assert_eq!(&(17, 100), segment_permutation_shifter.get_indexed_element().element.as_ref());
             if is_try_forward_at_end_required {
                 assert!(!segment_permutation_shifter.try_forward());  // cannot move forward any further
                 assert!(segment_permutation_shifter.try_backward());  // move back to the last shift
@@ -390,13 +414,13 @@ mod segment_permutation_shifter_tests {
             assert!(!segment_permutation_shifter.try_increment());  // cannot increment since both the 1st and 3rd segment have already been tried
             assert!(segment_permutation_shifter.try_backward());  // move back to the 1st shift
             assert!(segment_permutation_shifter.try_increment());  // pull the 3rd segment as the 1st shift
-            assert_eq!(&(10, 100), segment_permutation_shifter.get().element.as_ref());
+            assert_eq!(&(10, 100), segment_permutation_shifter.get_indexed_element().element.as_ref());
             assert!(segment_permutation_shifter.try_forward());  // move to 2nd shift
             assert!(segment_permutation_shifter.try_increment());  // pull the 1st segment as the 2nd shift
-            assert_eq!(&(14, 100), segment_permutation_shifter.get().element.as_ref());
+            assert_eq!(&(14, 100), segment_permutation_shifter.get_indexed_element().element.as_ref());
             assert!(segment_permutation_shifter.try_forward());  // move to 3rd shift
             assert!(segment_permutation_shifter.try_increment());  // pull the 2nd segment as the 3rd shift
-            assert_eq!(&(16, 100), segment_permutation_shifter.get().element.as_ref());
+            assert_eq!(&(16, 100), segment_permutation_shifter.get_indexed_element().element.as_ref());
             if is_try_forward_at_end_required {
                 assert!(!segment_permutation_shifter.try_forward());  // cannot move forward since already at the end
                 assert!(segment_permutation_shifter.try_backward());  // moved back to last shifter
@@ -404,10 +428,10 @@ mod segment_permutation_shifter_tests {
             assert!(!segment_permutation_shifter.try_increment());  // cannot increment since nothing left in mask
             assert!(segment_permutation_shifter.try_backward());  // moved back to 2nd shifter
             assert!(segment_permutation_shifter.try_increment());  // pulled the 2nd segment as the 2nd shift
-            assert_eq!(&(14, 100), segment_permutation_shifter.get().element.as_ref());
+            assert_eq!(&(14, 100), segment_permutation_shifter.get_indexed_element().element.as_ref());
             assert!(segment_permutation_shifter.try_forward());  // moved to 3rd shifter
             assert!(segment_permutation_shifter.try_increment());  // pulled the 1st segment as the 3rd shift
-            assert_eq!(&(17, 100), segment_permutation_shifter.get().element.as_ref());
+            assert_eq!(&(17, 100), segment_permutation_shifter.get_indexed_element().element.as_ref());
             if is_try_forward_at_end_required {
                 assert!(!segment_permutation_shifter.try_forward());  // cannot move forward since already at the end
                 assert!(segment_permutation_shifter.try_backward());  // moved back to last shift
@@ -432,39 +456,99 @@ mod segment_permutation_shifter_tests {
         let mut segment_permutation_shifter = SegmentPermutationShifter::new(Rc::new(segments), (20, 200), 7, false, 1);
         assert!(segment_permutation_shifter.try_forward());
         assert!(segment_permutation_shifter.try_increment());  // pull the 1st segment as the 1st shift
-        assert_eq!(&(20, 200), segment_permutation_shifter.get().element.as_ref());
+        assert_eq!(&(20, 200), segment_permutation_shifter.get_indexed_element().element.as_ref());
+        assert_eq!(0, segment_permutation_shifter.get_indexed_element().index);
+        {
+            let (element_index, state_index) = segment_permutation_shifter.get_element_index_and_state_index();
+            assert_eq!(element_index, segment_permutation_shifter.get_indexed_element().index);
+            assert_eq!(segment_permutation_shifter.get_states()[state_index], segment_permutation_shifter.get_indexed_element().element);
+        }
         assert!(segment_permutation_shifter.try_forward());
         assert!(segment_permutation_shifter.try_increment());  // pull the 2nd segment as the 2nd shift
-        assert_eq!(&(20, 203), segment_permutation_shifter.get().element.as_ref());
+        assert_eq!(&(20, 203), segment_permutation_shifter.get_indexed_element().element.as_ref());
+        assert_eq!(1, segment_permutation_shifter.get_indexed_element().index);
+        {
+            let (element_index, state_index) = segment_permutation_shifter.get_element_index_and_state_index();
+            assert_eq!(element_index, segment_permutation_shifter.get_indexed_element().index);
+            assert_eq!(segment_permutation_shifter.get_states()[state_index], segment_permutation_shifter.get_indexed_element().element);
+        }
         assert!(segment_permutation_shifter.try_increment());
-        assert_eq!(&(20, 204), segment_permutation_shifter.get().element.as_ref());  // moved the 2nd segment down
+        assert_eq!(&(20, 204), segment_permutation_shifter.get_indexed_element().element.as_ref());  // moved the 2nd segment down
+        assert_eq!(1, segment_permutation_shifter.get_indexed_element().index);
+        {
+            let (element_index, state_index) = segment_permutation_shifter.get_element_index_and_state_index();
+            assert_eq!(element_index, segment_permutation_shifter.get_indexed_element().index);
+            assert_eq!(segment_permutation_shifter.get_states()[state_index], segment_permutation_shifter.get_indexed_element().element);
+        }
         assert!(!segment_permutation_shifter.try_increment());
         assert!(segment_permutation_shifter.try_backward());
         debug!("test: moving first segment in first shift forward");
         assert!(segment_permutation_shifter.try_increment());
         debug!("test: moved first segment");
-        assert_eq!(&(20, 201), segment_permutation_shifter.get().element.as_ref());  // moved the 1st segment down
+        assert_eq!(&(20, 201), segment_permutation_shifter.get_indexed_element().element.as_ref());  // moved the 1st segment down
+        assert_eq!(0, segment_permutation_shifter.get_indexed_element().index);
+        {
+            let (element_index, state_index) = segment_permutation_shifter.get_element_index_and_state_index();
+            assert_eq!(element_index, segment_permutation_shifter.get_indexed_element().index);
+            assert_eq!(segment_permutation_shifter.get_states()[state_index], segment_permutation_shifter.get_indexed_element().element);
+        }
         assert!(segment_permutation_shifter.try_forward());
         assert!(segment_permutation_shifter.try_increment());
-        assert_eq!(&(20, 204), segment_permutation_shifter.get().element.as_ref());  // found the 2nd segment already lower
+        assert_eq!(&(20, 204), segment_permutation_shifter.get_indexed_element().element.as_ref());  // found the 2nd segment already lower
+        assert_eq!(1, segment_permutation_shifter.get_indexed_element().index);
+        {
+            let (element_index, state_index) = segment_permutation_shifter.get_element_index_and_state_index();
+            assert_eq!(element_index, segment_permutation_shifter.get_indexed_element().index);
+            assert_eq!(segment_permutation_shifter.get_states()[state_index], segment_permutation_shifter.get_indexed_element().element);
+        }
         assert!(!segment_permutation_shifter.try_increment());
         assert!(segment_permutation_shifter.try_backward());
         debug!("test: back to first shift, pulling second segment.");
         assert!(segment_permutation_shifter.try_increment());  // pull 2nd segment as 1st shift
         debug!("test: pulled second segment.");
-        assert_eq!(&(20, 200), segment_permutation_shifter.get().element.as_ref());
+        assert_eq!(&(20, 200), segment_permutation_shifter.get_indexed_element().element.as_ref());
+        assert_eq!(1, segment_permutation_shifter.get_indexed_element().index);
+        {
+            let (element_index, state_index) = segment_permutation_shifter.get_element_index_and_state_index();
+            assert_eq!(element_index, segment_permutation_shifter.get_indexed_element().index);
+            assert_eq!(segment_permutation_shifter.get_states()[state_index], segment_permutation_shifter.get_indexed_element().element);
+        }
         assert!(segment_permutation_shifter.try_forward());
         assert!(segment_permutation_shifter.try_increment());  // pull 1st segment as 2nd shift
-        assert_eq!(&(20, 204), segment_permutation_shifter.get().element.as_ref());
+        assert_eq!(&(20, 204), segment_permutation_shifter.get_indexed_element().element.as_ref());
+        assert_eq!(0, segment_permutation_shifter.get_indexed_element().index);
+        {
+            let (element_index, state_index) = segment_permutation_shifter.get_element_index_and_state_index();
+            assert_eq!(element_index, segment_permutation_shifter.get_indexed_element().index);
+            assert_eq!(segment_permutation_shifter.get_states()[state_index], segment_permutation_shifter.get_indexed_element().element);
+        }
         assert!(segment_permutation_shifter.try_increment());  // move 1st segment over one space
-        assert_eq!(&(20, 205), segment_permutation_shifter.get().element.as_ref());
+        assert_eq!(&(20, 205), segment_permutation_shifter.get_indexed_element().element.as_ref());
+        assert_eq!(0, segment_permutation_shifter.get_indexed_element().index);
+        {
+            let (element_index, state_index) = segment_permutation_shifter.get_element_index_and_state_index();
+            assert_eq!(element_index, segment_permutation_shifter.get_indexed_element().index);
+            assert_eq!(segment_permutation_shifter.get_states()[state_index], segment_permutation_shifter.get_indexed_element().element);
+        }
         assert!(!segment_permutation_shifter.try_increment());  // nowhere else to move and no other segment to try
         assert!(segment_permutation_shifter.try_backward());  // move back to 1st shift
         assert!(segment_permutation_shifter.try_increment());  // move 2nd segment in 1st shift over one space
-        assert_eq!(&(20, 201), segment_permutation_shifter.get().element.as_ref());
+        assert_eq!(&(20, 201), segment_permutation_shifter.get_indexed_element().element.as_ref());
+        assert_eq!(1, segment_permutation_shifter.get_indexed_element().index);
+        {
+            let (element_index, state_index) = segment_permutation_shifter.get_element_index_and_state_index();
+            assert_eq!(element_index, segment_permutation_shifter.get_indexed_element().index);
+            assert_eq!(segment_permutation_shifter.get_states()[state_index], segment_permutation_shifter.get_indexed_element().element);
+        }
         assert!(segment_permutation_shifter.try_forward());  // move to the 2nd shift
         assert!(segment_permutation_shifter.try_increment());  // pull the 1st segment as 2nd shift
-        assert_eq!(&(20, 205), segment_permutation_shifter.get().element.as_ref());
+        assert_eq!(&(20, 205), segment_permutation_shifter.get_indexed_element().element.as_ref());
+        assert_eq!(0, segment_permutation_shifter.get_indexed_element().index);
+        {
+            let (element_index, state_index) = segment_permutation_shifter.get_element_index_and_state_index();
+            assert_eq!(element_index, segment_permutation_shifter.get_indexed_element().index);
+            assert_eq!(segment_permutation_shifter.get_states()[state_index], segment_permutation_shifter.get_indexed_element().element);
+        }
         assert!(!segment_permutation_shifter.try_increment());  // cannot increment since already moved forward to max and no other segments
         assert!(segment_permutation_shifter.try_backward());
         assert!(!segment_permutation_shifter.try_increment());  // cannot move 2nd segment in 1st shift any further and no other segments
