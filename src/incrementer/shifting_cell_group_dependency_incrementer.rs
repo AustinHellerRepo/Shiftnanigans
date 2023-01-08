@@ -11,6 +11,7 @@ use std::{collections::VecDeque, rc::Rc};
 use crate::{shifter::{encapsulated_shifter::EncapsulatedShifter, Shifter}, IndexedElement};
 use super::Incrementer;
 
+#[derive(Clone)]
 pub struct CellGroup {
     cells: Vec<(u8, u8)>,  // these should exist such that they can be added directly to location points
     cell_group_type_index: usize  // each type can have relationship attributes (detection location offsets, etc.)
@@ -63,38 +64,23 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
             let cell_group_dependency = &mut self.cell_group_dependencies[self.current_cell_group_dependency_index.unwrap()];
             let encapsulated_shifter: &mut EncapsulatedShifter<(u8, u8)> = &mut cell_group_dependency.encapsulated_shifter;
             let encapsulated_shifter_length = encapsulated_shifter.length();
-            if self.current_locations.len() == 0 {
-                debug!("starting off algorithm with first location from shifter");
-                // the main algorithm requires that there exist at least one element in the current locations to compare to
-                let is_at_least_one_element = encapsulated_shifter.try_forward();
-                // if the shifter does not contain any elements, then it cannot increment
-                if !is_at_least_one_element {
-                    return false;
-                }
-                // if the shifter could move forward but not increment, this indicates a bug
-                if !encapsulated_shifter.try_increment() {
-                    panic!("Unexpected forward but not increment.");
-                }
-                let indexed_element = encapsulated_shifter.get();
-                self.current_locations.push(indexed_element);
-            }
             // loop until a valid collection of locations has been discovered
             let mut is_forward_required: bool;
             if self.current_locations.len() == encapsulated_shifter_length {
+                debug!("popping last location to make room for next possible location");
+                self.current_locations.pop();  // remove the last valid location
                 debug!("determined that forward is not required");
-                if encapsulated_shifter_length != 1 {
-                    debug!("popping last location to make room for next possible location");
-                    self.current_locations.pop();  // remove the last valid location
-                }
                 is_forward_required = false;
             }
             else {
                 debug!("determined that forward is required");
                 is_forward_required = true;
+                if self.current_locations.len() != 0 {
+                    panic!("Unexpected state of current locations when next while loop should only result in 0 or max elements.");
+                }
             }
             let mut is_fully_backward: bool = false;
             while self.current_locations.len() != encapsulated_shifter_length && !is_fully_backward {
-
                 if is_forward_required {
                     debug!("moving forward to next shift index");
                     encapsulated_shifter.try_forward();
@@ -162,9 +148,12 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
                     }
                 }
             }
-            if self.current_locations.len() != 0 {
+            if self.current_locations.len() == encapsulated_shifter_length {
                 debug!("collected a valid set of current locations");
                 return true;
+            }
+            if self.current_locations.len() != 0 {
+                panic!("Unexpected locations still cached in current locations.");
             }
         }
         // if we've gone backwards to the point that there are no longer any locations, we are done
@@ -183,20 +172,32 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
     }
 }
 
+impl Iterator for ShiftingCellGroupDependencyIncrementer {
+    type Item = Vec<IndexedElement<(u8, u8)>>;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.try_increment() {
+            Some(self.get())
+        }
+        else {
+            None
+        }
+    }
+}
+
 #[cfg(test)]
 mod shifting_cell_group_dependency_incrementer_tests {
-    use std::{time::{Duration, Instant}, cell::RefCell};
+    use std::{time::{Duration, Instant}, cell::RefCell, collections::BTreeSet};
 
     use crate::shifter::index_shifter::IndexShifter;
 
     use super::*;
-    use bitvec::bits;
+    use bitvec::{bits, vec::BitVec};
     use rstest::rstest;
     use uuid::Uuid;
 
     fn init() {
         std::env::set_var("RUST_LOG", "trace");
-        pretty_env_logger::try_init();
+        //pretty_env_logger::try_init();
     }
 
     #[rstest]
@@ -263,12 +264,192 @@ mod shifting_cell_group_dependency_incrementer_tests {
         assert!(shifting_cell_group_dependency_incrementer.try_increment());
         expected_get = vec![IndexedElement { index: 0, element: Rc::new((15, 150)) }, IndexedElement { index: 1, element: Rc::new((14, 140)) }];
         assert_eq!(expected_get, shifting_cell_group_dependency_incrementer.get());
-        assert!(shifting_cell_group_dependency_incrementer.try_increment());
-        expected_get = vec![IndexedElement { index: 1, element: Rc::new((14, 140)) }, IndexedElement { index: 0, element: Rc::new((15, 150)) }];
-        assert_eq!(expected_get, shifting_cell_group_dependency_incrementer.get());
-        assert!(shifting_cell_group_dependency_incrementer.try_increment());
-        expected_get = vec![IndexedElement { index: 1, element: Rc::new((15, 150)) }, IndexedElement { index: 0, element: Rc::new((14, 140)) }];
-        assert_eq!(expected_get, shifting_cell_group_dependency_incrementer.get());
         assert!(!shifting_cell_group_dependency_incrementer.try_increment());
+    }
+    
+    #[rstest]
+    fn multiple_squares() {
+        init();
+
+        time_graph::enable_data_collection(true);
+
+        let mut detection_offsets_per_cell_group_type_index_per_cell_group_type_index: Vec<Vec<Vec<(i32, i32)>>> = Vec::new();
+        let mut is_adjacent_cell_group_index_per_cell_group_index: Vec<BitVec> = Vec::new();
+        let mut cell_group_dependencies: Vec<CellGroupDependency> = Vec::new();
+
+        let cell_groups_total = 5;
+
+        // Stats
+        //  3
+        //      2022-12-21  0.01s
+        //      2022-12-22  0.00s
+        //  4
+        //      2022-12-21  0.56s
+        //      2022-12-22  0.05s
+        //      2023-01-06  0.00866s
+        //  5
+        //      2022-12-21  2339.69s
+        //      2022-12-22    28.95s
+        //      2023-01-06     3.15s
+
+        let mut area_width: usize = 0;
+        let mut area_height: usize = 0;
+
+        // calculate the minimum area for holding increasing sizes of squares
+
+        for cell_group_index in 0..cell_groups_total {
+            let cell_group_size = cell_group_index + 1;
+            if area_width < area_height {
+                area_width += cell_group_size;
+                if area_height < cell_group_size {
+                    area_height = cell_group_size;
+                }
+            }
+            else {
+                area_height += cell_group_size;
+                if area_width < cell_group_size {
+                    area_width = cell_group_size;
+                }
+            }
+        }
+
+        println!("area: ({}, {})", area_width, area_height);
+
+        // construct cell groups
+
+        let mut cell_groups: Vec<CellGroup> = Vec::new();
+        for index in 0..cell_groups_total {
+            let mut cells: Vec<(u8, u8)> = Vec::new();
+            for width_index in 0..=index as u8 {
+                for height_index in 0..=index as u8 {
+                    cells.push((width_index, height_index));
+                }
+            }
+            cell_groups.push(CellGroup {
+                cell_group_type_index: 0,
+                cells: cells
+            });
+        }
+
+        detection_offsets_per_cell_group_type_index_per_cell_group_type_index.push(vec![vec![]]);
+
+        // construct adjacency bitvec
+        {
+            for _ in 0..cell_groups_total {
+                let mut is_adjacent_cell_group_index: BitVec = BitVec::new();
+                for _ in 0..cell_groups_total {
+                    is_adjacent_cell_group_index.push(false);
+                }
+                is_adjacent_cell_group_index_per_cell_group_index.push(is_adjacent_cell_group_index);
+            }
+        }
+
+        {
+            // construct index incrementer for looping over locations per cell group
+
+            let mut cell_group_index_mapping: Vec<usize> = Vec::new();
+            for cell_group_index in 0..cell_groups_total {
+                cell_group_index_mapping.push(cell_group_index);
+            }
+    
+            let mut shifters: Vec<Rc<RefCell<dyn Shifter<T = (u8, u8)>>>> = Vec::new();
+            for cell_group_index in 0..cell_groups_total {
+                let cell_group_size = cell_group_index + 1;
+                let mut locations: Vec<Rc<(u8, u8)>> = Vec::new();
+                for height_index in 0..(area_height - (cell_group_size - 1)) as u8 {
+                    for width_index in 0..(area_width - (cell_group_size - 1)) as u8 {
+                        let location = (width_index, height_index);
+                        debug!("cell group {:?} can exist at location {:?}", cell_group_index, location);
+                        locations.push(Rc::new(location));
+                    }
+                }
+                shifters.push(Rc::new(RefCell::new(IndexShifter::new(&vec![locations]))));
+            }
+            
+            cell_group_dependencies.push(CellGroupDependency {
+                cell_group_index_mapping: cell_group_index_mapping,
+                encapsulated_shifter: EncapsulatedShifter::new(&shifters)
+            });
+        }
+
+        let shifting_cell_group_dependency_incrementer = ShiftingCellGroupDependencyIncrementer::new(cell_groups.clone(), cell_group_dependencies);
+
+        let validating_start_time = Instant::now();
+
+        let indexed_elements_collection = shifting_cell_group_dependency_incrementer.into_iter().collect::<Vec<Vec<IndexedElement<(u8, u8)>>>>();
+
+        println!("validation time: {:?}", validating_start_time.elapsed());
+        println!("validated: {:?}", indexed_elements_collection.len());
+
+        println!("{}", time_graph::get_full_graph().as_dot());
+
+        // https://en.wikipedia.org/wiki/Square_pyramidal_number
+        let cells_total: usize = (cell_groups_total * (cell_groups_total + 1) * (2 * cell_groups_total + 1)) / 6;
+        let mut permutations: BTreeSet<Vec<Vec<String>>> = BTreeSet::new();
+
+        for indexed_elements in indexed_elements_collection.iter() {
+            let mut pixels: Vec<Vec<bool>> = Vec::new();
+            let mut pixels_as_ids: Vec<Vec<String>> = Vec::new();
+            for _ in 0..area_width {
+                let mut pixel_column: Vec<bool> = Vec::new();
+                let mut pixel_as_id_column: Vec<String> = Vec::new();
+                for _ in 0..area_height {
+                    pixel_column.push(false);
+                    pixel_as_id_column.push(String::from(" "));
+                }
+                pixels.push(pixel_column);
+                pixels_as_ids.push(pixel_as_id_column);
+            }
+            let mut valid_pixels_total: usize = 0;
+            for indexed_element in indexed_elements.iter() {
+                for cell in cell_groups[indexed_element.index].cells.iter() {
+                    let width_index = (cell.0 + indexed_element.element.0) as usize;
+                    let height_index = (cell.1 + indexed_element.element.1) as usize;
+                    if !pixels[width_index][height_index] {
+                        valid_pixels_total += 1;
+                    }
+                    pixels[width_index][height_index] = true;
+                    pixels_as_ids[width_index][height_index] = indexed_element.index.to_string();
+                }
+            }
+
+            let is_printed: bool;
+            if false {
+                is_printed = true;
+            }
+            else {
+                is_printed = false;
+            }
+
+            for height_index in 0..area_height {
+                for width_index in 0..area_width {
+                    if is_printed {
+                        print!("{}", pixels_as_ids[width_index][height_index]);
+                    }
+                }
+                if is_printed {
+                    println!("");
+                }
+            }
+            if is_printed {
+                println!("");
+            }
+
+            assert_eq!(valid_pixels_total, cells_total);
+            permutations.insert(pixels_as_ids);
+        }
+
+        println!("permutations: {}", permutations.len());
+
+        let expected_permutations_total: usize = match cell_groups_total {
+            2 => 4,
+            3 => 8,
+            4 => 96,
+            5 => 6400,
+            _ => {
+                panic!("Unexpected number of cell groups: {}", cell_groups_total);
+            }
+        };
+        assert_eq!(expected_permutations_total, permutations.len());
     }
 }
