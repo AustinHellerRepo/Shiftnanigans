@@ -9,11 +9,12 @@ pub struct EncapsulatedShifter<T> {
     possible_states: Vec<Rc<T>>,
     current_shifter_index: Option<usize>,
     index_offset_per_shifter: Vec<usize>,
-    shifters_segments_length_total: usize
+    shifters_segments_length_total: usize,
+    is_shifter_order_preserved_on_randomize: bool
 }
 
 impl<T: PartialEq> EncapsulatedShifter<T> {
-    pub fn new(shifters: &Vec<Rc<RefCell<dyn Shifter<T = T>>>>) -> Self {
+    pub fn new(shifters: &Vec<Rc<RefCell<dyn Shifter<T = T>>>>, is_shifter_order_preserved_on_randomize: bool) -> Self {
         let mut index_offset_per_shifter: Vec<usize> = Vec::new();
         let mut current_index_offset: usize = 0;
         let mut state_index_mapping_per_shifter_index: Vec<Vec<usize>> = Vec::new();
@@ -47,7 +48,8 @@ impl<T: PartialEq> EncapsulatedShifter<T> {
             possible_states: possible_states,
             current_shifter_index: None,
             index_offset_per_shifter: index_offset_per_shifter,
-            shifters_segments_length_total: current_index_offset
+            shifters_segments_length_total: current_index_offset,
+            is_shifter_order_preserved_on_randomize: is_shifter_order_preserved_on_randomize
         }
     }
 }
@@ -123,6 +125,14 @@ impl<T> Shifter for EncapsulatedShifter<T> {
     fn get_states(&self) -> Vec<Rc<Self::T>> {
         return self.possible_states.clone();
     }
+    fn randomize(&mut self) {
+        for shifter in self.shifters.iter() {
+            shifter.borrow_mut().randomize();
+        }
+        if !self.is_shifter_order_preserved_on_randomize {
+            fastrand::shuffle(&mut self.shifters);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -144,7 +154,7 @@ mod encapsulated_shifter_tests {
         init();
     
         let shifters: Vec<Rc<RefCell<dyn Shifter<T = (u8, u8)>>>> = Vec::new();
-        let mut encapsulated_shifter = EncapsulatedShifter::new(&shifters);
+        let mut encapsulated_shifter = EncapsulatedShifter::new(&shifters, false);
 
         for _ in 0..10 {
             assert!(!encapsulated_shifter.try_forward());
@@ -175,7 +185,7 @@ mod encapsulated_shifter_tests {
             Rc::new(RefCell::new(IndexShifter::new(&states_per_shift)))
         ];
 
-        let mut encapsulated_shifter = EncapsulatedShifter::new(&shifters);
+        let mut encapsulated_shifter = EncapsulatedShifter::new(&shifters, false);
         assert!(encapsulated_shifter.try_forward());
         assert!(encapsulated_shifter.try_increment());
         assert_eq!(&(1, 1), encapsulated_shifter.get_indexed_element().element.as_ref());
@@ -217,14 +227,14 @@ mod encapsulated_shifter_tests {
     fn permutations_one_shifter_segment_permutation_shifter() {
         init();
 
-        let segments: Vec<Segment> = vec![
-            Segment::new(1),
-            Segment::new(1)
+        let segments: Vec<Rc<Segment>> = vec![
+            Rc::new(Segment::new(1)),
+            Rc::new(Segment::new(1))
         ];
         let shifters: Vec<Rc<RefCell<dyn Shifter<T = (u8, u8)>>>> = vec![
-            Rc::new(RefCell::new(SegmentPermutationShifter::new(Rc::new(segments), (30, 255), 2, true, 0)))
+            Rc::new(RefCell::new(SegmentPermutationShifter::new(segments, (30, 255), 2, true, 0)))
         ];
-        let mut encapsulated_shifter = EncapsulatedShifter::new(&shifters);
+        let mut encapsulated_shifter = EncapsulatedShifter::new(&shifters, false);
         assert!(encapsulated_shifter.try_forward());
         assert!(encapsulated_shifter.try_increment());
         assert_eq!(&(30, 255), encapsulated_shifter.get_indexed_element().element.as_ref());
@@ -255,9 +265,9 @@ mod encapsulated_shifter_tests {
     #[rstest]
     fn permutations_two_shifters_segment_permutation_shifter_and_index_shifter() {
 
-        let segments: Vec<Segment> = vec![
-            Segment::new(1),
-            Segment::new(1)
+        let segments: Vec<Rc<Segment>> = vec![
+            Rc::new(Segment::new(1)),
+            Rc::new(Segment::new(1))
         ];
         let states_per_shift: Vec<Vec<Rc<(u8, u8)>>> = vec![
             vec![
@@ -266,10 +276,10 @@ mod encapsulated_shifter_tests {
             ]
         ];
         let shifters: Vec<Rc<RefCell<dyn Shifter<T = (u8, u8)>>>> = vec![
-            Rc::new(RefCell::new(SegmentPermutationShifter::new(Rc::new(segments), (30, 255), 2, true, 0))),
+            Rc::new(RefCell::new(SegmentPermutationShifter::new(segments, (30, 255), 2, true, 0))),
             Rc::new(RefCell::new(IndexShifter::new(&states_per_shift)))
         ];
-        let mut encapsulated_shifter = EncapsulatedShifter::new(&shifters);
+        let mut encapsulated_shifter = EncapsulatedShifter::new(&shifters, false);
         assert!(encapsulated_shifter.try_forward());
         assert!(encapsulated_shifter.try_increment());
         assert_eq!(&(30, 255), encapsulated_shifter.get_indexed_element().element.as_ref());

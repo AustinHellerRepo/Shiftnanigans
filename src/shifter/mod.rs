@@ -23,6 +23,7 @@ pub trait Shifter {
     fn get_element_index_and_state_index(&self) -> (usize, usize);
     // returns the distinct states possible from this shifter
     fn get_states(&self) -> Vec<Rc<Self::T>>;
+    fn randomize(&mut self);
 
     fn reset(&mut self) {
         while self.try_backward() {

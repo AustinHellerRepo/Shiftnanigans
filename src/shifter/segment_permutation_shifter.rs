@@ -35,7 +35,7 @@ impl LocatedSegment {
 }
 
 pub struct SegmentPermutationShifter {
-    segments: Rc<Vec<Segment>>,
+    segments: Vec<Rc<Segment>>,
     origin: (u8, u8),
     is_horizontal: bool,
     padding: usize,
@@ -54,7 +54,7 @@ pub struct SegmentPermutationShifter {
 }
 
 impl SegmentPermutationShifter {
-    pub fn new(segments: Rc<Vec<Segment>>, origin: (u8, u8), bounding_length: usize, is_horizontal: bool, padding: usize) -> Self {
+    pub fn new(segments: Vec<Rc<Segment>>, origin: (u8, u8), bounding_length: usize, is_horizontal: bool, padding: usize) -> Self {
         let segments_length = segments.len();
 
         let mut current_mask: BitVec = BitVec::with_capacity(segments_length);
@@ -252,6 +252,9 @@ impl Shifter for SegmentPermutationShifter {
     fn get_length(&self) -> usize {
         return self.segments_length;
     }
+    fn randomize(&mut self) {
+        fastrand::shuffle(&mut self.segments);
+    }
 }
 
 #[cfg(test)]
@@ -270,20 +273,20 @@ mod segment_permutation_shifter_tests {
     fn initialized_no_segments() {
         init();
     
-        let segments: Vec<Segment> = Vec::new();
-        let _ = SegmentPermutationShifter::new(Rc::new(segments), (10, 100), 5, true, 1);
+        let segments: Vec<Rc<Segment>> = Vec::new();
+        let _ = SegmentPermutationShifter::new(segments, (10, 100), 5, true, 1);
     }
     
     #[rstest]
-    #[case(vec![Segment::new(1)], (10, 100), 3, true, 1)]
-    #[case(vec![Segment::new(1), Segment::new(1)], (10, 100), 3, true, 1)]
-    #[case(vec![Segment::new(1), Segment::new(1), Segment::new(1)], (10, 100), 3, true, 1)]
-    #[case(vec![Segment::new(1), Segment::new(1), Segment::new(1), Segment::new(1)], (10, 100), 3, true, 1)]
-    fn shift_forward_and_backward_for_multiple_segments(#[case] segments: Vec<Segment>, #[case] origin: (u8, u8), #[case] bounding_length: usize, #[case] is_horizontal: bool, #[case] padding: usize) {
+    #[case(vec![Rc::new(Segment::new(1))], (10, 100), 3, true, 1)]
+    #[case(vec![Rc::new(Segment::new(1)), Rc::new(Segment::new(1))], (10, 100), 3, true, 1)]
+    #[case(vec![Rc::new(Segment::new(1)), Rc::new(Segment::new(1)), Rc::new(Segment::new(1))], (10, 100), 3, true, 1)]
+    #[case(vec![Rc::new(Segment::new(1)), Rc::new(Segment::new(1)), Rc::new(Segment::new(1)), Rc::new(Segment::new(1))], (10, 100), 3, true, 1)]
+    fn shift_forward_and_backward_for_multiple_segments(#[case] segments: Vec<Rc<Segment>>, #[case] origin: (u8, u8), #[case] bounding_length: usize, #[case] is_horizontal: bool, #[case] padding: usize) {
         init();
         
         let segments_length = segments.len();
-        let mut segment_permutation_shifter = SegmentPermutationShifter::new(Rc::new(segments), origin, bounding_length, is_horizontal, padding);
+        let mut segment_permutation_shifter = SegmentPermutationShifter::new(segments, origin, bounding_length, is_horizontal, padding);
         for index in 0..10 {
             debug!("index: {:?}", index);
             assert!(!segment_permutation_shifter.try_backward());
@@ -303,17 +306,17 @@ mod segment_permutation_shifter_tests {
     }
 
     #[rstest]
-    #[case(vec![Segment::new(1)], (10, 100), 3, true, 1)]
-    #[case(vec![Segment::new(1)], (10, 100), 3, false, 1)]
-    #[case(vec![Segment::new(2)], (10, 100), 3, true, 1)]
-    #[case(vec![Segment::new(2)], (10, 100), 3, false, 1)]
-    #[case(vec![Segment::new(3)], (10, 100), 3, true, 1)]
-    #[case(vec![Segment::new(3)], (10, 100), 3, false, 1)]
-    fn permutate_through_different_segments_one_segment(#[case] segments: Vec<Segment>, #[case] origin: (u8, u8), #[case] bounding_length: usize, #[case] is_horizontal: bool, #[case] padding: usize) {
+    #[case(vec![Rc::new(Segment::new(1))], (10, 100), 3, true, 1)]
+    #[case(vec![Rc::new(Segment::new(1))], (10, 100), 3, false, 1)]
+    #[case(vec![Rc::new(Segment::new(2))], (10, 100), 3, true, 1)]
+    #[case(vec![Rc::new(Segment::new(2))], (10, 100), 3, false, 1)]
+    #[case(vec![Rc::new(Segment::new(3))], (10, 100), 3, true, 1)]
+    #[case(vec![Rc::new(Segment::new(3))], (10, 100), 3, false, 1)]
+    fn permutate_through_different_segments_one_segment(#[case] segments: Vec<Rc<Segment>>, #[case] origin: (u8, u8), #[case] bounding_length: usize, #[case] is_horizontal: bool, #[case] padding: usize) {
         init();
         
         let segment_length = segments[0].length;
-        let mut segment_permutation_shifter = SegmentPermutationShifter::new(Rc::new(segments), origin, bounding_length, is_horizontal, padding);
+        let mut segment_permutation_shifter = SegmentPermutationShifter::new(segments, origin, bounding_length, is_horizontal, padding);
         for index in 0..10 {
             debug!("index: {:?}", index);
             assert!(!segment_permutation_shifter.try_backward());
@@ -344,13 +347,13 @@ mod segment_permutation_shifter_tests {
     fn permutations_of_one_and_two_and_three_length_segments_with_one_padding_with_smallest_bounding_length() {
         init();
 
-        let segments: Vec<Segment> = vec![
-            Segment::new(1),
-            Segment::new(2),
-            Segment::new(3)
+        let segments: Vec<Rc<Segment>> = vec![
+            Rc::new(Segment::new(1)),
+            Rc::new(Segment::new(2)),
+            Rc::new(Segment::new(3))
         ];
         let mut segment_permutation_shifter = SegmentPermutationShifter::new(
-            Rc::new(segments),
+            segments,
             (10, 100),
             8,
             true,
@@ -449,11 +452,11 @@ mod segment_permutation_shifter_tests {
     fn permutations_of_two_and_three_with_one_padding_with_one_open_space_bounding_length() {
         init();
 
-        let segments: Vec<Segment> = vec![
-            Segment::new(2),
-            Segment::new(3)
+        let segments: Vec<Rc<Segment>> = vec![
+            Rc::new(Segment::new(2)),
+            Rc::new(Segment::new(3))
         ];
-        let mut segment_permutation_shifter = SegmentPermutationShifter::new(Rc::new(segments), (20, 200), 7, false, 1);
+        let mut segment_permutation_shifter = SegmentPermutationShifter::new(segments, (20, 200), 7, false, 1);
         assert!(segment_permutation_shifter.try_forward());
         assert!(segment_permutation_shifter.try_increment());  // pull the 1st segment as the 1st shift
         assert_eq!(&(20, 200), segment_permutation_shifter.get_indexed_element().element.as_ref());

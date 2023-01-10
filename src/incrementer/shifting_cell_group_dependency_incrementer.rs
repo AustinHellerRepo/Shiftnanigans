@@ -245,6 +245,12 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
         self.current_locations.clear();
         self.current_element_index_and_state_index_pairs.clear();
     }
+    fn randomize(&mut self) {
+        for cell_group_dependency in self.cell_group_dependencies.iter() {
+            cell_group_dependency.encapsulated_shifter.borrow_mut().randomize();
+        }
+        fastrand::shuffle(&mut self.cell_group_dependencies);
+    }
 }
 
 impl Iterator for ShiftingCellGroupDependencyIncrementer {
@@ -325,7 +331,7 @@ mod shifting_cell_group_dependency_incrementer_tests {
         let cell_group_dependencies: Vec<CellGroupDependency> = vec![
             CellGroupDependency {
                 cell_group_index_mapping: vec![0, 1],
-                encapsulated_shifter: RefCell::new(EncapsulatedShifter::new(&shifters))
+                encapsulated_shifter: RefCell::new(EncapsulatedShifter::new(&shifters, false))
             }
         ];
         let mut shifting_cell_group_dependency_incrementer = ShiftingCellGroupDependencyIncrementer::new(
@@ -446,7 +452,7 @@ mod shifting_cell_group_dependency_incrementer_tests {
             
             cell_group_dependencies.push(CellGroupDependency {
                 cell_group_index_mapping: cell_group_index_mapping,
-                encapsulated_shifter: RefCell::new(EncapsulatedShifter::new(&shifters))
+                encapsulated_shifter: RefCell::new(EncapsulatedShifter::new(&shifters, false))
             });
         }
 

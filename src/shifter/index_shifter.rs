@@ -156,6 +156,13 @@ impl<T> Shifter for IndexShifter<T> {
     fn get_states(&self) -> Vec<Rc<Self::T>> {
         return self.possible_states.clone();
     }
+    fn randomize(&mut self) {
+        // TODO panic if already iterating
+        fastrand::shuffle(&mut self.state_indexes_per_shift_index);
+        for shift_index in 0..self.state_indexes_per_shift_index.len() {
+            fastrand::shuffle(&mut self.state_indexes_per_shift_index[shift_index]);
+        }
+    }
 }
 
 #[cfg(test)]
