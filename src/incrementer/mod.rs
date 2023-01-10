@@ -1,9 +1,7 @@
-use std::rc::Rc;
-
 use crate::IndexedElement;
 
 pub mod shifting_cell_group_dependency_incrementer;
-pub mod zipper_incrementer;
+pub mod round_robin_incrementer;
 
 pub trait Incrementer {
     type T;

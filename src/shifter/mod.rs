@@ -1,6 +1,6 @@
 pub mod index_shifter;
 pub mod segment_permutation_shifter;
-pub mod encapsulated_shifter;
+pub mod combined_shifter;
 use std::rc::Rc;
 
 use crate::IndexedElement;

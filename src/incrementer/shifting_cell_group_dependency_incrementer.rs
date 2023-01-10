@@ -6,33 +6,24 @@
 //                  It can be set back to None as each index is incremented across (from shift index 0 to n as each shift index state is found to be valid) since there's no need to look back
 //                  It is filled from a master collection per shift index and state key of vectors of BTreeSets, filled as new bad pairs are discovered.
 
-use std::{collections::VecDeque, rc::Rc, cell::RefCell};
+use std::{collections::{VecDeque, BTreeSet}, rc::Rc, cell::RefCell};
 
 use bitvec::vec::BitVec;
 
-use crate::{shifter::{encapsulated_shifter::EncapsulatedShifter, Shifter}, IndexedElement};
+use crate::{shifter::{combined_shifter::CombinedShifter, Shifter}, IndexedElement, CellGroup};
 use super::Incrementer;
-
-#[derive(Clone)]
-pub struct CellGroup {
-    cells: Vec<(u8, u8)>,  // these should exist such that they can be added directly to location points
-    cell_group_type_index: usize  // each type can have relationship attributes (detection location offsets, etc.)
-}
-
-pub struct LocatedCellGroup {
-    cell_group_index: usize,
-    location: Rc<(u8, u8)>
-}
 
 /// This struct specifies that "this" cell group location has "these" cell group location collections as dependencies such that if being at that location makes all of them invalid, then that location must be invalid
 pub struct CellGroupDependency {
     cell_group_index_mapping: Vec<usize>,
-    encapsulated_shifter: RefCell<EncapsulatedShifter<(u8, u8)>>
+    combined_shifter: RefCell<CombinedShifter<(u8, u8)>>
 }
 
 pub struct ShiftingCellGroupDependencyIncrementer {
-    cell_groups: Vec<CellGroup>,
+    cell_groups: Vec<Rc<CellGroup>>,
     cell_group_dependencies: Vec<CellGroupDependency>,
+    detection_offsets_per_cell_group_type_index_per_cell_group_type_index: Vec<Vec<Vec<(i16, i16)>>>,
+    is_adjacent_cell_group_index_per_cell_group_index: Vec<BitVec>,
     current_cell_group_dependency_index: Option<usize>,
     current_locations: Vec<IndexedElement<(u8, u8)>>,
     current_element_index_and_state_index_pairs: Vec<(usize, usize)>,
@@ -44,10 +35,12 @@ pub struct ShiftingCellGroupDependencyIncrementer {
 }
 
 impl ShiftingCellGroupDependencyIncrementer {
-    pub fn new(cell_groups: Vec<CellGroup>, cell_group_dependencies: Vec<CellGroupDependency>) -> Self {
+    pub fn new(cell_groups: Vec<Rc<CellGroup>>, cell_group_dependencies: Vec<CellGroupDependency>, detection_offsets_per_cell_group_type_index_per_cell_group_type_index: Vec<Vec<Vec<(i16, i16)>>>, is_adjacent_cell_group_index_per_cell_group_index: Vec<BitVec>) -> Self {
         ShiftingCellGroupDependencyIncrementer {
             cell_groups: cell_groups,
             cell_group_dependencies: cell_group_dependencies,
+            detection_offsets_per_cell_group_type_index_per_cell_group_type_index: detection_offsets_per_cell_group_type_index_per_cell_group_type_index,
+            is_adjacent_cell_group_index_per_cell_group_index: is_adjacent_cell_group_index_per_cell_group_index,
             current_cell_group_dependency_index: None,
             current_locations: Vec::new(),
             current_element_index_and_state_index_pairs: Vec::new(),
@@ -75,8 +68,8 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
             // construct the bitvecs for current_is_checked and current_is_valid
             {
                 let cell_group_dependency = &self.cell_group_dependencies[self.current_cell_group_dependency_index.unwrap()];
-                self.current_elements_total = cell_group_dependency.encapsulated_shifter.borrow().get_length();
-                self.current_states = cell_group_dependency.encapsulated_shifter.borrow().get_states();
+                self.current_elements_total = cell_group_dependency.combined_shifter.borrow().get_length();
+                self.current_states = cell_group_dependency.combined_shifter.borrow().get_states();
                 self.current_states_total = self.current_states.len();
                 let bits_length = self.current_elements_total * self.current_elements_total * self.current_states_total * self.current_states_total;
                 self.current_is_checked = BitVec::repeat(false, bits_length);
@@ -86,11 +79,11 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
         while self.current_cell_group_dependency_index.unwrap() != self.cell_group_dependencies.len() {
             debug!("choosing {:?}th dependency", self.current_cell_group_dependency_index);
             let cell_group_dependency = &self.cell_group_dependencies[self.current_cell_group_dependency_index.unwrap()];
-            let encapsulated_shifter: &mut EncapsulatedShifter<(u8, u8)> = &mut cell_group_dependency.encapsulated_shifter.borrow_mut();
-            let encapsulated_shifter_length = encapsulated_shifter.get_length();
+            let combined_shifter: &mut CombinedShifter<(u8, u8)> = &mut cell_group_dependency.combined_shifter.borrow_mut();
+            let combined_shifter_length = combined_shifter.get_length();
             // loop until a valid collection of locations has been discovered
             let mut is_forward_required: bool;
-            if self.current_locations.len() == encapsulated_shifter_length {
+            if self.current_locations.len() == combined_shifter_length {
                 debug!("popping last location to make room for next possible location");
                 self.current_locations.pop();  // remove the last valid location
                 self.current_element_index_and_state_index_pairs.pop();
@@ -105,23 +98,23 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
                 }
             }
             let mut is_fully_backward: bool = false;
-            while self.current_locations.len() != encapsulated_shifter_length && !is_fully_backward {
+            while self.current_locations.len() != combined_shifter_length && !is_fully_backward {
                 if is_forward_required {
                     debug!("moving forward to next shift index");
-                    encapsulated_shifter.try_forward();
+                    combined_shifter.try_forward();
                 }
                 debug!("incrementing at current shift index");
-                let is_increment_successful = encapsulated_shifter.try_increment();
+                let is_increment_successful = combined_shifter.try_increment();
                 if !is_increment_successful {
                     debug!("increment was not successful, so popping and backing up");
-                    if !encapsulated_shifter.try_backward() {
+                    if !combined_shifter.try_backward() {
                         debug!("done with shifter, so trying next dependency");
                         // this encapsulated shifter is done, so move onto the next dependency
                         self.current_cell_group_dependency_index = Some(self.current_cell_group_dependency_index.unwrap() + 1);
                         if self.current_cell_group_dependency_index.unwrap() != self.cell_group_dependencies.len() { 
                             let cell_group_dependency = &self.cell_group_dependencies[self.current_cell_group_dependency_index.unwrap()];
-                            self.current_elements_total = cell_group_dependency.encapsulated_shifter.borrow().get_length();
-                            self.current_states = cell_group_dependency.encapsulated_shifter.borrow().get_states();
+                            self.current_elements_total = cell_group_dependency.combined_shifter.borrow().get_length();
+                            self.current_states = cell_group_dependency.combined_shifter.borrow().get_states();
                             self.current_states_total = self.current_states.len();
                             let bits_length = self.current_elements_total * self.current_elements_total * self.current_states_total * self.current_states_total;
                             self.current_is_checked.clear();
@@ -143,7 +136,7 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
                 }
                 else {
                     debug!("at a valid shift index, so comparing current indexed elements to cached indexed elements");
-                    let mut current_element_index_and_state_index_pair = encapsulated_shifter.get_element_index_and_state_index();
+                    let mut current_element_index_and_state_index_pair = combined_shifter.get_element_index_and_state_index();
                     current_element_index_and_state_index_pair.0 = cell_group_dependency.cell_group_index_mapping[current_element_index_and_state_index_pair.0];
                     let current_index_element_location = self.current_states[current_element_index_and_state_index_pair.1].clone();
 
@@ -183,6 +176,18 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
                                     let other_cell_group = &self.cell_groups[other_element_index_and_state_index_pair.0];
                                     let current_cell_group = &self.cell_groups[current_element_index_and_state_index_pair.0];
 
+                                    let is_adjacency_expected: bool = self.is_adjacent_cell_group_index_per_cell_group_index[current_element_index_and_state_index_pair.0][other_element_index_and_state_index_pair.0];
+                                    let mut is_adjacent: bool = false;
+
+                                    let mut detection_locations: BTreeSet<(u8, u8)> = BTreeSet::new();
+                                    for detection_offset in self.detection_offsets_per_cell_group_type_index_per_cell_group_type_index[current_cell_group.cell_group_type_index][other_cell_group.cell_group_type_index].iter() {
+                                        let detection_location_i16 = (detection_offset.0 + current_index_element_location.0 as i16, detection_offset.1 + current_index_element_location.1 as i16);
+                                        if detection_location_i16.0 >= 0 && detection_location_i16.0 < 256 && detection_location_i16.1 >= 0 && detection_location_i16.1 < 256 {
+                                            let detection_location = (detection_location_i16.0 as u8, detection_location_i16.1 as u8);
+                                            detection_locations.insert(detection_location);
+                                        }
+                                    }
+
                                     // check for overlap
                                     for other_cell in other_cell_group.cells.iter() {
                                         let calculated_other_cell: (u8, u8) = (other_cell.0 + other_index_element_location.0, other_cell.1 + other_index_element_location.1);
@@ -193,10 +198,20 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
                                                 is_current_pair_valid = false;
                                                 break 'is_current_pair_valid;
                                             }
+                                            else if is_adjacency_expected && !is_adjacent {
+                                                let x_diff = calculated_other_cell.0.abs_diff(calculated_current_cell.0);
+                                                let y_diff = calculated_other_cell.1.abs_diff(calculated_current_cell.1);
+                                                if (x_diff == 1 && y_diff == 0) || (x_diff == 0 && y_diff == 1) {
+                                                    is_adjacent = true;
+                                                }
+                                            }
+                                        }
+                                        if detection_locations.contains(&calculated_other_cell) {
+                                            debug!("found detection location at ({}, {})", calculated_other_cell.0, calculated_other_cell.1);
+                                            is_current_pair_valid = false;
+                                            break 'is_current_pair_valid;
                                         }
                                     }
-
-                                    // TODO implement detection cells and adjacency
                                 }
                                 
                                 self.current_is_checked.set(bitvec_index, true);
@@ -222,7 +237,7 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
                     }
                 }
             }
-            if self.current_locations.len() == encapsulated_shifter_length {
+            if self.current_locations.len() == combined_shifter_length {
                 debug!("collected a valid set of current locations");
                 return true;
             }
@@ -239,7 +254,7 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
     }
     fn reset(&mut self) {
         if self.current_cell_group_dependency_index.is_some() {
-            self.cell_group_dependencies[self.current_cell_group_dependency_index.unwrap()].encapsulated_shifter.borrow_mut().reset();
+            self.cell_group_dependencies[self.current_cell_group_dependency_index.unwrap()].combined_shifter.borrow_mut().reset();
         }
         self.current_cell_group_dependency_index = None;
         self.current_locations.clear();
@@ -247,7 +262,7 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
     }
     fn randomize(&mut self) {
         for cell_group_dependency in self.cell_group_dependencies.iter() {
-            cell_group_dependency.encapsulated_shifter.borrow_mut().randomize();
+            cell_group_dependency.combined_shifter.borrow_mut().randomize();
         }
         fastrand::shuffle(&mut self.cell_group_dependencies);
     }
@@ -285,16 +300,18 @@ mod shifting_cell_group_dependency_incrementer_tests {
     fn one_cell_group_zero_dependencies() {
         init();
 
-        let cell_groups: Vec<CellGroup> = vec![
-            CellGroup {
+        let cell_groups: Vec<Rc<CellGroup>> = vec![
+            Rc::new(CellGroup {
                 cell_group_type_index: 0,
                 cells: vec![(0, 0)]
-            }
+            })
         ];
         let cell_group_dependencies: Vec<CellGroupDependency> = vec![];
         let mut shifting_cell_group_dependency_incrementer = ShiftingCellGroupDependencyIncrementer::new(
             cell_groups,
-            cell_group_dependencies
+            cell_group_dependencies,
+            Vec::new(),
+            Vec::new()
         );
         for _ in 0..10 {
             assert!(!shifting_cell_group_dependency_incrementer.try_increment());
@@ -305,15 +322,15 @@ mod shifting_cell_group_dependency_incrementer_tests {
     fn two_cell_groups_one_dependency() {
         init();
 
-        let cell_groups: Vec<CellGroup> = vec![
-            CellGroup {
+        let cell_groups: Vec<Rc<CellGroup>> = vec![
+            Rc::new(CellGroup {
                 cell_group_type_index: 0,
                 cells: vec![(0, 0)]
-            },
-            CellGroup {
+            }),
+            Rc::new(CellGroup {
                 cell_group_type_index: 1,
                 cells: vec![(0, 0)]
-            }
+            })
         ];
         let states_per_shift_index: Vec<Vec<Rc<(u8, u8)>>> = vec![
             vec![
@@ -331,12 +348,26 @@ mod shifting_cell_group_dependency_incrementer_tests {
         let cell_group_dependencies: Vec<CellGroupDependency> = vec![
             CellGroupDependency {
                 cell_group_index_mapping: vec![0, 1],
-                encapsulated_shifter: RefCell::new(EncapsulatedShifter::new(&shifters, false))
+                combined_shifter: RefCell::new(CombinedShifter::new(&shifters, false))
             }
         ];
         let mut shifting_cell_group_dependency_incrementer = ShiftingCellGroupDependencyIncrementer::new(
             cell_groups,
-            cell_group_dependencies
+            cell_group_dependencies,
+            vec![
+                vec![
+                    Vec::new(),
+                    Vec::new()
+                ],
+                vec![
+                    Vec::new(),
+                    Vec::new()
+                ]
+            ],
+            vec![
+                BitVec::repeat(false, 2),
+                BitVec::repeat(false, 2)
+            ]
         );
         let mut expected_get: Vec<IndexedElement<(u8, u8)>>;
         assert!(shifting_cell_group_dependency_incrementer.try_increment());
@@ -373,6 +404,7 @@ mod shifting_cell_group_dependency_incrementer_tests {
         //      2022-12-22    28.95s
         //      2023-01-06     3.15s on potato
         //      2023-01-08     0.392s
+        //      2023-01-10     0.819s on potato
         //  6
         //      2023-01-08   327.12s
 
@@ -401,7 +433,7 @@ mod shifting_cell_group_dependency_incrementer_tests {
 
         // construct cell groups
 
-        let mut cell_groups: Vec<CellGroup> = Vec::new();
+        let mut cell_groups: Vec<Rc<CellGroup>> = Vec::new();
         for index in 0..cell_groups_total {
             let mut cells: Vec<(u8, u8)> = Vec::new();
             for width_index in 0..=index as u8 {
@@ -409,10 +441,10 @@ mod shifting_cell_group_dependency_incrementer_tests {
                     cells.push((width_index, height_index));
                 }
             }
-            cell_groups.push(CellGroup {
+            cell_groups.push(Rc::new(CellGroup {
                 cell_group_type_index: 0,
                 cells: cells
-            });
+            }));
         }
 
         detection_offsets_per_cell_group_type_index_per_cell_group_type_index.push(vec![vec![]]);
@@ -452,11 +484,25 @@ mod shifting_cell_group_dependency_incrementer_tests {
             
             cell_group_dependencies.push(CellGroupDependency {
                 cell_group_index_mapping: cell_group_index_mapping,
-                encapsulated_shifter: RefCell::new(EncapsulatedShifter::new(&shifters, false))
+                combined_shifter: RefCell::new(CombinedShifter::new(&shifters, false))
             });
         }
 
-        let shifting_cell_group_dependency_incrementer = ShiftingCellGroupDependencyIncrementer::new(cell_groups.clone(), cell_group_dependencies);
+        let mut is_adjacent_cell_group_index_per_cell_group_index: Vec<BitVec> = Vec::new();
+        for _ in 0..cell_groups_total {
+            is_adjacent_cell_group_index_per_cell_group_index.push(BitVec::repeat(false, cell_groups_total));
+        }
+
+        let shifting_cell_group_dependency_incrementer = ShiftingCellGroupDependencyIncrementer::new(
+            cell_groups.clone(),
+            cell_group_dependencies,
+            vec![
+                vec![
+                    Vec::new()
+                ],
+            ],
+            is_adjacent_cell_group_index_per_cell_group_index
+        );
 
         let validating_start_time = Instant::now();
 

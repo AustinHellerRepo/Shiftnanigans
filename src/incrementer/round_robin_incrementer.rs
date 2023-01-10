@@ -1,14 +1,14 @@
 use std::{rc::Rc, cell::RefCell};
 use super::Incrementer;
 
-pub struct ZipperIncrementer<T> {
+pub struct RoundRobinIncrementer<T> {
     incrementers: Vec<Rc<RefCell<dyn Incrementer<T = T>>>>,
     current_available_indexes: Vec<usize>,
     current_available_indexes_index: usize,
     is_completed: bool
 }
 
-impl<T> ZipperIncrementer<T> {
+impl<T> RoundRobinIncrementer<T> {
     pub fn new(incrementers: Vec<Rc<RefCell<dyn Incrementer<T = T>>>>) -> Self {
         let mut current_available_indexes: Vec<usize> = Vec::new();
         let is_completed = incrementers.len() == 0;
@@ -17,7 +17,7 @@ impl<T> ZipperIncrementer<T> {
                 current_available_indexes.push(index);
             }
         }
-        ZipperIncrementer {
+        RoundRobinIncrementer {
             incrementers: incrementers,
             current_available_indexes: current_available_indexes,
             current_available_indexes_index: 0,
@@ -26,7 +26,7 @@ impl<T> ZipperIncrementer<T> {
     }
 }
 
-impl<T> Incrementer for ZipperIncrementer<T> {
+impl<T> Incrementer for RoundRobinIncrementer<T> {
     type T = T;
 
     fn try_increment(&mut self) -> bool {
