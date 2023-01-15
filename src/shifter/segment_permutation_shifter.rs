@@ -569,6 +569,69 @@ mod segment_permutation_shifter_tests {
     fn permutations_two_segments_one_length_each_four_bounding_length_no_swapping_permitted() {
         init();
 
-        todo!();
+        // 22-333--
+        // 22--333-
+        // 22---333
+        // -22-333-
+        // -22--333
+        // --22-333
+
+        let segments: Vec<Rc<Segment>> = vec![
+            Rc::new(Segment::new(2)),
+            Rc::new(Segment::new(3))
+        ];
+        let mut segment_permutation_shifter = SegmentPermutationShifter::new(segments, (20, 200), 8, true, 1, false);
+
+        assert!(segment_permutation_shifter.try_forward());
+        assert!(segment_permutation_shifter.try_increment());
+        assert_eq!(&(20, 200), segment_permutation_shifter.get_indexed_element().element.as_ref());
+        assert_eq!(0, segment_permutation_shifter.get_indexed_element().index);
+        assert!(segment_permutation_shifter.try_forward());
+        assert!(segment_permutation_shifter.try_increment());
+        assert_eq!(&(23, 200), segment_permutation_shifter.get_indexed_element().element.as_ref());
+        assert_eq!(1, segment_permutation_shifter.get_indexed_element().index);
+        assert!(!segment_permutation_shifter.try_forward());
+        assert!(segment_permutation_shifter.try_backward());
+        assert!(segment_permutation_shifter.try_increment());
+        assert_eq!(&(24, 200), segment_permutation_shifter.get_indexed_element().element.as_ref());
+        assert_eq!(1, segment_permutation_shifter.get_indexed_element().index);
+        assert!(!segment_permutation_shifter.try_forward());
+        assert!(segment_permutation_shifter.try_backward());
+        assert!(segment_permutation_shifter.try_increment());
+        assert_eq!(&(25, 200), segment_permutation_shifter.get_indexed_element().element.as_ref());
+        assert_eq!(1, segment_permutation_shifter.get_indexed_element().index);
+        assert!(!segment_permutation_shifter.try_forward());
+        assert!(segment_permutation_shifter.try_backward());
+        assert!(!segment_permutation_shifter.try_increment());
+        assert!(segment_permutation_shifter.try_backward());  // back to 0th shift
+        assert!(segment_permutation_shifter.try_increment());  // increment to 1th position
+        assert_eq!(&(21, 200), segment_permutation_shifter.get_indexed_element().element.as_ref());
+        assert_eq!(0, segment_permutation_shifter.get_indexed_element().index);
+        assert!(segment_permutation_shifter.try_forward());
+        assert!(segment_permutation_shifter.try_increment());
+        assert_eq!(&(24, 200), segment_permutation_shifter.get_indexed_element().element.as_ref());
+        assert_eq!(1, segment_permutation_shifter.get_indexed_element().index);
+        assert!(!segment_permutation_shifter.try_forward());
+        assert!(segment_permutation_shifter.try_backward());
+        assert!(segment_permutation_shifter.try_increment());
+        assert_eq!(&(25, 200), segment_permutation_shifter.get_indexed_element().element.as_ref());
+        assert_eq!(1, segment_permutation_shifter.get_indexed_element().index);
+        assert!(!segment_permutation_shifter.try_forward());
+        assert!(segment_permutation_shifter.try_backward());
+        assert!(!segment_permutation_shifter.try_increment());
+        assert!(segment_permutation_shifter.try_backward());  // back to the 0th shift
+        assert!(segment_permutation_shifter.try_increment());
+        assert_eq!(&(22, 200), segment_permutation_shifter.get_indexed_element().element.as_ref());
+        assert_eq!(0, segment_permutation_shifter.get_indexed_element().index);
+        assert!(segment_permutation_shifter.try_forward());
+        assert!(segment_permutation_shifter.try_increment());
+        assert_eq!(&(25, 200), segment_permutation_shifter.get_indexed_element().element.as_ref());
+        assert_eq!(1, segment_permutation_shifter.get_indexed_element().index);
+        assert!(!segment_permutation_shifter.try_forward());
+        assert!(segment_permutation_shifter.try_backward());
+        assert!(!segment_permutation_shifter.try_increment());
+        assert!(segment_permutation_shifter.try_backward());  // back to the 0th shift
+        assert!(!segment_permutation_shifter.try_increment());
+        assert!(!segment_permutation_shifter.try_backward());  // done
     }
 }
