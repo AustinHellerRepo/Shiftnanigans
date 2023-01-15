@@ -39,6 +39,7 @@ pub struct SegmentPermutationShifter {
     origin: (u8, u8),
     is_horizontal: bool,
     padding: usize,
+    is_swapping_permitted: bool,
     possible_locations: Vec<Rc<(u8, u8)>>,
     current_mask: BitVec,
     current_segment_index_per_shift_index: VecDeque<usize>,
@@ -54,7 +55,7 @@ pub struct SegmentPermutationShifter {
 }
 
 impl SegmentPermutationShifter {
-    pub fn new(segments: Vec<Rc<Segment>>, origin: (u8, u8), bounding_length: usize, is_horizontal: bool, padding: usize) -> Self {
+    pub fn new(segments: Vec<Rc<Segment>>, origin: (u8, u8), bounding_length: usize, is_horizontal: bool, padding: usize, is_swapping_permitted: bool) -> Self {
         let segments_length = segments.len();
 
         let mut current_mask: BitVec = BitVec::with_capacity(segments_length);
@@ -88,6 +89,7 @@ impl SegmentPermutationShifter {
             origin: origin,
             is_horizontal: is_horizontal,
             padding: padding,
+            is_swapping_permitted: is_swapping_permitted,
             possible_locations: possible_locations,
             current_mask: current_mask,
             current_segment_index_per_shift_index: VecDeque::new(),
@@ -196,6 +198,10 @@ impl Shifter for SegmentPermutationShifter {
             let current_bounding_length = self.current_bounding_length_per_shift_index[current_shift_index];
             if current_bounding_length == self.current_minimum_bounding_length_per_shift_index[current_shift_index] {
                 debug!("try_increment: position is at last location already, so trying to increment segment");
+                if !self.is_swapping_permitted {
+                    debug!("swapping is not permitted, so this shifter is completed");
+                    return false;
+                }
                 let current_segment_index = self.current_segment_index_per_shift_index[current_shift_index];
                 for next_segment_index in (current_segment_index + 1)..self.segments.len() {
                     if !self.current_mask[next_segment_index] {
@@ -274,7 +280,7 @@ mod segment_permutation_shifter_tests {
         init();
     
         let segments: Vec<Rc<Segment>> = Vec::new();
-        let _ = SegmentPermutationShifter::new(segments, (10, 100), 5, true, 1);
+        let _ = SegmentPermutationShifter::new(segments, (10, 100), 5, true, 1, true);
     }
     
     #[rstest]
@@ -286,7 +292,7 @@ mod segment_permutation_shifter_tests {
         init();
         
         let segments_length = segments.len();
-        let mut segment_permutation_shifter = SegmentPermutationShifter::new(segments, origin, bounding_length, is_horizontal, padding);
+        let mut segment_permutation_shifter = SegmentPermutationShifter::new(segments, origin, bounding_length, is_horizontal, padding, true);
         for index in 0..10 {
             debug!("index: {:?}", index);
             assert!(!segment_permutation_shifter.try_backward());
@@ -316,7 +322,7 @@ mod segment_permutation_shifter_tests {
         init();
         
         let segment_length = segments[0].length;
-        let mut segment_permutation_shifter = SegmentPermutationShifter::new(segments, origin, bounding_length, is_horizontal, padding);
+        let mut segment_permutation_shifter = SegmentPermutationShifter::new(segments, origin, bounding_length, is_horizontal, padding, true);
         for index in 0..10 {
             debug!("index: {:?}", index);
             assert!(!segment_permutation_shifter.try_backward());
@@ -357,7 +363,8 @@ mod segment_permutation_shifter_tests {
             (10, 100),
             8,
             true,
-            1
+            1,
+            true
         );
         for index in 0..10 {
             let is_try_forward_at_end_required: bool = index % 2 == 0;
@@ -456,7 +463,7 @@ mod segment_permutation_shifter_tests {
             Rc::new(Segment::new(2)),
             Rc::new(Segment::new(3))
         ];
-        let mut segment_permutation_shifter = SegmentPermutationShifter::new(segments, (20, 200), 7, false, 1);
+        let mut segment_permutation_shifter = SegmentPermutationShifter::new(segments, (20, 200), 7, false, 1, true);
         assert!(segment_permutation_shifter.try_forward());
         assert!(segment_permutation_shifter.try_increment());  // pull the 1st segment as the 1st shift
         assert_eq!(&(20, 200), segment_permutation_shifter.get_indexed_element().element.as_ref());
@@ -556,5 +563,12 @@ mod segment_permutation_shifter_tests {
         assert!(segment_permutation_shifter.try_backward());
         assert!(!segment_permutation_shifter.try_increment());  // cannot move 2nd segment in 1st shift any further and no other segments
         assert!(!segment_permutation_shifter.try_backward());  // moved back to outside start
+    }
+
+    #[rstest]
+    fn permutations_two_segments_one_length_each_four_bounding_length_no_swapping_permitted() {
+        init();
+
+        todo!();
     }
 }

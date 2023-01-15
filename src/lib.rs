@@ -4,10 +4,9 @@ pub mod incrementer;
 // TODO bloom filter wrapper over hashset
 pub mod shifter;
 pub mod backup;
+pub mod pixel_board;
 extern crate pretty_env_logger;
 #[macro_use] extern crate log;
-
-pub mod cell_group_localizer;
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct IndexedElement<T> {
@@ -35,8 +34,7 @@ impl<T> IndexedElement<T> {
 
 #[derive(Clone)]
 pub struct CellGroup {
-    cells: Vec<(u8, u8)>,  // these should exist such that they can be added directly to location points
-    cell_group_type_index: usize  // each type can have relationship attributes (detection location offsets, etc.)
+    cells: Vec<(u8, u8)>  // these should exist such that they can be added directly to location points
 }
 
 pub struct LocatedCellGroup {

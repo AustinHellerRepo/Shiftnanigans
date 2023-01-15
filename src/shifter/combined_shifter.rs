@@ -232,7 +232,7 @@ mod combined_shifter_tests {
             Rc::new(Segment::new(1))
         ];
         let shifters: Vec<Rc<RefCell<dyn Shifter<T = (u8, u8)>>>> = vec![
-            Rc::new(RefCell::new(SegmentPermutationShifter::new(segments, (30, 255), 2, true, 0)))
+            Rc::new(RefCell::new(SegmentPermutationShifter::new(segments, (30, 255), 2, true, 0, true)))
         ];
         let mut combined_shifter = CombinedShifter::new(&shifters, false);
         assert!(combined_shifter.try_forward());
@@ -276,7 +276,7 @@ mod combined_shifter_tests {
             ]
         ];
         let shifters: Vec<Rc<RefCell<dyn Shifter<T = (u8, u8)>>>> = vec![
-            Rc::new(RefCell::new(SegmentPermutationShifter::new(segments, (30, 255), 2, true, 0))),
+            Rc::new(RefCell::new(SegmentPermutationShifter::new(segments, (30, 255), 2, true, 0, true))),
             Rc::new(RefCell::new(IndexShifter::new(&states_per_shift)))
         ];
         let mut combined_shifter = CombinedShifter::new(&shifters, false);

@@ -22,7 +22,7 @@ pub struct CellGroupDependency {
 pub struct ShiftingCellGroupDependencyIncrementer {
     cell_groups: Vec<Rc<CellGroup>>,
     cell_group_dependencies: Vec<CellGroupDependency>,
-    detection_offsets_per_cell_group_type_index_per_cell_group_type_index: Vec<Vec<Vec<(i16, i16)>>>,
+    detection_offsets_per_cell_group_index_per_cell_group_index: Vec<Vec<Vec<(i16, i16)>>>,
     is_adjacent_cell_group_index_per_cell_group_index: Vec<BitVec>,
     current_cell_group_dependency_index: Option<usize>,
     current_locations: Vec<IndexedElement<(u8, u8)>>,
@@ -35,11 +35,11 @@ pub struct ShiftingCellGroupDependencyIncrementer {
 }
 
 impl ShiftingCellGroupDependencyIncrementer {
-    pub fn new(cell_groups: Vec<Rc<CellGroup>>, cell_group_dependencies: Vec<CellGroupDependency>, detection_offsets_per_cell_group_type_index_per_cell_group_type_index: Vec<Vec<Vec<(i16, i16)>>>, is_adjacent_cell_group_index_per_cell_group_index: Vec<BitVec>) -> Self {
+    pub fn new(cell_groups: Vec<Rc<CellGroup>>, cell_group_dependencies: Vec<CellGroupDependency>, detection_offsets_per_cell_group_index_per_cell_group_index: Vec<Vec<Vec<(i16, i16)>>>, is_adjacent_cell_group_index_per_cell_group_index: Vec<BitVec>) -> Self {
         ShiftingCellGroupDependencyIncrementer {
             cell_groups: cell_groups,
             cell_group_dependencies: cell_group_dependencies,
-            detection_offsets_per_cell_group_type_index_per_cell_group_type_index: detection_offsets_per_cell_group_type_index_per_cell_group_type_index,
+            detection_offsets_per_cell_group_index_per_cell_group_index: detection_offsets_per_cell_group_index_per_cell_group_index,
             is_adjacent_cell_group_index_per_cell_group_index: is_adjacent_cell_group_index_per_cell_group_index,
             current_cell_group_dependency_index: None,
             current_locations: Vec::new(),
@@ -180,7 +180,7 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
                                     let mut is_adjacent: bool = false;
 
                                     let mut detection_locations: BTreeSet<(u8, u8)> = BTreeSet::new();
-                                    for detection_offset in self.detection_offsets_per_cell_group_type_index_per_cell_group_type_index[current_cell_group.cell_group_type_index][other_cell_group.cell_group_type_index].iter() {
+                                    for detection_offset in self.detection_offsets_per_cell_group_index_per_cell_group_index[current_element_index_and_state_index_pair.0][other_element_index_and_state_index_pair.0].iter() {
                                         let detection_location_i16 = (detection_offset.0 + current_index_element_location.0 as i16, detection_offset.1 + current_index_element_location.1 as i16);
                                         if detection_location_i16.0 >= 0 && detection_location_i16.0 < 256 && detection_location_i16.1 >= 0 && detection_location_i16.1 < 256 {
                                             let detection_location = (detection_location_i16.0 as u8, detection_location_i16.1 as u8);
@@ -302,7 +302,6 @@ mod shifting_cell_group_dependency_incrementer_tests {
 
         let cell_groups: Vec<Rc<CellGroup>> = vec![
             Rc::new(CellGroup {
-                cell_group_type_index: 0,
                 cells: vec![(0, 0)]
             })
         ];
@@ -324,11 +323,9 @@ mod shifting_cell_group_dependency_incrementer_tests {
 
         let cell_groups: Vec<Rc<CellGroup>> = vec![
             Rc::new(CellGroup {
-                cell_group_type_index: 0,
                 cells: vec![(0, 0)]
             }),
             Rc::new(CellGroup {
-                cell_group_type_index: 1,
                 cells: vec![(0, 0)]
             })
         ];
@@ -385,7 +382,7 @@ mod shifting_cell_group_dependency_incrementer_tests {
 
         time_graph::enable_data_collection(true);
 
-        let mut detection_offsets_per_cell_group_type_index_per_cell_group_type_index: Vec<Vec<Vec<(i32, i32)>>> = Vec::new();
+        let mut detection_offsets_per_cell_group_index_per_cell_group_index: Vec<Vec<Vec<(i32, i32)>>> = Vec::new();
         let mut is_adjacent_cell_group_index_per_cell_group_index: Vec<BitVec> = Vec::new();
         let mut cell_group_dependencies: Vec<CellGroupDependency> = Vec::new();
 
@@ -442,12 +439,11 @@ mod shifting_cell_group_dependency_incrementer_tests {
                 }
             }
             cell_groups.push(Rc::new(CellGroup {
-                cell_group_type_index: 0,
                 cells: cells
             }));
         }
 
-        detection_offsets_per_cell_group_type_index_per_cell_group_type_index.push(vec![vec![]]);
+        detection_offsets_per_cell_group_index_per_cell_group_index.push(vec![vec![]]);
 
         // construct adjacency bitvec
         {
