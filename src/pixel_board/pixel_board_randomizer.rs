@@ -777,6 +777,8 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
         let mut round_robin_incrementer: RoundRobinIncrementer<(u8, u8)>;
 
         {
+            // TODO randomize the shifters
+            
             // TODO contain the corner, unmoving cell group(s)
             // TODO contain the wall segment permutation shifter(s)
             let mut wall_adjacent_shifter_per_cell_group_index: Vec<Rc<RefCell<dyn Shifter<T = (u8, u8)>>>> = Vec::new();

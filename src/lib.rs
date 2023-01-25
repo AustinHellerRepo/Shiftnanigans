@@ -41,3 +41,20 @@ pub struct LocatedCellGroup {
     cell_group_index: usize,
     location: Rc<(u8, u8)>
 }
+
+
+fn get_n_choose_k(n: u64, k: u64) -> u64 {
+    let mut permutations_total: u64 = 1;
+    let mut denominator_remainder = k as u64;
+    // calculate f(x) = n! / ((n-k)! * k!)
+    // start with (k+1) as if n! was already divided by (n-k)!
+    // divide out values of k! as they are discovered
+    for f_k in (k + 1)..=n {
+        permutations_total = permutations_total * f_k;
+        if denominator_remainder > 1 && permutations_total > denominator_remainder && permutations_total % denominator_remainder == 0 {
+            permutations_total /= denominator_remainder;
+            denominator_remainder = denominator_remainder - 1;
+        }
+    }
+    return permutations_total;
+}
