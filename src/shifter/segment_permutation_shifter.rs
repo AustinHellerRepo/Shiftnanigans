@@ -43,11 +43,12 @@ pub struct SegmentPermutationShifter {
     is_swapping_permitted: bool,
     possible_locations: Vec<Rc<(u8, u8)>>,
     current_mask: BitVec,
-    current_segment_index_per_shift_index: VecDeque<usize>,
-    current_initial_position_offset_per_shift_index: VecDeque<usize>,
-    current_minimum_position_offset_per_shift_index: VecDeque<usize>,
-    current_maximum_position_offset_per_shift_index: VecDeque<usize>,
-    current_position_offset_per_shift_index: VecDeque<Option<usize>>,
+    current_segment_index_per_shift_index: Vec<usize>,
+    current_initial_position_offset_per_shift_index: Vec<usize>,
+    current_minimum_position_offset_per_shift_index: Vec<usize>,
+    current_maximum_position_offset_per_shift_index: Vec<usize>,
+    current_position_offset_per_shift_index: Vec<Option<usize>>,
+    current_is_parent_ending: BitVec,
     is_shifted_outside: bool,
     segments_length: usize,
     starting_segment_index_per_shift_index: Vec<usize>,
@@ -122,7 +123,7 @@ impl SegmentPermutationShifter {
                 starting_segment_index_per_shift_index.push(shift_index);
             }
             let next_minimum_position_offset = 0;
-            let next_maximum_position_offset = smallest_bounding_length;
+            let next_maximum_position_offset = bounding_length - smallest_bounding_length;
             starting_minimum_position_offset_per_shift_index.push(next_minimum_position_offset);
             starting_maximum_position_offset_per_shift_index.push(next_maximum_position_offset);
             for shift_index in 1..segments_length {
@@ -156,11 +157,12 @@ impl SegmentPermutationShifter {
             is_swapping_permitted: is_swapping_permitted,
             possible_locations: possible_locations,
             current_mask: current_mask,
-            current_segment_index_per_shift_index: VecDeque::new(),
-            current_initial_position_offset_per_shift_index: VecDeque::new(),
-            current_minimum_position_offset_per_shift_index: VecDeque::new(),
-            current_maximum_position_offset_per_shift_index: VecDeque::new(),
-            current_position_offset_per_shift_index: VecDeque::new(),
+            current_segment_index_per_shift_index: Vec::new(),
+            current_initial_position_offset_per_shift_index: Vec::new(),
+            current_minimum_position_offset_per_shift_index: Vec::new(),
+            current_maximum_position_offset_per_shift_index: Vec::new(),
+            current_position_offset_per_shift_index: Vec::new(),
+            current_is_parent_ending: BitVec::new(),
             is_shifted_outside: false,
             segments_length: segments_length,
             starting_segment_index_per_shift_index: starting_segment_index_per_shift_index,
@@ -170,7 +172,7 @@ impl SegmentPermutationShifter {
             ending_segment_index_per_shift_index: ending_segment_index_per_shift_index,
             ending_position_offset_per_shift_index: ending_position_offset_per_shift_index,
             is_starting: true,
-            is_looped: is_starting_equal_to_ending,
+            is_looped: is_starting_equal_to_ending || !is_swapping_permitted,
             is_starting_equal_to_ending: is_starting_equal_to_ending
         }
     }
@@ -180,61 +182,110 @@ impl Shifter for SegmentPermutationShifter {
     type T = (u8, u8);
 
     fn try_forward(&mut self) -> bool {
-        // if already outside
+        // if mask is full
+        //      set already outside to true
         //      return false
-        // if the "starting" segment indexes are in next order and not yet incremented segment index order and the current shift index is next to last
-        //      use the last segment index in this shift index
-        //      consider the segment index order as incremented
-        //      initialize current bounding length to "starting" state
-        //      initialize current maximum bounding length to "starting" state
-        //      initialize current minumum bounding length to "starting" state
-        //      initialize current position offset to None (which will be set to Some after try_increment)   
+        // if is starting
+        //      set mask based on "starting" segment index per shift index
+        //      set "current" states based on "starting" states
+        //      push current position as None, requiring increment to set to initial position
         // else
-        //      use the next available segment index in this shift index
-        // if still establishing starting states
-        //      use the starting state for this shift index
-        // else
-        //      use the initial state for this shift index
+        //      search for the next available unmasked index for the segment index of this shift index
+        //      calculate minimum and maximum position offsets
+        //      clone minimum into initial position offsets
 
-        if self.is_shifted_outside {
+        if self.current_mask.first_zero().is_none() {
+            self.is_shifted_outside = true;
             return false;
         }
-
-        todo!();
+        let shift_index = self.current_segment_index_per_shift_index.len();
+        if self.is_starting {
+            let segment_index = self.starting_segment_index_per_shift_index[shift_index];
+            self.current_mask.set(segment_index, true);
+            self.current_segment_index_per_shift_index.push(segment_index);
+            self.current_minimum_position_offset_per_shift_index.push(self.starting_minimum_position_offset_per_shift_index[shift_index]);
+            self.current_maximum_position_offset_per_shift_index.push(self.starting_maximum_position_offset_per_shift_index[shift_index]);
+            self.current_initial_position_offset_per_shift_index.push(self.starting_initial_position_offset_per_shift_index[shift_index]);
+        }
+        else {
+            for mask_index in 0..self.segments_length {
+                if !self.current_mask[mask_index] {
+                    self.current_mask.set(mask_index, true);
+                    self.current_segment_index_per_shift_index.push(mask_index);
+                    let minimum_position_offset;
+                    let maximum_position_offset;
+                    if shift_index == 0 {
+                        minimum_position_offset = 0;
+                        maximum_position_offset = self.starting_maximum_position_offset_per_shift_index[0];
+                    }
+                    else {
+                        let previous_segment_index = self.current_segment_index_per_shift_index[shift_index - 1];
+                        let previous_segment_length = self.segments[previous_segment_index].length + self.padding;
+                        minimum_position_offset = self.current_position_offset_per_shift_index[shift_index - 1].unwrap() + previous_segment_length;
+                        maximum_position_offset = self.current_maximum_position_offset_per_shift_index[shift_index - 1] + previous_segment_length;
+                    }
+                    self.current_minimum_position_offset_per_shift_index.push(minimum_position_offset);
+                    self.current_maximum_position_offset_per_shift_index.push(maximum_position_offset);
+                    self.current_initial_position_offset_per_shift_index.push(minimum_position_offset);
+                    break;
+                }
+            }
+        }
+        self.current_position_offset_per_shift_index.push(None);
+        self.current_is_parent_ending.push(false);
+        return true;
     }
     fn try_backward(&mut self) -> bool {
-        // if already reset
+        // if mask is empty
         //      return false
         // reset mask position for current segment index
         // clear state for current segment index
-        // pop parent is ending stack element
         // if no mask positions selected
         //      return false
         // return true
-        todo!();
+
+        self.is_starting = false;
+        if self.is_shifted_outside {
+            self.is_shifted_outside = false;
+            return self.segments_length != 0;
+        }
+        if self.current_mask.first_one().is_none() {
+            return false;
+        }
+
+        let segment_index = self.current_segment_index_per_shift_index.pop().unwrap();
+        self.current_mask.set(segment_index, false);
+        self.current_minimum_position_offset_per_shift_index.pop();
+        self.current_maximum_position_offset_per_shift_index.pop();
+        self.current_initial_position_offset_per_shift_index.pop();
+        self.current_position_offset_per_shift_index.pop();
+        self.current_is_parent_ending.pop();
+
+        if self.current_mask.first_one().is_none() {
+            return false;
+        }
+        return true;
     }
     fn try_increment(&mut self) -> bool {
         // if this is a fresh forward
-        //      if is starting
-        //          set the state to the expected "starting" state for this shift index
-        //      else
-        //          set the state to the expected initial state for this shift index
-        //          if is looped and parent is ending for previous shift index and the current state is the ending state for this shift index
-        //              set parent is ending for this shift index
+        //      set the state to the expected initial state for this shift index
+        //      if is looped and parent is ending for previous shift index and the current state is the ending state for this shift index
+        //          set parent is ending for this shift index
         //      return true
         // if parent is ending for this shift index
-        //      return false     
+        //      return false
         // if the remaining bounding length is the minimum bounding length
         //      if swapping is not permitted
         //          if this is the first shift index
-        //              set mask to the 0th bit
         //              initialize state to the initial state
-        //              set is looped to true
         //              if current state is the ending state for this shift index
         //                  set parent is ending for this shift index   
+        //              set is looped to true
         //              return true
         //          return false
         //      if successful in swapping the segment index for this shift index
+        //          if current state is the ending state for this shift index
+        //              set parent is ending for this shift index
         //          return true
         //      return false
         // reduce the remaining bounding length
@@ -242,167 +293,70 @@ impl Shifter for SegmentPermutationShifter {
         // if is looped and parent is ending for previous shift index and the current state is the ending state for this shift index
         //      set parent is ending for this shift index
         // return true
-        todo!();
-    }
-    /*
-    fn try_forward(&mut self) -> bool {
-        // calculate bounding length for the next "other segments"
-        // calculate position of chosen segment in "other segments"
 
-        if self.is_shifted_outside {
-            debug!("try_forward: already shifted outside");
-            return false;
-        }
-        else {
-            if self.current_mask.count_zeros() == 0 {
-                self.is_shifted_outside = true;
-                debug!("try_forward: discovered that there are no zeros, so shifting outside");
-                return false;
-            }
-            else {
-                if self.is_shifting_starting {
-                    let current_segment_index = self.current_segment_index_per_shift_index.len();
-                    if self.is_swapping_starting && !self.is_starting_segment_indexes_in_first_swapped_order && 
-                    self.current_mask.set(current_segment_index, true);
-                    self.current_segment_index_per_shift_index.push_back(current_segment_index);
-                    self.current_bounding_length_per_shift_index.push_back(self.starting_bounding_length_per_shift_index[current_segment_index]);
-                    self.current_maximum_bounding_length_per_shift_index.push_back(self.starting_maximum_bounding_length_per_shift_index[current_segment_index]);
-                    self.current_minimum_bounding_length_per_shift_index.push_back(self.starting_minimum_bounding_length_per_shift_index[current_segment_index]);
-                    self.current_initial_position_offset_per_shift_index.push_back(self.starting_initial_position_offset_per_shift_index[current_segment_index]);
-                    return true;
-                }
-                else {
-                    for mask_index in 0..self.segments.len() {
-                        if !self.current_mask[mask_index] {
-                            // choose this segment index
-                            self.current_mask.set(mask_index, true);
-                            // specify that this shift index maps to this segment index
-                            self.current_segment_index_per_shift_index.push_back(mask_index);
-                            // store the starting and ending bounding length for this shift index
-                            self.current_bounding_length_per_shift_index.push_back(self.current_remaining_maximum_bounding_length);
-                            self.current_maximum_bounding_length_per_shift_index.push_back(self.current_remaining_maximum_bounding_length);
-                            self.current_minimum_bounding_length_per_shift_index.push_back(self.current_remaining_minimum_bounding_length);
-                            debug!("try_forward: storing {:?} and {:?} as max and min bounding length", self.current_remaining_maximum_bounding_length, self.current_remaining_minimum_bounding_length);
-                            if self.current_mask.count_ones() == 1 {
-                                self.current_initial_position_offset_per_shift_index.push_back(0);
-                            }
-                            else {
-                                let previous_shift_index = self.current_initial_position_offset_per_shift_index.len() - 1;
-                                let previous_segment_index = self.current_segment_index_per_shift_index[previous_shift_index];
-                                let previous_segment_length = self.segments[previous_segment_index].length;
-                                let previous_position_offset = self.current_position_offset_per_shift_index[previous_shift_index].unwrap();
-                                let current_initial_position = previous_position_offset + previous_segment_length + self.padding;
-                                self.current_initial_position_offset_per_shift_index.push_back(current_initial_position);
-                            }
-                            self.current_position_offset_per_shift_index.push_back(None);
-
-                            let segment_length = self.segments[mask_index].length;
-                            self.current_remaining_maximum_bounding_length -= segment_length;
-                            self.current_remaining_minimum_bounding_length -= segment_length;
-                            if self.current_mask.count_zeros() != 0 {
-                                self.current_remaining_maximum_bounding_length -= self.padding;
-                                self.current_remaining_minimum_bounding_length -= self.padding;
-                            }
-                            debug!("try_forward: found the next segment at index {:?}", mask_index);
-                            return true;
-                        }
+        let shift_index = self.current_position_offset_per_shift_index.len() - 1;
+        if self.current_position_offset_per_shift_index[shift_index].is_none() {
+            let current_position_offset = self.current_initial_position_offset_per_shift_index[shift_index];
+            self.current_position_offset_per_shift_index[shift_index] = Some(current_position_offset);
+            if self.is_looped {
+                if shift_index == 0 || self.current_is_parent_ending[shift_index - 1] {
+                    if self.ending_position_offset_per_shift_index[shift_index] == current_position_offset && self.ending_segment_index_per_shift_index[shift_index] == self.current_segment_index_per_shift_index[shift_index] {
+                        self.current_is_parent_ending.set(shift_index, true);
                     }
-                    panic!("Unexpected missing mask opening.");
                 }
-            }
-        }
-    }
-    fn try_backward(&mut self) -> bool {
-        if self.is_starting {
-            // an unexpected backward occurred, so we should pretend that a full forward occurred
-            self.is_starting = false;
-        }
-        if self.current_mask.count_ones() != 0 {
-            if self.is_shifted_outside {
-                self.is_shifted_outside = false;
-                debug!("try_backward: shifted outside");
-            }
-            else {
-                let current_segment_index = self.current_segment_index_per_shift_index.pop_back().unwrap();
-                self.current_mask.set(current_segment_index, false);
-                self.current_bounding_length_per_shift_index.pop_back();
-                self.current_remaining_maximum_bounding_length = self.current_maximum_bounding_length_per_shift_index.pop_back().unwrap();
-                self.current_remaining_minimum_bounding_length = self.current_minimum_bounding_length_per_shift_index.pop_back().unwrap();
-                self.current_initial_position_offset_per_shift_index.pop_back();
-                self.current_position_offset_per_shift_index.pop_back();
-                debug!("try_backward: moved to previous state with mask {:?}", self.current_mask);
-            }
-        }
-        if self.current_mask.count_ones() == 0 {
-            debug!("try_backward: nothing is selected, so cannot increment");
-            return false;
-        }
-        debug!("try_backward: at least one thing is selected");
-        return true;
-    }
-    fn try_increment(&mut self) -> bool {
-        let current_shift_index = self.current_segment_index_per_shift_index.len() - 1;
-        if self.current_position_offset_per_shift_index[current_shift_index].is_none() {
-            debug!("try_increment: incrementing to initial position");
-            self.current_position_offset_per_shift_index[current_shift_index] = Some(self.current_initial_position_offset_per_shift_index[current_shift_index]);
-            // TODO check to see if "is_ending" should be set "true" if there is only one possible state
-            if self.is_starting && current_shift_index + 1 == self.segments_length {
-                self.is_starting = false;
             }
             return true;
         }
-        else {
-            // TODO if is_starting, then we are skipping past later "starting" states
-            // TODO if !is_start_equal_to_ending and is_looped, check if the current shift's "ending" matches the current state (if true, return false)
-            // TODO consider how swapping plays a part; may need to check that segment indexes are sequential in segment_index_per_shift_index
-            //      suggestion: when the earliest shift's mask runs out, it must return to a sequential order automatically as is_looped is set to true
-            let current_bounding_length = self.current_bounding_length_per_shift_index[current_shift_index];
-            if current_bounding_length == self.current_minimum_bounding_length_per_shift_index[current_shift_index] {
-                debug!("try_increment: position is at last location already, so trying to increment segment");
-                if !self.is_swapping_permitted {
-                    debug!("swapping is not permitted, so this shifter is completed");
-                    return false;
-                }
-                let current_segment_index = self.current_segment_index_per_shift_index[current_shift_index];
-                for next_segment_index in (current_segment_index + 1)..self.segments.len() {
-                    if !self.current_mask[next_segment_index] {
-                        // found the next mask index
-                        self.current_mask.set(current_segment_index, false);
-                        self.current_mask.set(next_segment_index, true);
-                        self.current_segment_index_per_shift_index[current_shift_index] = next_segment_index;
-                        let next_segment_length = self.segments[next_segment_index].length;
-                        debug!("try_increment: current remaining max/min bounding length of {:?}/{:?}", self.current_remaining_maximum_bounding_length, self.current_remaining_minimum_bounding_length);
-                        self.current_bounding_length_per_shift_index[current_shift_index] = self.current_maximum_bounding_length_per_shift_index[current_shift_index];
-                        self.current_remaining_maximum_bounding_length = self.current_maximum_bounding_length_per_shift_index[current_shift_index] - next_segment_length;
-                        self.current_remaining_minimum_bounding_length = self.current_minimum_bounding_length_per_shift_index[current_shift_index] - next_segment_length;
-                        if self.current_mask.count_zeros() != 0 {
-                            self.current_remaining_maximum_bounding_length -= self.padding;
-                            self.current_remaining_minimum_bounding_length -= self.padding;
-                        }
-                        debug!("try_increment: storing {:?} max bounding length with mask {:?}", self.current_bounding_length_per_shift_index[current_shift_index], self.current_mask);
-                        self.current_position_offset_per_shift_index[current_shift_index] = Some(self.current_initial_position_offset_per_shift_index[current_shift_index]);
-                        debug!("try_increment: found next segment {:?}", next_segment_index);
-                        return true;
+        self.is_starting = false;
+        if self.current_is_parent_ending[shift_index] {
+            return false;
+        }
+        if self.current_position_offset_per_shift_index[shift_index].unwrap() == self.current_maximum_position_offset_per_shift_index[shift_index] {
+            if !self.is_swapping_permitted {
+                if shift_index == 0 {
+                    // loop back to the first state
+                    self.current_initial_position_offset_per_shift_index[0] = 0;
+                    self.current_position_offset_per_shift_index[0] = Some(0);
+
+                    if self.ending_position_offset_per_shift_index[0] == 0 {
+                        self.current_is_parent_ending.set(0, true);
                     }
+
+                    self.is_looped = true;
+                    debug!("try_increment: looping back to start");
+                    return true;
                 }
-                debug!("try_increment: failed to find next segment in mask");
-                // TODO if !is_start_equal_to_end, record that is_looped occurred so that we know that the next occurence of the earlier shifts of equal value to the "ending" states are valid ends
                 return false;
             }
-            else {
-                if !self.is_starting {
-                    // it may be the case that the next complete set of states would bring us back to the "starting" state
-
+            let segment_index = self.current_segment_index_per_shift_index[shift_index];
+            for next_segment_index in (segment_index + 1)..self.segments_length {
+                if !self.current_mask[next_segment_index] {
+                    self.current_mask.set(segment_index, false);
+                    self.current_mask.set(next_segment_index, true);
+                    self.current_segment_index_per_shift_index[shift_index] = next_segment_index;
+                    self.current_position_offset_per_shift_index[shift_index] = Some(self.current_minimum_position_offset_per_shift_index[shift_index]);
+                    if self.is_looped {
+                        if shift_index == 0 || self.current_is_parent_ending[shift_index - 1] {
+                            if self.ending_position_offset_per_shift_index[shift_index] == self.current_position_offset_per_shift_index[shift_index].unwrap() && self.ending_segment_index_per_shift_index[shift_index] == self.current_segment_index_per_shift_index[shift_index] {
+                                self.current_is_parent_ending.set(shift_index, true);
+                            }
+                        }
+                    }
+                    return true;
                 }
-                self.current_bounding_length_per_shift_index[current_shift_index] = current_bounding_length - 1;
-                self.current_position_offset_per_shift_index[current_shift_index] = Some(self.current_position_offset_per_shift_index[current_shift_index].unwrap() + 1);
-                self.current_remaining_maximum_bounding_length -= 1;
-                debug!("try_increment: position moved to the right");
-                return true;
+            }
+            return false;
+        }
+        self.current_position_offset_per_shift_index[shift_index] = Some(self.current_position_offset_per_shift_index[shift_index].unwrap() + 1);
+        if self.is_looped {
+            if shift_index == 0 || self.current_is_parent_ending[shift_index - 1] {
+                if self.ending_position_offset_per_shift_index[shift_index] == self.current_position_offset_per_shift_index[shift_index].unwrap() && self.ending_segment_index_per_shift_index[shift_index] == self.current_segment_index_per_shift_index[shift_index] {
+                    self.current_is_parent_ending.set(shift_index, true);
+                }
             }
         }
+        return true;
     }
-    */
     fn get_indexed_element(&self) -> IndexedElement<(u8, u8)> {
         let (current_segment_index, current_position_offset) = self.get_element_index_and_state_index();
         let position: Rc<(u8, u8)>;
@@ -415,8 +369,8 @@ impl Shifter for SegmentPermutationShifter {
         return IndexedElement::new(position, current_segment_index);
     }
     fn get_element_index_and_state_index(&self) -> (usize, usize) {
-        let current_position_offset = self.current_position_offset_per_shift_index.back().unwrap().unwrap();
-        let current_segment_index = *self.current_segment_index_per_shift_index.back().unwrap();
+        let current_position_offset = self.current_position_offset_per_shift_index.last().unwrap().unwrap();
+        let current_segment_index = *self.current_segment_index_per_shift_index.last().unwrap();
         return (current_segment_index, current_position_offset);
     }
     fn get_states(&self) -> Vec<Rc<Self::T>> {
@@ -752,6 +706,7 @@ mod segment_permutation_shifter_tests {
             assert!(segment_permutation_shifter.try_forward());  // move to the 3rd shift
             assert!(segment_permutation_shifter.try_increment());  // pull the 3rd segment at the 3rd shift
             assert_eq!(&(15, 100), segment_permutation_shifter.get_indexed_element().element.as_ref());
+            assert!(!segment_permutation_shifter.try_increment());  // cannot increment when all segments have been selected in mask
             if is_try_forward_at_end_required {
                 assert!(!segment_permutation_shifter.try_forward());  // cannot move past the end
                 assert!(segment_permutation_shifter.try_backward());  // moved back to the last shift
@@ -941,7 +896,7 @@ mod segment_permutation_shifter_tests {
     }
 
     #[rstest]
-    fn permutations_two_segments_one_length_each_four_bounding_length_no_swapping_permitted() {
+    fn permutations_two_segments_two_and_three_length_and_eight_bounding_length_no_swapping_permitted() {
         init();
 
         // 22-333--
