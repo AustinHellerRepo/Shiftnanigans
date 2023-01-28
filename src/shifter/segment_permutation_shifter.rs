@@ -575,6 +575,7 @@ impl Shifter for SegmentPermutationShifter {
                     let segment_index = self.starting_segment_index_per_shift_index[shift_index];
                     next_maximum_position_offset += self.segments[segment_index].length;
                 }
+                next_maximum_position_offset = self.bounding_length - next_maximum_position_offset;
             }
             else {
                 let previous_shift_index = shift_index - 1;
@@ -588,9 +589,11 @@ impl Shifter for SegmentPermutationShifter {
             }
 
             let segment_index = self.starting_segment_index_per_shift_index[shift_index];
-            previous_segment_length = self.segments[segment_index].length;
+            previous_segment_length = self.segments[segment_index].length + self.padding;
             
             for next_shift_index in shift_index..self.segments_length {
+                debug!("randomize: next_minimum_position_offset {:?} for next_shift_index {:?}", next_minimum_position_offset, next_shift_index);
+                debug!("randomize: next_maximum_position_offset {:?} for next_shift_index {:?}", next_maximum_position_offset, next_shift_index);
                 self.starting_minimum_position_offset_per_shift_index[next_shift_index] = next_minimum_position_offset;
                 self.starting_maximum_position_offset_per_shift_index[next_shift_index] = next_maximum_position_offset;
                 self.starting_initial_position_offset_per_shift_index[next_shift_index] = next_minimum_position_offset;
@@ -612,7 +615,7 @@ mod segment_permutation_shifter_tests {
 
     fn init() {
         std::env::set_var("RUST_LOG", "trace");
-        pretty_env_logger::try_init();
+        //pretty_env_logger::try_init();
     }
 
     #[rstest]
@@ -986,7 +989,7 @@ mod segment_permutation_shifter_tests {
         ];
 
         let mut permutations_per_scenario: [u32; 3] = [0, 0, 0];
-        for _ in 0..2000 {
+        for _ in 0..20000 {
 
             let mut segment_permutation_shifter = SegmentPermutationShifter::new(segments.clone(), (20, 200), 4, true, 1, false);
             segment_permutation_shifter.randomize();
@@ -1030,7 +1033,117 @@ mod segment_permutation_shifter_tests {
         }
 
         println!("permutations_per_scenario: {:?}", permutations_per_scenario);
-        assert!(permutations_per_scenario[0].abs_diff(permutations_per_scenario[1]) < 100);
-        assert!(permutations_per_scenario[0].abs_diff(permutations_per_scenario[2]) < 100);
+        println!("0 / 1 = {}", (1.0 - permutations_per_scenario[0] as f32 / permutations_per_scenario[1] as f32).abs());
+        println!("0 / 2 = {}", (1.0 - permutations_per_scenario[0] as f32 / permutations_per_scenario[2] as f32).abs());
+        println!("1 / 2 = {}", (1.0 - permutations_per_scenario[1] as f32 / permutations_per_scenario[2] as f32).abs());
+        assert!((1.0 - (permutations_per_scenario[0] as f32 / permutations_per_scenario[1] as f32)).abs() < 0.1);
+        assert!((1.0 - (permutations_per_scenario[0] as f32 / permutations_per_scenario[2] as f32)).abs() < 0.1);
+        assert!((1.0 - (permutations_per_scenario[1] as f32 / permutations_per_scenario[2] as f32)).abs() < 0.1);
+    }
+
+    #[rstest]
+    fn permutations_randomly_two_segments_one_and_one_length_and_four_bounding_length_one_padding_swapping_permitted() {
+        init();
+
+        let segments: Vec<Rc<Segment>> = vec![
+            Rc::new(Segment::new(1)),
+            Rc::new(Segment::new(1))
+        ];
+
+        let mut permutations_per_scenario: [u32; 6] = [0, 0, 0, 0, 0, 0];
+        for _ in 0..20000 {
+
+            let mut segment_permutation_shifter = SegmentPermutationShifter::new(segments.clone(), (20, 200), 4, true, 1, true);
+            segment_permutation_shifter.randomize();
+
+            // verify that the next state after the ending position is the starting position
+            assert!(!segment_permutation_shifter.is_starting_equal_to_ending);
+            if segment_permutation_shifter.ending_position_offset_per_shift_index[0] == 0 && segment_permutation_shifter.ending_position_offset_per_shift_index[1] == 2 && segment_permutation_shifter.ending_segment_index_per_shift_index[0] == 0 {
+                permutations_per_scenario[0] += 1;
+
+                assert_eq!(1, segment_permutation_shifter.ending_segment_index_per_shift_index[1]);
+                assert_eq!(0, segment_permutation_shifter.starting_segment_index_per_shift_index[0]);
+                assert_eq!(1, segment_permutation_shifter.starting_segment_index_per_shift_index[1]);
+                assert_eq!(0, segment_permutation_shifter.starting_minimum_position_offset_per_shift_index[0]);
+                assert_eq!(1, segment_permutation_shifter.starting_maximum_position_offset_per_shift_index[0]);
+                assert_eq!(0, segment_permutation_shifter.starting_initial_position_offset_per_shift_index[0]);
+                assert_eq!(2, segment_permutation_shifter.starting_minimum_position_offset_per_shift_index[1]);
+                assert_eq!(3, segment_permutation_shifter.starting_maximum_position_offset_per_shift_index[1]);
+                assert_eq!(3, segment_permutation_shifter.starting_initial_position_offset_per_shift_index[1]);
+            }
+            else if segment_permutation_shifter.ending_position_offset_per_shift_index[0] == 0 && segment_permutation_shifter.ending_position_offset_per_shift_index[1] == 3 && segment_permutation_shifter.ending_segment_index_per_shift_index[0] == 0 {
+                permutations_per_scenario[1] += 1;
+
+                assert_eq!(1, segment_permutation_shifter.ending_segment_index_per_shift_index[1]);
+                assert_eq!(0, segment_permutation_shifter.starting_segment_index_per_shift_index[0]);
+                assert_eq!(1, segment_permutation_shifter.starting_segment_index_per_shift_index[1]);
+                assert_eq!(0, segment_permutation_shifter.starting_minimum_position_offset_per_shift_index[0]);
+                assert_eq!(1, segment_permutation_shifter.starting_maximum_position_offset_per_shift_index[0]);
+                assert_eq!(1, segment_permutation_shifter.starting_initial_position_offset_per_shift_index[0]);
+                assert_eq!(3, segment_permutation_shifter.starting_minimum_position_offset_per_shift_index[1]);
+                assert_eq!(3, segment_permutation_shifter.starting_maximum_position_offset_per_shift_index[1]);
+                assert_eq!(3, segment_permutation_shifter.starting_initial_position_offset_per_shift_index[1]);
+            }
+            else if segment_permutation_shifter.ending_position_offset_per_shift_index[0] == 1 && segment_permutation_shifter.ending_position_offset_per_shift_index[1] == 3 && segment_permutation_shifter.ending_segment_index_per_shift_index[0] == 0 {
+                permutations_per_scenario[2] += 1;
+
+                assert_eq!(1, segment_permutation_shifter.ending_segment_index_per_shift_index[1]);
+                assert_eq!(1, segment_permutation_shifter.starting_segment_index_per_shift_index[0]);
+                assert_eq!(0, segment_permutation_shifter.starting_segment_index_per_shift_index[1]);
+                assert_eq!(0, segment_permutation_shifter.starting_minimum_position_offset_per_shift_index[0]);
+                assert_eq!(1, segment_permutation_shifter.starting_maximum_position_offset_per_shift_index[0]);
+                assert_eq!(0, segment_permutation_shifter.starting_initial_position_offset_per_shift_index[0]);
+                assert_eq!(2, segment_permutation_shifter.starting_minimum_position_offset_per_shift_index[1]);
+                assert_eq!(3, segment_permutation_shifter.starting_maximum_position_offset_per_shift_index[1]);
+                assert_eq!(2, segment_permutation_shifter.starting_initial_position_offset_per_shift_index[1]);
+            }
+            else if segment_permutation_shifter.ending_position_offset_per_shift_index[0] == 0 && segment_permutation_shifter.ending_position_offset_per_shift_index[1] == 2 && segment_permutation_shifter.ending_segment_index_per_shift_index[0] == 1 {
+                permutations_per_scenario[3] += 1;
+
+                assert_eq!(0, segment_permutation_shifter.ending_segment_index_per_shift_index[1]);
+                assert_eq!(1, segment_permutation_shifter.starting_segment_index_per_shift_index[0]);
+                assert_eq!(0, segment_permutation_shifter.starting_segment_index_per_shift_index[1]);
+                assert_eq!(0, segment_permutation_shifter.starting_minimum_position_offset_per_shift_index[0]);
+                assert_eq!(1, segment_permutation_shifter.starting_maximum_position_offset_per_shift_index[0]);
+                assert_eq!(0, segment_permutation_shifter.starting_initial_position_offset_per_shift_index[0]);
+                assert_eq!(2, segment_permutation_shifter.starting_minimum_position_offset_per_shift_index[1]);
+                assert_eq!(3, segment_permutation_shifter.starting_maximum_position_offset_per_shift_index[1]);
+                assert_eq!(3, segment_permutation_shifter.starting_initial_position_offset_per_shift_index[1]);
+            }
+            else if segment_permutation_shifter.ending_position_offset_per_shift_index[0] == 0 && segment_permutation_shifter.ending_position_offset_per_shift_index[1] == 3 && segment_permutation_shifter.ending_segment_index_per_shift_index[0] == 1 {
+                permutations_per_scenario[4] += 1;
+
+                assert_eq!(0, segment_permutation_shifter.ending_segment_index_per_shift_index[1]);
+                assert_eq!(1, segment_permutation_shifter.starting_segment_index_per_shift_index[0]);
+                assert_eq!(0, segment_permutation_shifter.starting_segment_index_per_shift_index[1]);
+                assert_eq!(0, segment_permutation_shifter.starting_minimum_position_offset_per_shift_index[0]);
+                assert_eq!(1, segment_permutation_shifter.starting_maximum_position_offset_per_shift_index[0]);
+                assert_eq!(1, segment_permutation_shifter.starting_initial_position_offset_per_shift_index[0]);
+                assert_eq!(3, segment_permutation_shifter.starting_minimum_position_offset_per_shift_index[1]);
+                assert_eq!(3, segment_permutation_shifter.starting_maximum_position_offset_per_shift_index[1]);
+                assert_eq!(3, segment_permutation_shifter.starting_initial_position_offset_per_shift_index[1]);
+            }
+            else if segment_permutation_shifter.ending_position_offset_per_shift_index[0] == 1 && segment_permutation_shifter.ending_position_offset_per_shift_index[1] == 3 && segment_permutation_shifter.ending_segment_index_per_shift_index[0] == 1 {
+                permutations_per_scenario[5] += 1;
+
+                assert_eq!(0, segment_permutation_shifter.ending_segment_index_per_shift_index[1]);
+                assert_eq!(0, segment_permutation_shifter.starting_segment_index_per_shift_index[0]);
+                assert_eq!(1, segment_permutation_shifter.starting_segment_index_per_shift_index[1]);
+                assert_eq!(0, segment_permutation_shifter.starting_minimum_position_offset_per_shift_index[0]);
+                assert_eq!(1, segment_permutation_shifter.starting_maximum_position_offset_per_shift_index[0]);
+                assert_eq!(0, segment_permutation_shifter.starting_initial_position_offset_per_shift_index[0]);
+                assert_eq!(2, segment_permutation_shifter.starting_minimum_position_offset_per_shift_index[1]);
+                assert_eq!(3, segment_permutation_shifter.starting_maximum_position_offset_per_shift_index[1]);
+                assert_eq!(2, segment_permutation_shifter.starting_initial_position_offset_per_shift_index[1]);
+            }
+        }
+
+        println!("permutations_per_scenario: {:?}", permutations_per_scenario);
+        for scenario_index in 0..5 {
+            for other_scenario_index in (scenario_index + 1)..6 {
+                println!("{} / {} = {}", scenario_index, other_scenario_index, (1.0 - permutations_per_scenario[scenario_index] as f32 / permutations_per_scenario[other_scenario_index] as f32).abs());
+                assert!((1.0 - (permutations_per_scenario[scenario_index] as f32 / permutations_per_scenario[other_scenario_index] as f32)).abs() < 0.1);
+            }
+        }
     }
 }
