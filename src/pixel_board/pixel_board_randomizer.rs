@@ -32,8 +32,8 @@ pub struct PixelBoardRandomizer<TPixel: Pixel> {
     left_wall_segment_permutation_shifter_option: Option<SegmentPermutationShifter>,
     wall_adjacent_cell_group_indexes: Vec<usize>,
     wall_adjacent_index_shifters: Vec<IndexShifter<(u8, u8)>>,
-    detection_offsets_per_cell_group_index_per_cell_group_index: Vec<Vec<Vec<(i16, i16)>>>,
-    is_adjacent_cell_group_index_per_cell_group_index: Vec<BitVec>
+    detection_offsets_per_cell_group_index_per_cell_group_index: Rc<Vec<Vec<Vec<(i16, i16)>>>>,
+    is_adjacent_cell_group_index_per_cell_group_index: Rc<Vec<BitVec>>
 }
 
 impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
@@ -780,8 +780,8 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
             left_wall_segment_permutation_shifter_option: left_wall_segment_permutation_shifter_option,
             wall_adjacent_cell_group_indexes: wall_adjacent_cell_group_indexes,
             wall_adjacent_index_shifters: wall_adjacent_index_shifters,
-            detection_offsets_per_cell_group_index_per_cell_group_index: detection_offsets_per_cell_group_index_per_cell_group_index,
-            is_adjacent_cell_group_index_per_cell_group_index: is_adjacent_cell_group_index_per_cell_group_index
+            detection_offsets_per_cell_group_index_per_cell_group_index: Rc::new(detection_offsets_per_cell_group_index_per_cell_group_index),
+            is_adjacent_cell_group_index_per_cell_group_index: Rc::new(is_adjacent_cell_group_index_per_cell_group_index)
         }
     }
     pub fn get_random_pixel_board(&self) -> PixelBoard<TPixel> {

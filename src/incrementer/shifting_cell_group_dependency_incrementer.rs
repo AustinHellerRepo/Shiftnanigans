@@ -31,8 +31,8 @@ impl CellGroupDependency {
 pub struct ShiftingCellGroupDependencyIncrementer {
     cell_groups: Rc<Vec<CellGroup>>,
     cell_group_dependencies: Vec<CellGroupDependency>,
-    detection_offsets_per_cell_group_index_per_cell_group_index: Vec<Vec<Vec<(i16, i16)>>>,
-    is_adjacent_cell_group_index_per_cell_group_index: Vec<BitVec>,
+    detection_offsets_per_cell_group_index_per_cell_group_index: Rc<Vec<Vec<Vec<(i16, i16)>>>>,
+    is_adjacent_cell_group_index_per_cell_group_index: Rc<Vec<BitVec>>,
     current_cell_group_dependency_index: Option<usize>,
     current_locations: Vec<IndexedElement<(u8, u8)>>,
     current_element_index_and_state_index_pairs: Vec<(usize, usize)>,
@@ -44,7 +44,7 @@ pub struct ShiftingCellGroupDependencyIncrementer {
 }
 
 impl ShiftingCellGroupDependencyIncrementer {
-    pub fn new(cell_groups: Rc<Vec<CellGroup>>, cell_group_dependencies: Vec<CellGroupDependency>, detection_offsets_per_cell_group_index_per_cell_group_index: Vec<Vec<Vec<(i16, i16)>>>, is_adjacent_cell_group_index_per_cell_group_index: Vec<BitVec>) -> Self {
+    pub fn new(cell_groups: Rc<Vec<CellGroup>>, cell_group_dependencies: Vec<CellGroupDependency>, detection_offsets_per_cell_group_index_per_cell_group_index: Rc<Vec<Vec<Vec<(i16, i16)>>>>, is_adjacent_cell_group_index_per_cell_group_index: Rc<Vec<BitVec>>) -> Self {
         ShiftingCellGroupDependencyIncrementer {
             cell_groups: cell_groups,
             cell_group_dependencies: cell_group_dependencies,
@@ -318,8 +318,8 @@ mod shifting_cell_group_dependency_incrementer_tests {
         let mut shifting_cell_group_dependency_incrementer = ShiftingCellGroupDependencyIncrementer::new(
             cell_groups,
             cell_group_dependencies,
-            Vec::new(),
-            Vec::new()
+            Rc::new(Vec::new()),
+            Rc::new(Vec::new())
         );
         for _ in 0..10 {
             assert!(!shifting_cell_group_dependency_incrementer.try_increment());
@@ -360,7 +360,7 @@ mod shifting_cell_group_dependency_incrementer_tests {
         let mut shifting_cell_group_dependency_incrementer = ShiftingCellGroupDependencyIncrementer::new(
             cell_groups,
             cell_group_dependencies,
-            vec![
+            Rc::new(vec![
                 vec![
                     Vec::new(),
                     Vec::new()
@@ -369,11 +369,11 @@ mod shifting_cell_group_dependency_incrementer_tests {
                     Vec::new(),
                     Vec::new()
                 ]
-            ],
-            vec![
+            ]),
+            Rc::new(vec![
                 BitVec::repeat(false, 2),
                 BitVec::repeat(false, 2)
-            ]
+            ])
         );
         let mut expected_get: Vec<IndexedElement<(u8, u8)>>;
         assert!(shifting_cell_group_dependency_incrementer.try_increment());
@@ -502,12 +502,12 @@ mod shifting_cell_group_dependency_incrementer_tests {
         let shifting_cell_group_dependency_incrementer = ShiftingCellGroupDependencyIncrementer::new(
             cell_groups.clone(),
             cell_group_dependencies,
-            vec![
+            Rc::new(vec![
                 vec![
                     Vec::new()
                 ],
-            ],
-            is_adjacent_cell_group_index_per_cell_group_index
+            ]),
+            Rc::new(is_adjacent_cell_group_index_per_cell_group_index)
         );
 
         let validating_start_time = Instant::now();
