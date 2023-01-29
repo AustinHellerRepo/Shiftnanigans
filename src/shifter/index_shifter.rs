@@ -4,6 +4,7 @@ use crate::IndexedElement;
 
 use super::{Shifter};
 
+#[derive(Clone)]
 pub struct IndexShifter<T> {
     current_shift_index: Option<usize>,
     current_state_index_per_shift_index: VecDeque<Option<usize>>,

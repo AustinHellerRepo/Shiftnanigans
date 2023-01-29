@@ -19,8 +19,17 @@ pub struct CellGroupDependency {
     combined_shifter: RefCell<CombinedShifter<(u8, u8)>>
 }
 
+impl CellGroupDependency {
+    pub fn new(cell_group_index_mapping: Vec<usize>, combined_shifter: CombinedShifter<(u8, u8)>) -> Self {
+        CellGroupDependency {
+            cell_group_index_mapping: cell_group_index_mapping,
+            combined_shifter: RefCell::new(combined_shifter)
+        }
+    }
+}
+
 pub struct ShiftingCellGroupDependencyIncrementer {
-    cell_groups: Vec<Rc<CellGroup>>,
+    cell_groups: Rc<Vec<CellGroup>>,
     cell_group_dependencies: Vec<CellGroupDependency>,
     detection_offsets_per_cell_group_index_per_cell_group_index: Vec<Vec<Vec<(i16, i16)>>>,
     is_adjacent_cell_group_index_per_cell_group_index: Vec<BitVec>,
@@ -35,7 +44,7 @@ pub struct ShiftingCellGroupDependencyIncrementer {
 }
 
 impl ShiftingCellGroupDependencyIncrementer {
-    pub fn new(cell_groups: Vec<Rc<CellGroup>>, cell_group_dependencies: Vec<CellGroupDependency>, detection_offsets_per_cell_group_index_per_cell_group_index: Vec<Vec<Vec<(i16, i16)>>>, is_adjacent_cell_group_index_per_cell_group_index: Vec<BitVec>) -> Self {
+    pub fn new(cell_groups: Rc<Vec<CellGroup>>, cell_group_dependencies: Vec<CellGroupDependency>, detection_offsets_per_cell_group_index_per_cell_group_index: Vec<Vec<Vec<(i16, i16)>>>, is_adjacent_cell_group_index_per_cell_group_index: Vec<BitVec>) -> Self {
         ShiftingCellGroupDependencyIncrementer {
             cell_groups: cell_groups,
             cell_group_dependencies: cell_group_dependencies,
@@ -300,11 +309,11 @@ mod shifting_cell_group_dependency_incrementer_tests {
     fn one_cell_group_zero_dependencies() {
         init();
 
-        let cell_groups: Vec<Rc<CellGroup>> = vec![
-            Rc::new(CellGroup {
+        let cell_groups: Rc<Vec<CellGroup>> = Rc::new(vec![
+            CellGroup {
                 cells: vec![(0, 0)]
-            })
-        ];
+            }
+        ]);
         let cell_group_dependencies: Vec<CellGroupDependency> = vec![];
         let mut shifting_cell_group_dependency_incrementer = ShiftingCellGroupDependencyIncrementer::new(
             cell_groups,
@@ -321,14 +330,14 @@ mod shifting_cell_group_dependency_incrementer_tests {
     fn two_cell_groups_one_dependency() {
         init();
 
-        let cell_groups: Vec<Rc<CellGroup>> = vec![
-            Rc::new(CellGroup {
+        let cell_groups: Rc<Vec<CellGroup>> = Rc::new(vec![
+            CellGroup {
                 cells: vec![(0, 0)]
-            }),
-            Rc::new(CellGroup {
+            },
+            CellGroup {
                 cells: vec![(0, 0)]
-            })
-        ];
+            }
+        ]);
         let states_per_shift_index: Vec<Vec<Rc<(u8, u8)>>> = vec![
             vec![
                 Rc::new((14, 140)),
@@ -430,7 +439,7 @@ mod shifting_cell_group_dependency_incrementer_tests {
 
         // construct cell groups
 
-        let mut cell_groups: Vec<Rc<CellGroup>> = Vec::new();
+        let mut cell_groups: Vec<CellGroup> = Vec::new();
         for index in 0..cell_groups_total {
             let mut cells: Vec<(u8, u8)> = Vec::new();
             for width_index in 0..=index as u8 {
@@ -438,10 +447,11 @@ mod shifting_cell_group_dependency_incrementer_tests {
                     cells.push((width_index, height_index));
                 }
             }
-            cell_groups.push(Rc::new(CellGroup {
+            cell_groups.push(CellGroup {
                 cells: cells
-            }));
+            });
         }
+        let cell_groups: Rc<Vec<CellGroup>> = Rc::new(cell_groups);
 
         detection_offsets_per_cell_group_index_per_cell_group_index.push(vec![vec![]]);
 

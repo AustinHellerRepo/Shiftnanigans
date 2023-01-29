@@ -34,6 +34,7 @@ impl LocatedSegment {
     }
 }
 
+#[derive(Clone)]
 pub struct SegmentPermutationShifter {
     segments: Vec<Rc<Segment>>,
     origin: (u8, u8),

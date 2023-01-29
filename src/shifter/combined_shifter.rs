@@ -3,6 +3,7 @@ use crate::IndexedElement;
 
 use super::{Shifter};
 
+#[derive(Clone)]
 pub struct CombinedShifter<T> {
     shifters: Vec<Rc<RefCell<dyn Shifter<T = T>>>>,
     state_index_mapping_per_shifter_index: Vec<Vec<usize>>,

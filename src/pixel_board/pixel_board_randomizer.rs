@@ -1,6 +1,8 @@
 use std::{rc::Rc, cell::RefCell, collections::{BTreeSet, BTreeMap, VecDeque}};
 
-use crate::{CellGroup, incrementer::{round_robin_incrementer::RoundRobinIncrementer, Incrementer, shifting_cell_group_dependency_incrementer}, shifter::{Shifter, segment_permutation_shifter::{Segment, SegmentPermutationShifter}, index_shifter::IndexShifter}};
+use bitvec::vec::BitVec;
+
+use crate::{CellGroup, incrementer::{round_robin_incrementer::RoundRobinIncrementer, Incrementer, shifting_cell_group_dependency_incrementer::{self, CellGroupDependency, ShiftingCellGroupDependencyIncrementer}}, shifter::{Shifter, segment_permutation_shifter::{Segment, SegmentPermutationShifter}, index_shifter::IndexShifter, combined_shifter::CombinedShifter}};
 
 use super::{PixelBoard, Pixel};
 
@@ -29,7 +31,9 @@ pub struct PixelBoardRandomizer<TPixel: Pixel> {
     bottom_wall_segment_permutation_shifter_option: Option<SegmentPermutationShifter>,
     left_wall_segment_permutation_shifter_option: Option<SegmentPermutationShifter>,
     wall_adjacent_cell_group_indexes: Vec<usize>,
-    wall_adjacent_index_shifters: Vec<IndexShifter<(u8, u8)>>
+    wall_adjacent_index_shifters: Vec<IndexShifter<(u8, u8)>>,
+    detection_offsets_per_cell_group_index_per_cell_group_index: Vec<Vec<Vec<(i16, i16)>>>,
+    is_adjacent_cell_group_index_per_cell_group_index: Vec<BitVec>
 }
 
 impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
@@ -62,6 +66,11 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
 
         let mut wall_adjacent_cell_group_indexes: Vec<usize> = Vec::new();
         let mut wall_adjacent_index_shifters: Vec<IndexShifter<(u8, u8)>> = Vec::new();
+
+        let mut detection_offsets_per_cell_group_index_per_cell_group_index: Vec<Vec<Vec<(i16, i16)>>> = Vec::new();
+        // TODO fill detection offsets based on TPixel information
+        let mut is_adjacent_cell_group_index_per_cell_group_index: Vec<BitVec> = Vec::new();
+        // TODO fill is_adjacent based on wall-adjacent identification
 
         {
             let mut adjacent_pixel_board_coordinates_per_cell_group_index: Vec<BTreeSet<(usize, usize)>> = Vec::new();
@@ -770,21 +779,77 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
             bottom_wall_segment_permutation_shifter_option: bottom_wall_segment_permutation_shifter_option,
             left_wall_segment_permutation_shifter_option: left_wall_segment_permutation_shifter_option,
             wall_adjacent_cell_group_indexes: wall_adjacent_cell_group_indexes,
-            wall_adjacent_index_shifters: wall_adjacent_index_shifters
+            wall_adjacent_index_shifters: wall_adjacent_index_shifters,
+            detection_offsets_per_cell_group_index_per_cell_group_index: detection_offsets_per_cell_group_index_per_cell_group_index,
+            is_adjacent_cell_group_index_per_cell_group_index: is_adjacent_cell_group_index_per_cell_group_index
         }
     }
     pub fn get_random_pixel_board(&self) -> PixelBoard<TPixel> {
         let mut round_robin_incrementer: RoundRobinIncrementer<(u8, u8)>;
 
         {
-            // TODO randomize the shifters
+            // randomize the shifters
+            let mut corner_wall_index_shifters: Vec<IndexShifter<(u8, u8)>> = Vec::new();
+            let mut corner_wall_cell_group_index_per_shifter: Vec<usize> = Vec::new();
+            for (shifter_option, cell_group_index_option) in [
+                (self.top_left_corner_wall_index_shifter_option.as_ref(), self.top_left_corner_wall_cell_group_index.as_ref()),
+                (self.top_right_corner_wall_index_shifter_option.as_ref(), self.top_right_corner_wall_cell_group_index.as_ref()),
+                (self.bottom_right_corner_wall_index_shifter_option.as_ref(), self.bottom_right_corner_wall_cell_group_index.as_ref()),
+                (self.bottom_left_corner_wall_index_shifter_option.as_ref(), self.bottom_left_corner_wall_cell_group_index.as_ref())
+            ] {
+                if shifter_option.is_some() {
+                    let mut shifter = shifter_option.unwrap().clone();
+                    shifter.randomize();
+                    corner_wall_index_shifters.push(shifter);
+                    corner_wall_cell_group_index_per_shifter.push(*cell_group_index_option.unwrap());
+                }
+            }
+            let mut wall_segment_permutation_shifters: Vec<SegmentPermutationShifter> = Vec::new();
+            let mut wall_segment_cell_group_indexes_per_shifter: Vec<Vec<usize>> = Vec::new();
+            for (shifter_option, cell_group_indexes) in [
+                (self.top_wall_segment_permutation_shifter_option.as_ref(), self.top_wall_segment_cell_group_indexes.clone()),
+                (self.right_wall_segment_permutation_shifter_option.as_ref(), self.right_wall_segment_cell_group_indexes.clone()),
+                (self.bottom_wall_segment_permutation_shifter_option.as_ref(), self.bottom_wall_segment_cell_group_indexes.clone()),
+                (self.left_wall_segment_permutation_shifter_option.as_ref(), self.left_wall_segment_cell_group_indexes.clone())
+            ] {
+                if shifter_option.is_some() {
+                    let mut shifter = shifter_option.unwrap().clone();
+                    shifter.randomize();
+                    wall_segment_permutation_shifters.push(shifter);
+                    wall_segment_cell_group_indexes_per_shifter.push(cell_group_indexes);
+                }
+            }
+            let mut wall_adjacent_index_shifters: Vec<IndexShifter<(u8, u8)>> = Vec::new();
+            let mut wall_adjacent_cell_group_index_per_shifter: Vec<usize> = Vec::new();
+            for (index_shifter, cell_group_index) in self.wall_adjacent_index_shifters.iter().zip(self.wall_adjacent_cell_group_indexes.iter()) {
+                let mut shifter = index_shifter.clone();
+                shifter.randomize();
+                wall_adjacent_index_shifters.push(shifter);
+                wall_adjacent_cell_group_index_per_shifter.push(*cell_group_index);
+            }
             
-            // TODO contain the corner, unmoving cell group(s)
-            // TODO contain the wall segment permutation shifter(s)
-            let mut wall_adjacent_shifter_per_cell_group_index: Vec<Rc<RefCell<dyn Shifter<T = (u8, u8)>>>> = Vec::new();
-            let mut floater_shifter_per_cell_group_index: Vec<Rc<RefCell<dyn Shifter<T = (u8, u8)>>>> = Vec::new();
-            // TODO construct individual shifters for each cell group
+            // TODO construct each shifting cell group dependency incrementer per pair of shifters
             let mut incrementers: Vec<Rc<RefCell<dyn Incrementer<T = (u8, u8)>>>> = Vec::new();
+            if corner_wall_index_shifters.len() == 0 && wall_segment_permutation_shifters.len() == 0 && wall_adjacent_index_shifters.len() == 0 {
+                todo!();
+            }
+            else if corner_wall_index_shifters.len() + wall_segment_permutation_shifters.len() + wall_adjacent_index_shifters.len() == 1 {
+                todo!();
+            }
+            else {
+                // TODO create a combined shifter per pair of wall shifters
+                for shifter_index in 0..(corner_wall_index_shifters.len() - 1) {
+                    for other_shifter_index in (shifter_index + 1)..corner_wall_index_shifters.len() {
+                        let combined_shifter: CombinedShifter<(u8, u8)> = CombinedShifter::new(&vec![Rc::new(RefCell::new(corner_wall_index_shifters[shifter_index].clone())), Rc::new(RefCell::new(corner_wall_index_shifters[other_shifter_index].clone()))], true);
+                        let combined_cell_group_indexes: Vec<usize> = vec![corner_wall_cell_group_index_per_shifter[shifter_index], corner_wall_cell_group_index_per_shifter[other_shifter_index]];
+                        let cell_group_dependency = CellGroupDependency::new(combined_cell_group_indexes, combined_shifter);
+                        let shifting_cell_group_dependency_incrementer = ShiftingCellGroupDependencyIncrementer::new(self.cell_groups.clone(), vec![cell_group_dependency], self.detection_offsets_per_cell_group_index_per_cell_group_index.clone(), self.is_adjacent_cell_group_index_per_cell_group_index.clone());
+                        incrementers.push(Rc::new(RefCell::new(shifting_cell_group_dependency_incrementer)));
+                    }
+                }
+                // TODO create a combined shifter per pair of non-wall shifters
+                // TODO create a combined shifter per wall shifter and non-wall shifter pair
+            }
             // TODO construct each incrementer that equates to each possible combination of cell groups depending on their location in the bounds
             round_robin_incrementer = RoundRobinIncrementer::new(incrementers);
         }
