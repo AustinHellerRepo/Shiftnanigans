@@ -39,7 +39,6 @@ pub struct PixelBoardRandomizer<TPixel: Pixel> {
 impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
     pub fn new(pixel_board: PixelBoard<TPixel>) -> Self {
         let mut raw_cell_groups: Vec<CellGroup> = Vec::new();
-        let mut adjacent_cell_group_indexes_per_cell_group_index: Vec<Vec<usize>> = Vec::new();
         // contains the pixel board coordinates that map to which cell group
         // useful for creating the random pixel board instance, copying the exact TPixel value from this instance at the same cell location + coordinate
         let mut pixel_board_coordinate_per_cell_group_index: Vec<(usize, usize)> = Vec::new();
@@ -411,7 +410,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                         adjacent_pixel_board_coordinates_per_cell_group_index.push(adjacent_pixel_board_coordinates);
                         pixel_board_coordinate_per_cell_group_index.push((leftmost_cell_x.unwrap(), 0));
                     }
-                    let mut top_wall_segment_permutation_shifter = SegmentPermutationShifter::new(segments, (leftmost_wall_x as u8, 0), rightmost_wall_x - leftmost_wall_x + 1, true, 1, false);
+                    let top_wall_segment_permutation_shifter = SegmentPermutationShifter::new(segments, (leftmost_wall_x as u8, 0), rightmost_wall_x - leftmost_wall_x + 1, true, 1, false);
                     top_wall_segment_permutation_shifter_option = Some(top_wall_segment_permutation_shifter);
                 }
             }
@@ -485,7 +484,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                         adjacent_pixel_board_coordinates_per_cell_group_index.push(adjacent_pixel_board_coordinates);
                         pixel_board_coordinate_per_cell_group_index.push((leftmost_cell_x.unwrap(), bottommost_y));
                     }
-                    let mut bottom_wall_segment_permutation_shifter = SegmentPermutationShifter::new(segments, (leftmost_wall_x as u8, bottommost_y as u8), rightmost_wall_x - leftmost_wall_x + 1, true, 1, false);
+                    let bottom_wall_segment_permutation_shifter = SegmentPermutationShifter::new(segments, (leftmost_wall_x as u8, bottommost_y as u8), rightmost_wall_x - leftmost_wall_x + 1, true, 1, false);
                     bottom_wall_segment_permutation_shifter_option = Some(bottom_wall_segment_permutation_shifter);
                 }
             }
@@ -557,7 +556,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                         adjacent_pixel_board_coordinates_per_cell_group_index.push(adjacent_pixel_board_coordinates);
                         pixel_board_coordinate_per_cell_group_index.push((0, topmost_cell_y.unwrap()));
                     }
-                    let mut left_wall_segment_permutation_shifter = SegmentPermutationShifter::new(segments, (0, topmost_wall_y as u8), bottommost_wall_y - topmost_wall_y + 1, false, 1, false);
+                    let left_wall_segment_permutation_shifter = SegmentPermutationShifter::new(segments, (0, topmost_wall_y as u8), bottommost_wall_y - topmost_wall_y + 1, false, 1, false);
                     left_wall_segment_permutation_shifter_option = Some(left_wall_segment_permutation_shifter);
                 }
             }
@@ -629,7 +628,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                         adjacent_pixel_board_coordinates_per_cell_group_index.push(adjacent_pixel_board_coordinates);
                         pixel_board_coordinate_per_cell_group_index.push((rightmost_x, topmost_cell_y.unwrap()));
                     }
-                    let mut right_wall_segment_permutation_shifter = SegmentPermutationShifter::new(segments, (rightmost_x as u8, topmost_wall_y as u8), bottommost_wall_y - topmost_wall_y + 1, false, 1, false);
+                    let right_wall_segment_permutation_shifter = SegmentPermutationShifter::new(segments, (rightmost_x as u8, topmost_wall_y as u8), bottommost_wall_y - topmost_wall_y + 1, false, 1, false);
                     right_wall_segment_permutation_shifter_option = Some(right_wall_segment_permutation_shifter);
                 }
             }
@@ -640,6 +639,10 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
             {
                 // contains all of the pixel board index pairs
                 let mut visited_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+
+                // contains the cell group indexes which are adjacent per cell group index
+                let mut adjacent_cell_group_indexes_per_cell_group_index: Vec<Vec<usize>> = Vec::new();
+                let mut wall_adjacent_cell_group_index_offset_option: Option<usize> = None;
 
                 // search all walls for wall-adjacents
                 {
@@ -733,11 +736,15 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                                     }
                                 }
                                 // at this point there are one or more cells found
+                                if wall_adjacent_cell_group_index_offset_option.is_none() {
+                                    wall_adjacent_cell_group_index_offset_option = Some(raw_cell_groups.len());
+                                }
                                 wall_adjacent_cell_group_indexes.push(raw_cell_groups.len());
                                 raw_cell_groups.push(CellGroup {
                                     cells: cells
                                 });
-                                adjacent_cell_group_indexes_per_cell_group_index.push(adjacent_wall_cell_group_indexes);
+                                adjacent_cell_group_indexes_per_cell_group_index.push(adjacent_wall_cell_group_indexes.clone());
+                                adjacent_wall_cell_group_indexes.clear();
                                 
                                 // construct index shifter
                                 let mut states: Vec<Rc<(u8, u8)>> = Vec::new();
@@ -749,10 +756,31 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                                         states.push(location_references[location_reference_index].clone());
                                     }
                                 }
-                                let mut index_shifter = IndexShifter::new(&vec![states]);
+                                let index_shifter = IndexShifter::new(&vec![states]);
                                 wall_adjacent_index_shifters.push(index_shifter);
                             }
                         }
+                    }
+                }
+
+                // at this point all cell groups are known
+
+                for cell_group_index in 0..raw_cell_groups.len() {
+                    // construct is_adjacent booleans per cell group pair
+                    let mut is_adjacent_per_cell_group_index: BitVec = BitVec::repeat(false, raw_cell_groups.len());
+                    if wall_adjacent_cell_group_index_offset_option.is_some() && wall_adjacent_cell_group_index_offset_option.unwrap() >= cell_group_index {
+                        for adjacent_cell_group_index in adjacent_cell_group_indexes_per_cell_group_index[cell_group_index - wall_adjacent_cell_group_index_offset_option.unwrap()].iter() {
+                            is_adjacent_per_cell_group_index.set(*adjacent_cell_group_index, true);
+                        }
+                    }
+                    is_adjacent_cell_group_index_per_cell_group_index.push(is_adjacent_per_cell_group_index);
+
+                    // TODO construct detection offsets per cell group pair
+                    let mut detection_offsets_per_cell_group_index: Vec<Vec<(i16, i16)>> = Vec::new();
+                    for _ in 0..raw_cell_groups.len() {
+                        let mut detection_offsets: Vec<(i16, i16)> = Vec::new();
+                        // TODO fill detection offsets as needed
+                        detection_offsets_per_cell_group_index.push(detection_offsets);
                     }
                 }
             }
@@ -837,25 +865,88 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                 todo!();
             }
             else {
-                // TODO create a combined shifter per pair of wall shifters
+                let mut cell_group_dependencies: Vec<CellGroupDependency> = Vec::new();
+
+                // create a combined shifter per pair of corner wall shifters
                 for shifter_index in 0..(corner_wall_index_shifters.len() - 1) {
                     for other_shifter_index in (shifter_index + 1)..corner_wall_index_shifters.len() {
                         let combined_shifter: CombinedShifter<(u8, u8)> = CombinedShifter::new(&vec![Rc::new(RefCell::new(corner_wall_index_shifters[shifter_index].clone())), Rc::new(RefCell::new(corner_wall_index_shifters[other_shifter_index].clone()))], true);
                         let combined_cell_group_indexes: Vec<usize> = vec![corner_wall_cell_group_index_per_shifter[shifter_index], corner_wall_cell_group_index_per_shifter[other_shifter_index]];
                         let cell_group_dependency = CellGroupDependency::new(combined_cell_group_indexes, combined_shifter);
-                        let shifting_cell_group_dependency_incrementer = ShiftingCellGroupDependencyIncrementer::new(self.cell_groups.clone(), vec![cell_group_dependency], self.detection_offsets_per_cell_group_index_per_cell_group_index.clone(), self.is_adjacent_cell_group_index_per_cell_group_index.clone());
-                        incrementers.push(Rc::new(RefCell::new(shifting_cell_group_dependency_incrementer)));
+                        cell_group_dependencies.push(cell_group_dependency);
                     }
                 }
-                // TODO create a combined shifter per pair of non-wall shifters
-                // TODO create a combined shifter per wall shifter and non-wall shifter pair
+                // create a combined shifter per pair of segment wall shifters
+                for shifter_index in 0..(wall_segment_permutation_shifters.len() - 1) {
+                    for other_shifter_index in (shifter_index + 1)..wall_segment_permutation_shifters.len() {
+                        let combined_shifter: CombinedShifter<(u8, u8)> = CombinedShifter::new(&vec![Rc::new(RefCell::new(wall_segment_permutation_shifters[shifter_index].clone())), Rc::new(RefCell::new(wall_segment_permutation_shifters[other_shifter_index].clone()))], true);
+                        let mut combined_cell_group_indexes: Vec<usize> = Vec::new();
+                        for wall_segment_cell_group_index in wall_segment_cell_group_indexes_per_shifter[shifter_index].iter().chain(wall_segment_cell_group_indexes_per_shifter[other_shifter_index].iter()) {
+                            combined_cell_group_indexes.push(*wall_segment_cell_group_index);
+                        }
+                        let cell_group_dependency = CellGroupDependency::new(combined_cell_group_indexes, combined_shifter);
+                        cell_group_dependencies.push(cell_group_dependency);
+                    }
+                }
+                // create a combined shifter per pair of non-wall shifters
+                for shifter_index in 0..(wall_adjacent_index_shifters.len() - 1) {
+                    for other_shifter_index in (shifter_index + 1)..wall_adjacent_index_shifters.len() {
+                        let combined_shifter: CombinedShifter<(u8, u8)> = CombinedShifter::new(&vec![Rc::new(RefCell::new(wall_adjacent_index_shifters[shifter_index].clone())), Rc::new(RefCell::new(wall_adjacent_index_shifters[other_shifter_index].clone()))], true);
+                        let combined_cell_group_indexes: Vec<usize> = vec![wall_adjacent_cell_group_index_per_shifter[shifter_index], wall_adjacent_cell_group_index_per_shifter[other_shifter_index]];
+                        let cell_group_dependency = CellGroupDependency::new(combined_cell_group_indexes, combined_shifter);
+                        cell_group_dependencies.push(cell_group_dependency);
+                    }
+                }
+                // create a combined shifter per corner wall shifter and segment wall shifter pair
+                for corner_wall_shifter_index in 0..corner_wall_index_shifters.len() {
+                    for wall_segment_shifter_index in 0..wall_segment_permutation_shifters.len() {
+                        let combined_shifter: CombinedShifter<(u8, u8)> = CombinedShifter::new(&vec![Rc::new(RefCell::new(corner_wall_index_shifters[corner_wall_shifter_index].clone())), Rc::new(RefCell::new(wall_segment_permutation_shifters[wall_segment_shifter_index].clone()))], true);
+                        let mut combined_cell_group_indexes: Vec<usize> = vec![corner_wall_cell_group_index_per_shifter[corner_wall_shifter_index]];
+                        for wall_segment_cell_group_index in wall_segment_cell_group_indexes_per_shifter[wall_segment_shifter_index].iter() {
+                            combined_cell_group_indexes.push(*wall_segment_cell_group_index);
+                        }
+                        let cell_group_dependency = CellGroupDependency::new(combined_cell_group_indexes, combined_shifter);
+                        cell_group_dependencies.push(cell_group_dependency);
+                    }
+                }
+                // create a combined shifter per corner wall shifter and non-wall shifter pair
+                for corner_wall_shifter_index in 0..corner_wall_index_shifters.len() {
+                    for wall_adjacent_shifter_index in 0..wall_adjacent_index_shifters.len() {
+                        let combined_shifter: CombinedShifter<(u8, u8)> = CombinedShifter::new(&vec![Rc::new(RefCell::new(corner_wall_index_shifters[corner_wall_shifter_index].clone())), Rc::new(RefCell::new(wall_adjacent_index_shifters[wall_adjacent_shifter_index].clone()))], true);
+                        let combined_cell_group_indexes: Vec<usize> = vec![corner_wall_cell_group_index_per_shifter[corner_wall_shifter_index], wall_adjacent_cell_group_index_per_shifter[wall_adjacent_shifter_index]];
+                        let cell_group_dependency = CellGroupDependency::new(combined_cell_group_indexes, combined_shifter);
+                        cell_group_dependencies.push(cell_group_dependency);
+                    }
+                }
+                // create a combined shifter per segment wall shifter and non-wall shifter pair
+                for wall_segment_shifter_index in 0..wall_segment_permutation_shifters.len() {
+                    for wall_adjacent_shifter_index in 0..wall_adjacent_index_shifters.len() {
+                        let combined_shifter: CombinedShifter<(u8, u8)> = CombinedShifter::new(&vec![Rc::new(RefCell::new(wall_segment_permutation_shifters[wall_segment_shifter_index].clone())), Rc::new(RefCell::new(wall_adjacent_index_shifters[wall_adjacent_shifter_index].clone()))], true);
+                        let mut combined_cell_group_indexes: Vec<usize> = Vec::new();
+                        for wall_segment_cell_group_index in wall_segment_cell_group_indexes_per_shifter[wall_segment_shifter_index].iter() {
+                            combined_cell_group_indexes.push(*wall_segment_cell_group_index);
+                        }
+                        combined_cell_group_indexes.push(wall_adjacent_cell_group_index_per_shifter[wall_adjacent_shifter_index]);
+                        let cell_group_dependency = CellGroupDependency::new(combined_cell_group_indexes, combined_shifter);
+                        cell_group_dependencies.push(cell_group_dependency);
+                    }
+                }
+
+                // create the shifting cell group dependency incrementers
+                for cell_group_dependency in cell_group_dependencies {
+                    let shifting_cell_group_dependency_incrementer = ShiftingCellGroupDependencyIncrementer::new(self.cell_groups.clone(), vec![cell_group_dependency], self.detection_offsets_per_cell_group_index_per_cell_group_index.clone(), self.is_adjacent_cell_group_index_per_cell_group_index.clone());
+                    incrementers.push(Rc::new(RefCell::new(shifting_cell_group_dependency_incrementer)));
+                }
             }
             // TODO construct each incrementer that equates to each possible combination of cell groups depending on their location in the bounds
             round_robin_incrementer = RoundRobinIncrementer::new(incrementers);
         }
 
         // prepare to find the cycle as the RoundRobinIncrementer is iterated over
-        let mut located_cell_group_collections: Vec<BTreeSet<(usize, (u8, u8))>> = Vec::new();
+        // the idea is that we round-robin across all shifters, building up graphs of connected locations until we find that the next pair to be connected already exist in the same graph, then we check for a cycle
+        
+        // this contains how many times this cell group at this location has been found at this location within the graph at the current index of the vector
+        let mut instances_total_per_located_cell_group_collection_per_isolated_graph: Vec<BTreeMap<(usize, (u8, u8)), usize>> = Vec::new();
         let mut located_cell_groups_per_location_per_cell_group_index: Vec<BTreeMap<(u8, u8), Vec<(usize, (u8, u8))>>> = Vec::new();
         let mut is_cycle_found: bool = false;
         let mut current_pair: ((usize, (u8, u8)), (usize, (u8, u8)));
@@ -873,48 +964,101 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                 for (other_indexed_element_index, other_indexed_element) in locations.iter().enumerate() {
                     if current_indexed_element_index < other_indexed_element_index {
                         // TODO determine if indexed location exists in previous data structures
-                        let mut current_indexed_element_cell_group_collection_index: Option<usize> = None;
-                        let mut other_indexed_element_cell_group_collection_index: Option<usize> = None;
+                        let mut current_indexed_element_isolated_graph_index: Option<usize> = None;
+                        let mut other_indexed_element_isolated_graph_index: Option<usize> = None;
                         let current_located_cell_group: (usize, (u8, u8)) = (current_indexed_element.index, (current_indexed_element.element.0, current_indexed_element.element.1));
                         let other_located_cell_group: (usize, (u8, u8)) = (other_indexed_element.index, (other_indexed_element.element.0, other_indexed_element.element.1));
-                        for (located_cell_group_collection_index, located_cell_group_collection) in located_cell_group_collections.iter().enumerate() {
-                            if located_cell_group_collection.contains(&current_located_cell_group) {
-                                current_indexed_element_cell_group_collection_index = Some(located_cell_group_collection_index);
-                                if other_indexed_element_cell_group_collection_index.is_some() {
+                        for (isolated_graph_index, instances_total_per_located_cell_group_collection) in instances_total_per_located_cell_group_collection_per_isolated_graph.iter().enumerate() {
+                            if instances_total_per_located_cell_group_collection.contains_key(&current_located_cell_group) {
+                                current_indexed_element_isolated_graph_index = Some(isolated_graph_index);
+                                if other_indexed_element_isolated_graph_index.is_some() {
                                     break;
                                 }
                             }
-                            if located_cell_group_collection.contains(&other_located_cell_group) {
-                                other_indexed_element_cell_group_collection_index = Some(located_cell_group_collection_index);
-                                if current_indexed_element_cell_group_collection_index.is_some() {
+                            if instances_total_per_located_cell_group_collection.contains_key(&other_located_cell_group) {
+                                other_indexed_element_isolated_graph_index = Some(isolated_graph_index);
+                                if current_indexed_element_isolated_graph_index.is_some() {
                                     break;
                                 }
                             }
                         }
 
-                        if current_indexed_element_cell_group_collection_index.is_none() {
-                            if other_indexed_element_cell_group_collection_index.is_none() {
+                        if current_indexed_element_isolated_graph_index.is_none() {
+                            if other_indexed_element_isolated_graph_index.is_none() {
                                 // if both are none, then this collection is isolated, create a new BTreeSet
-                                let mut located_cell_group_collection: BTreeSet<(usize, (u8, u8))> = BTreeSet::new();
-                                located_cell_group_collection.insert(current_located_cell_group);
-                                located_cell_group_collection.insert(other_located_cell_group);
-                                located_cell_group_collections.push(located_cell_group_collection);
+                                let mut located_cell_group_collection: BTreeMap<(usize, (u8, u8)), usize> = BTreeMap::new();
+                                located_cell_group_collection.insert(current_located_cell_group, 1);
+                                located_cell_group_collection.insert(other_located_cell_group, 1);
+                                instances_total_per_located_cell_group_collection_per_isolated_graph.push(located_cell_group_collection);
                             }
                             else {
                                 // the current located cell group extends the existing collection that contains the other located cell group
-                                located_cell_group_collections[other_indexed_element_cell_group_collection_index.unwrap()].insert(current_located_cell_group);
+                                instances_total_per_located_cell_group_collection_per_isolated_graph[other_indexed_element_isolated_graph_index.unwrap()].insert(current_located_cell_group, 1);
                             }
                         }
                         else {
-                            if other_indexed_element_cell_group_collection_index.is_none() {
+                            if other_indexed_element_isolated_graph_index.is_none() {
                                 // the other located cell group extends the existing collection that contains the current located cell group
-                                located_cell_group_collections[current_indexed_element_cell_group_collection_index.unwrap()].insert(other_located_cell_group);
+                                instances_total_per_located_cell_group_collection_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()].insert(other_located_cell_group, 1);
                             }
                             else {
+
+                                let mut is_cycle_detection_required = false;
+
                                 // they both exist in either the same or different collection
-                                if current_indexed_element_cell_group_collection_index == other_indexed_element_cell_group_collection_index {
+                                if current_indexed_element_isolated_graph_index != other_indexed_element_isolated_graph_index {
+                                    // they exist in different collections, so they must now be combined
+                                    let first_cell_group_collection_index: usize;
+                                    let second_cell_group_collection_index: usize;
+                                    if current_indexed_element_isolated_graph_index < other_indexed_element_isolated_graph_index {
+                                        first_cell_group_collection_index = current_indexed_element_isolated_graph_index.unwrap();
+                                        second_cell_group_collection_index = other_indexed_element_isolated_graph_index.unwrap();
+                                    }
+                                    else {
+                                        first_cell_group_collection_index = other_indexed_element_isolated_graph_index.unwrap();
+                                        second_cell_group_collection_index = current_indexed_element_isolated_graph_index.unwrap();
+                                    }
+                                    let second_instances_total_per_cell_group_collection = instances_total_per_located_cell_group_collection_per_isolated_graph.remove(second_cell_group_collection_index);
+                                    for (located_cell_group_collection, instances_total) in second_instances_total_per_cell_group_collection.into_iter() {
+                                        let next_instances_total;
+                                        if instances_total_per_located_cell_group_collection_per_isolated_graph[first_cell_group_collection_index].contains_key(&located_cell_group_collection) {
+                                            let previous_instances_total = instances_total_per_located_cell_group_collection_per_isolated_graph[first_cell_group_collection_index][&located_cell_group_collection];
+                                            next_instances_total = previous_instances_total + instances_total;
+                                            if next_instances_total == self.cell_groups.len() - 1 {
+                                                is_cycle_detection_required = true;
+                                            }
+                                        }
+                                        else {
+                                            next_instances_total = instances_total;
+                                        }
+                                        instances_total_per_located_cell_group_collection_per_isolated_graph[first_cell_group_collection_index].insert(located_cell_group_collection, next_instances_total);
+                                    }
+                                }
+                                else {
                                     // they exist in the same located cell group collect and now form a cycle, test to see if this is the cycle that creates a full loop
                                     // TODO ensure that each located cell group of the cycle (for each distinct cell group) forms a cliche with each other, as a statement that they all permit each other's location
+                                    {
+                                        let previous_instances_total = instances_total_per_located_cell_group_collection_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()][&current_located_cell_group];
+                                        let next_instances_total = previous_instances_total + 1;
+                                        if next_instances_total == self.cell_groups.len() - 1 {
+                                            is_cycle_detection_required = true;
+                                        }
+                                        instances_total_per_located_cell_group_collection_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()].insert(current_located_cell_group, next_instances_total);
+                                    }
+
+                                    {
+                                        let previous_instances_total = instances_total_per_located_cell_group_collection_per_isolated_graph[other_indexed_element_isolated_graph_index.unwrap()][&other_located_cell_group];
+                                        let next_instances_total = previous_instances_total + 1;
+                                        if next_instances_total == self.cell_groups.len() - 1 {
+                                            is_cycle_detection_required = true;
+                                        }
+                                        instances_total_per_located_cell_group_collection_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()].insert(other_located_cell_group, next_instances_total);
+                                    }
+                                }
+
+                                if is_cycle_detection_required {
+                                    // TODO
+                                    todo!();
                                 }
                             }
                         }
