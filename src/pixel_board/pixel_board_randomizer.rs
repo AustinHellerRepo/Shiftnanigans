@@ -946,7 +946,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
         // the idea is that we round-robin across all shifters, building up graphs of connected locations until we find that the next pair to be connected already exist in the same graph, then we check for a cycle
         
         // this contains how many times this cell group at this location has been found at this location within the graph at the current index of the vector
-        let mut instances_total_per_located_cell_group_collection_per_isolated_graph: Vec<BTreeMap<(usize, (u8, u8)), usize>> = Vec::new();
+        let mut observations_total_per_located_cell_group_collection_per_isolated_graph: Vec<BTreeMap<(usize, (u8, u8)), usize>> = Vec::new();
         let mut located_cell_groups_per_location_per_cell_group_index: Vec<BTreeMap<(u8, u8), Vec<(usize, (u8, u8))>>> = Vec::new();
         let mut is_cycle_found: bool = false;
         let mut current_pair: ((usize, (u8, u8)), (usize, (u8, u8)));
@@ -968,14 +968,14 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                         let mut other_indexed_element_isolated_graph_index: Option<usize> = None;
                         let current_located_cell_group: (usize, (u8, u8)) = (current_indexed_element.index, (current_indexed_element.element.0, current_indexed_element.element.1));
                         let other_located_cell_group: (usize, (u8, u8)) = (other_indexed_element.index, (other_indexed_element.element.0, other_indexed_element.element.1));
-                        for (isolated_graph_index, instances_total_per_located_cell_group_collection) in instances_total_per_located_cell_group_collection_per_isolated_graph.iter().enumerate() {
-                            if instances_total_per_located_cell_group_collection.contains_key(&current_located_cell_group) {
+                        for (isolated_graph_index, observations_total_per_located_cell_group_collection) in observations_total_per_located_cell_group_collection_per_isolated_graph.iter().enumerate() {
+                            if observations_total_per_located_cell_group_collection.contains_key(&current_located_cell_group) {
                                 current_indexed_element_isolated_graph_index = Some(isolated_graph_index);
                                 if other_indexed_element_isolated_graph_index.is_some() {
                                     break;
                                 }
                             }
-                            if instances_total_per_located_cell_group_collection.contains_key(&other_located_cell_group) {
+                            if observations_total_per_located_cell_group_collection.contains_key(&other_located_cell_group) {
                                 other_indexed_element_isolated_graph_index = Some(isolated_graph_index);
                                 if current_indexed_element_isolated_graph_index.is_some() {
                                     break;
@@ -989,17 +989,17 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                                 let mut located_cell_group_collection: BTreeMap<(usize, (u8, u8)), usize> = BTreeMap::new();
                                 located_cell_group_collection.insert(current_located_cell_group, 1);
                                 located_cell_group_collection.insert(other_located_cell_group, 1);
-                                instances_total_per_located_cell_group_collection_per_isolated_graph.push(located_cell_group_collection);
+                                observations_total_per_located_cell_group_collection_per_isolated_graph.push(located_cell_group_collection);
                             }
                             else {
                                 // the current located cell group extends the existing collection that contains the other located cell group
-                                instances_total_per_located_cell_group_collection_per_isolated_graph[other_indexed_element_isolated_graph_index.unwrap()].insert(current_located_cell_group, 1);
+                                observations_total_per_located_cell_group_collection_per_isolated_graph[other_indexed_element_isolated_graph_index.unwrap()].insert(current_located_cell_group, 1);
                             }
                         }
                         else {
                             if other_indexed_element_isolated_graph_index.is_none() {
                                 // the other located cell group extends the existing collection that contains the current located cell group
-                                instances_total_per_located_cell_group_collection_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()].insert(other_located_cell_group, 1);
+                                observations_total_per_located_cell_group_collection_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()].insert(other_located_cell_group, 1);
                             }
                             else {
 
@@ -1018,41 +1018,41 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                                         first_cell_group_collection_index = other_indexed_element_isolated_graph_index.unwrap();
                                         second_cell_group_collection_index = current_indexed_element_isolated_graph_index.unwrap();
                                     }
-                                    let second_instances_total_per_cell_group_collection = instances_total_per_located_cell_group_collection_per_isolated_graph.remove(second_cell_group_collection_index);
-                                    for (located_cell_group_collection, instances_total) in second_instances_total_per_cell_group_collection.into_iter() {
-                                        let next_instances_total;
-                                        if instances_total_per_located_cell_group_collection_per_isolated_graph[first_cell_group_collection_index].contains_key(&located_cell_group_collection) {
-                                            let previous_instances_total = instances_total_per_located_cell_group_collection_per_isolated_graph[first_cell_group_collection_index][&located_cell_group_collection];
-                                            next_instances_total = previous_instances_total + instances_total;
-                                            if next_instances_total == self.cell_groups.len() - 1 {
+                                    let second_observations_total_per_cell_group_collection = observations_total_per_located_cell_group_collection_per_isolated_graph.remove(second_cell_group_collection_index);
+                                    for (located_cell_group_collection, observations_total) in second_observations_total_per_cell_group_collection.into_iter() {
+                                        let next_observations_total;
+                                        if observations_total_per_located_cell_group_collection_per_isolated_graph[first_cell_group_collection_index].contains_key(&located_cell_group_collection) {
+                                            let previous_observations_total = observations_total_per_located_cell_group_collection_per_isolated_graph[first_cell_group_collection_index][&located_cell_group_collection];
+                                            next_observations_total = previous_observations_total + observations_total;
+                                            if next_observations_total == self.cell_groups.len() - 1 {
                                                 is_cycle_detection_required = true;
                                             }
                                         }
                                         else {
-                                            next_instances_total = instances_total;
+                                            next_observations_total = observations_total;
                                         }
-                                        instances_total_per_located_cell_group_collection_per_isolated_graph[first_cell_group_collection_index].insert(located_cell_group_collection, next_instances_total);
+                                        observations_total_per_located_cell_group_collection_per_isolated_graph[first_cell_group_collection_index].insert(located_cell_group_collection, next_observations_total);
                                     }
                                 }
                                 else {
                                     // they exist in the same located cell group collect and now form a cycle, test to see if this is the cycle that creates a full loop
                                     // TODO ensure that each located cell group of the cycle (for each distinct cell group) forms a cliche with each other, as a statement that they all permit each other's location
                                     {
-                                        let previous_instances_total = instances_total_per_located_cell_group_collection_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()][&current_located_cell_group];
-                                        let next_instances_total = previous_instances_total + 1;
-                                        if next_instances_total == self.cell_groups.len() - 1 {
+                                        let previous_observations_total = observations_total_per_located_cell_group_collection_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()][&current_located_cell_group];
+                                        let next_observations_total = previous_observations_total + 1;
+                                        if next_observations_total == self.cell_groups.len() - 1 {
                                             is_cycle_detection_required = true;
                                         }
-                                        instances_total_per_located_cell_group_collection_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()].insert(current_located_cell_group, next_instances_total);
+                                        observations_total_per_located_cell_group_collection_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()].insert(current_located_cell_group, next_observations_total);
                                     }
 
                                     {
-                                        let previous_instances_total = instances_total_per_located_cell_group_collection_per_isolated_graph[other_indexed_element_isolated_graph_index.unwrap()][&other_located_cell_group];
-                                        let next_instances_total = previous_instances_total + 1;
-                                        if next_instances_total == self.cell_groups.len() - 1 {
+                                        let previous_observations_total = observations_total_per_located_cell_group_collection_per_isolated_graph[other_indexed_element_isolated_graph_index.unwrap()][&other_located_cell_group];
+                                        let next_observations_total = previous_observations_total + 1;
+                                        if next_observations_total == self.cell_groups.len() - 1 {
                                             is_cycle_detection_required = true;
                                         }
-                                        instances_total_per_located_cell_group_collection_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()].insert(other_located_cell_group, next_instances_total);
+                                        observations_total_per_located_cell_group_collection_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()].insert(other_located_cell_group, next_observations_total);
                                     }
                                 }
 
