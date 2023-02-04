@@ -1,6 +1,7 @@
 use std::{rc::Rc, cell::RefCell, collections::{BTreeSet, BTreeMap, VecDeque}};
 
 use bitvec::vec::BitVec;
+use itertools::Itertools;
 
 use crate::{CellGroup, incrementer::{round_robin_incrementer::RoundRobinIncrementer, Incrementer, shifting_cell_group_dependency_incrementer::{self, CellGroupDependency, ShiftingCellGroupDependencyIncrementer}}, shifter::{Shifter, segment_permutation_shifter::{Segment, SegmentPermutationShifter}, index_shifter::IndexShifter, combined_shifter::CombinedShifter}};
 
@@ -766,6 +767,9 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                 // at this point all cell groups are known
 
                 for cell_group_index in 0..raw_cell_groups.len() {
+
+                    let pixel_board_coordinate = pixel_board_coordinate_per_cell_group_index[cell_group_index];
+
                     // construct is_adjacent booleans per cell group pair
                     let mut is_adjacent_per_cell_group_index: BitVec = BitVec::repeat(false, raw_cell_groups.len());
                     if wall_adjacent_cell_group_index_offset_option.is_some() && wall_adjacent_cell_group_index_offset_option.unwrap() >= cell_group_index {
@@ -777,11 +781,36 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
 
                     // TODO construct detection offsets per cell group pair
                     let mut detection_offsets_per_cell_group_index: Vec<Vec<(i16, i16)>> = Vec::new();
-                    for _ in 0..raw_cell_groups.len() {
-                        let mut detection_offsets: Vec<(i16, i16)> = Vec::new();
+                    for other_cell_group_index in 0..raw_cell_groups.len() {
+
+                        let mut raw_detection_offsets: Vec<(i16, i16)> = Vec::new();
+
                         // TODO fill detection offsets as needed
+                        if other_cell_group_index != cell_group_index {
+                            for cell_location in raw_cell_groups[cell_group_index].cells.iter() {
+                                if let Some(pixel) = pixel_board.get(cell_location.0 as usize, cell_location.1 as usize) {
+                                    let borrowed_pixel: &TPixel = &pixel.borrow();
+                                    for other_cell_location in raw_cell_groups[other_cell_group_index].cells.iter() {
+                                        // get the invalid location offsets based on the locations of the cells
+                                        if let Some(other_pixel) = pixel_board.get(other_cell_location.0 as usize, other_cell_location.1 as usize) {
+                                            let borrowed_other_pixel: &TPixel = &other_pixel.borrow();
+                                            let invalid_location_offsets = borrowed_pixel.get_invalid_location_offsets_for_other_pixel(borrowed_other_pixel);
+                                            for invalid_location_offset in invalid_location_offsets.iter() {
+                                                let x = (cell_location.0 as usize - pixel_board_coordinate.0) as i16 + invalid_location_offset.0;
+                                                let y = (cell_location.1 as usize - pixel_board_coordinate.1) as i16 + invalid_location_offset.1;
+                                                let detection_offset = (x, y);
+                                                raw_detection_offsets.push(detection_offset);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        let detection_offsets = raw_detection_offsets.into_iter().unique().collect();
                         detection_offsets_per_cell_group_index.push(detection_offsets);
                     }
+                    detection_offsets_per_cell_group_index_per_cell_group_index.push(detection_offsets_per_cell_group_index);
                 }
             }
         }

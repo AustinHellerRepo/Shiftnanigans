@@ -2,7 +2,7 @@ use std::{rc::Rc, cell::RefCell};
 pub mod pixel_board_randomizer;
 
 pub trait Pixel {
-    fn get_invalid_location_offsets_for_other_pixel(other_pixel: Self) -> Vec<(i16, i16)>;
+    fn get_invalid_location_offsets_for_other_pixel(&self, other_pixel: &Self) -> Vec<(i16, i16)>;
 }
 
 pub struct PixelBoard<T: Pixel> {
