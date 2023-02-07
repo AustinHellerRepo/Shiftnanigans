@@ -84,7 +84,9 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                     for x in 1..pixel_board.width {
                         if pixel_board.exists(x, 0) {
                             cells.push((x as u8, 0));
-                            adjacent_pixel_board_coordinates.insert((x, 1));
+                            if x != rightmost_x {
+                                adjacent_pixel_board_coordinates.insert((x, 1));
+                            }
                         }
                         else {
                             break 'clockwise_collecting;
@@ -94,7 +96,9 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                     for y in 1..pixel_board.height {
                         if pixel_board.exists(rightmost_x, y) {
                             cells.push((rightmost_x as u8, y as u8));
-                            adjacent_pixel_board_coordinates.insert((rightmost_x - 1, y));
+                            if y != bottommost_y {
+                                adjacent_pixel_board_coordinates.insert((rightmost_x - 1, y));
+                            }
                         }
                         else {
                             break 'clockwise_collecting;
@@ -104,7 +108,9 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                     for x in (0..rightmost_x).rev() {
                         if pixel_board.exists(x, bottommost_y) {
                             cells.push((x as u8, bottommost_y as u8));
-                            adjacent_pixel_board_coordinates.insert((x, bottommost_y - 1));
+                            if x != 0 {
+                                adjacent_pixel_board_coordinates.insert((x, bottommost_y - 1));
+                            }
                         }
                         else {
                             break 'clockwise_collecting;
@@ -126,7 +132,9 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                     for y in 1..pixel_board.height {
                         if pixel_board.exists(0, y) {
                             cells.push((0, y as u8));
-                            adjacent_pixel_board_coordinates.insert((1, y));
+                            if y != bottommost_y {
+                                adjacent_pixel_board_coordinates.insert((1, y));
+                            }
                         }
                         else {
                             break 'counterclockwise_collecting;
@@ -136,7 +144,9 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                     for x in 1..pixel_board.width {
                         if pixel_board.exists(x, bottommost_y) {
                             cells.push((x as u8, bottommost_y as u8));
-                            adjacent_pixel_board_coordinates.insert((x, bottommost_y - 1));
+                            if x != rightmost_x {
+                                adjacent_pixel_board_coordinates.insert((x, bottommost_y - 1));
+                            }
                         }
                         else {
                             break 'counterclockwise_collecting;
@@ -146,7 +156,9 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                     for y in (0..bottommost_y).rev() {
                         if pixel_board.exists(rightmost_x, y) {
                             cells.push((rightmost_x as u8, y as u8));
-                            adjacent_pixel_board_coordinates.insert((rightmost_x - 1, y));
+                            if y != 0 {
+                                adjacent_pixel_board_coordinates.insert((rightmost_x - 1, y));
+                            }
                         }
                         else {
                             break 'counterclockwise_collecting;
@@ -185,7 +197,9 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                     for y in 1..pixel_board.height {
                         if pixel_board.exists(rightmost_x, y) {
                             cells.push((rightmost_x as u8, y as u8));
-                            adjacent_pixel_board_coordinates.insert((rightmost_x - 1, y));
+                            if y != bottommost_y {
+                                adjacent_pixel_board_coordinates.insert((rightmost_x - 1, y));
+                            }
                         }
                         else {
                             break 'clockwise_collecting;
@@ -195,7 +209,9 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                     for x in (0..rightmost_x).rev() {
                         if pixel_board.exists(x, bottommost_y) {
                             cells.push((x as u8, bottommost_y as u8));
-                            adjacent_pixel_board_coordinates.insert((x, bottommost_y - 1));
+                            if x != 0 {
+                                adjacent_pixel_board_coordinates.insert((x, bottommost_y - 1));
+                            }
                             leftmost_cell_x = x;
                         }
                         else {
@@ -252,7 +268,9 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                     for x in (0..rightmost_x).rev() {
                         if pixel_board.exists(x, bottommost_y) {
                             cells.push((x as u8, bottommost_y as u8));
-                            adjacent_pixel_board_coordinates.insert((x, bottommost_y - 1));
+                            if x != 0 {
+                                adjacent_pixel_board_coordinates.insert((x, bottommost_y - 1));
+                            }
                             leftmost_cell_x = x;
                         }
                         else {
@@ -770,9 +788,10 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
 
                     // construct is_adjacent booleans per cell group pair
                     let mut is_adjacent_per_cell_group_index: BitVec = BitVec::repeat(false, raw_cell_groups.len());
-                    if wall_adjacent_cell_group_index_offset_option.is_some() && wall_adjacent_cell_group_index_offset_option.unwrap() >= cell_group_index {
+                    if wall_adjacent_cell_group_index_offset_option.is_some() && cell_group_index >= wall_adjacent_cell_group_index_offset_option.unwrap() {
                         for adjacent_cell_group_index in adjacent_cell_group_indexes_per_cell_group_index[cell_group_index - wall_adjacent_cell_group_index_offset_option.unwrap()].iter() {
                             is_adjacent_per_cell_group_index.set(*adjacent_cell_group_index, true);
+                            // TODO determine if the mirror reference should be made
                         }
                     }
                     is_adjacent_cell_group_index_per_cell_group_index.push(is_adjacent_per_cell_group_index);
@@ -913,33 +932,39 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                 else {
 
                     // create a combined shifter per pair of corner wall shifters
-                    for shifter_index in 0..(corner_wall_index_shifters.len() - 1) {
-                        for other_shifter_index in (shifter_index + 1)..corner_wall_index_shifters.len() {
-                            let combined_shifter: CombinedShifter<(u8, u8)> = CombinedShifter::new(&vec![Rc::new(RefCell::new(corner_wall_index_shifters[shifter_index].clone())), Rc::new(RefCell::new(corner_wall_index_shifters[other_shifter_index].clone()))], true);
-                            let combined_cell_group_indexes: Vec<usize> = vec![corner_wall_cell_group_index_per_shifter[shifter_index], corner_wall_cell_group_index_per_shifter[other_shifter_index]];
-                            let cell_group_dependency = CellGroupDependency::new(combined_cell_group_indexes, combined_shifter);
-                            cell_group_dependencies.push(cell_group_dependency);
+                    if !corner_wall_index_shifters.is_empty() {
+                        for shifter_index in 0..(corner_wall_index_shifters.len() - 1) {
+                            for other_shifter_index in (shifter_index + 1)..corner_wall_index_shifters.len() {
+                                let combined_shifter: CombinedShifter<(u8, u8)> = CombinedShifter::new(&vec![Rc::new(RefCell::new(corner_wall_index_shifters[shifter_index].clone())), Rc::new(RefCell::new(corner_wall_index_shifters[other_shifter_index].clone()))], true);
+                                let combined_cell_group_indexes: Vec<usize> = vec![corner_wall_cell_group_index_per_shifter[shifter_index], corner_wall_cell_group_index_per_shifter[other_shifter_index]];
+                                let cell_group_dependency = CellGroupDependency::new(combined_cell_group_indexes, combined_shifter);
+                                cell_group_dependencies.push(cell_group_dependency);
+                            }
                         }
                     }
                     // create a combined shifter per pair of segment wall shifters
-                    for shifter_index in 0..(wall_segment_permutation_shifters.len() - 1) {
-                        for other_shifter_index in (shifter_index + 1)..wall_segment_permutation_shifters.len() {
-                            let combined_shifter: CombinedShifter<(u8, u8)> = CombinedShifter::new(&vec![Rc::new(RefCell::new(wall_segment_permutation_shifters[shifter_index].clone())), Rc::new(RefCell::new(wall_segment_permutation_shifters[other_shifter_index].clone()))], true);
-                            let mut combined_cell_group_indexes: Vec<usize> = Vec::new();
-                            for wall_segment_cell_group_index in wall_segment_cell_group_indexes_per_shifter[shifter_index].iter().chain(wall_segment_cell_group_indexes_per_shifter[other_shifter_index].iter()) {
-                                combined_cell_group_indexes.push(*wall_segment_cell_group_index);
+                    if !wall_segment_permutation_shifters.is_empty() {
+                        for shifter_index in 0..(wall_segment_permutation_shifters.len() - 1) {
+                            for other_shifter_index in (shifter_index + 1)..wall_segment_permutation_shifters.len() {
+                                let combined_shifter: CombinedShifter<(u8, u8)> = CombinedShifter::new(&vec![Rc::new(RefCell::new(wall_segment_permutation_shifters[shifter_index].clone())), Rc::new(RefCell::new(wall_segment_permutation_shifters[other_shifter_index].clone()))], true);
+                                let mut combined_cell_group_indexes: Vec<usize> = Vec::new();
+                                for wall_segment_cell_group_index in wall_segment_cell_group_indexes_per_shifter[shifter_index].iter().chain(wall_segment_cell_group_indexes_per_shifter[other_shifter_index].iter()) {
+                                    combined_cell_group_indexes.push(*wall_segment_cell_group_index);
+                                }
+                                let cell_group_dependency = CellGroupDependency::new(combined_cell_group_indexes, combined_shifter);
+                                cell_group_dependencies.push(cell_group_dependency);
                             }
-                            let cell_group_dependency = CellGroupDependency::new(combined_cell_group_indexes, combined_shifter);
-                            cell_group_dependencies.push(cell_group_dependency);
                         }
                     }
                     // create a combined shifter per pair of non-wall shifters
-                    for shifter_index in 0..(wall_adjacent_index_shifters.len() - 1) {
-                        for other_shifter_index in (shifter_index + 1)..wall_adjacent_index_shifters.len() {
-                            let combined_shifter: CombinedShifter<(u8, u8)> = CombinedShifter::new(&vec![Rc::new(RefCell::new(wall_adjacent_index_shifters[shifter_index].clone())), Rc::new(RefCell::new(wall_adjacent_index_shifters[other_shifter_index].clone()))], true);
-                            let combined_cell_group_indexes: Vec<usize> = vec![wall_adjacent_cell_group_index_per_shifter[shifter_index], wall_adjacent_cell_group_index_per_shifter[other_shifter_index]];
-                            let cell_group_dependency = CellGroupDependency::new(combined_cell_group_indexes, combined_shifter);
-                            cell_group_dependencies.push(cell_group_dependency);
+                    if !wall_adjacent_index_shifters.is_empty() {
+                        for shifter_index in 0..(wall_adjacent_index_shifters.len() - 1) {
+                            for other_shifter_index in (shifter_index + 1)..wall_adjacent_index_shifters.len() {
+                                let combined_shifter: CombinedShifter<(u8, u8)> = CombinedShifter::new(&vec![Rc::new(RefCell::new(wall_adjacent_index_shifters[shifter_index].clone())), Rc::new(RefCell::new(wall_adjacent_index_shifters[other_shifter_index].clone()))], true);
+                                let combined_cell_group_indexes: Vec<usize> = vec![wall_adjacent_cell_group_index_per_shifter[shifter_index], wall_adjacent_cell_group_index_per_shifter[other_shifter_index]];
+                                let cell_group_dependency = CellGroupDependency::new(combined_cell_group_indexes, combined_shifter);
+                                cell_group_dependencies.push(cell_group_dependency);
+                            }
                         }
                     }
                     // create a combined shifter per corner wall shifter and segment wall shifter pair
@@ -1400,4 +1425,67 @@ mod pixel_board_randomizer_tests {
             assert_eq!(2, pixels_total);
         }
     }
+
+    #[rstest]
+    fn corner_wall_with_wall_adjacent_one_each() {
+        let wall_height: usize = 4;
+        let mut wall_image_ids: Vec<String> = Vec::new();
+        let mut pixel_board: PixelBoard<ExamplePixel> = PixelBoard::new(3, 4);
+        for height_index in 0..wall_height {
+            let image_id = Uuid::new_v4().to_string();
+            pixel_board.set(0, height_index, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+                image_id: image_id.clone()
+            }))));
+            wall_image_ids.push(image_id);
+        }
+        let wall_adjacent_image_id = Uuid::new_v4().to_string();
+        pixel_board.set(1, 1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+            image_id: wall_adjacent_image_id.clone()
+        }))));
+        let pixel_board_randomizer = PixelBoardRandomizer::new(pixel_board);
+        for _ in 0..10 {
+            let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
+            assert!(!random_pixel_board.exists(1, 0));
+            assert!(!random_pixel_board.exists(1, wall_height - 1));
+            let mut wall_adjacents_total = 0;
+            for height_index in 0..wall_height {
+                assert!(random_pixel_board.exists(0, height_index));
+                {
+                    let wrapped_random_wall_pixel = random_pixel_board.get(0, height_index).unwrap();
+                    let borrowed_random_wall_pixel: &ExamplePixel = &wrapped_random_wall_pixel.borrow();
+                    if let ExamplePixel::Tile(random_wall_pixel) = borrowed_random_wall_pixel {
+                        let wall_image_id = &wall_image_ids[height_index];
+                        assert_eq!(wall_image_id, &random_wall_pixel.image_id);
+                    }
+                    else {
+                        panic!("Unexpected ExamplePixel type");
+                    }
+                }
+                {
+                    let wrapped_wall_adjacent_pixel_option = random_pixel_board.get(1, height_index);
+                    if wrapped_wall_adjacent_pixel_option.is_some() {
+                        wall_adjacents_total += 1;
+                        let wrapped_wall_adjacent_pixel = wrapped_wall_adjacent_pixel_option.unwrap();
+                        let borrowed_wall_adjacent_pixel: &ExamplePixel = &wrapped_wall_adjacent_pixel.borrow();
+                        if let ExamplePixel::Tile(wall_adjacent_pixel) = borrowed_wall_adjacent_pixel {
+                            assert_eq!(&wall_adjacent_image_id, &wall_adjacent_pixel.image_id);
+                        }
+                        else {
+                            panic!("Unexpected ExamplePixel type");
+                        }
+                    }
+                }
+                
+                assert!(!random_pixel_board.exists(2, height_index));
+            }
+            assert_eq!(1, wall_adjacents_total);
+        }
+    }
+
+    // TODO try out map:
+    //      x - -
+    //      - x -
+    //      - - -
+    //      - - -
+    //  I would expect that the corner stays there and that the spot in the open could be at either open spot
 }
