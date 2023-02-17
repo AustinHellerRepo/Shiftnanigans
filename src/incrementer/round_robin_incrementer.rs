@@ -45,6 +45,10 @@ impl<T> Incrementer for RoundRobinIncrementer<T> {
             }
             incrementer_index = self.current_available_indexes[self.current_available_indexes_index];
         }
+        self.current_available_indexes_index += 1;
+        if self.current_available_indexes_index == self.current_available_indexes.len() {
+            self.current_available_indexes_index = 0;
+        }
         return true;
     }
     fn get(&self) -> Vec<crate::IndexedElement<Self::T>> {

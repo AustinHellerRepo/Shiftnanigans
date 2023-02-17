@@ -141,6 +141,42 @@ impl<T> Shifter for IndexShifter<T> {
             }
         }
     }
+    /*fn try_decrement(&mut self) -> bool {
+        if self.current_shift_index.is_none() {
+            return false;
+        }
+        else if self.current_shift_index.unwrap() == self.shifts_length {
+            return false;
+        }
+        let current_shift_index = self.current_shift_index.unwrap();
+        let current_state_index_option = self.current_state_index_per_shift_index[current_shift_index];
+        if current_state_index_option.is_none() {
+            if self.state_indexes_per_shift_index[current_shift_index].len() == 0 {
+                if self.is_incremented_at_least_once_per_shift_index[current_shift_index] {
+                    self.is_incremented_at_least_once_per_shift_index[current_shift_index] = false;
+                    return true;
+                }
+                else {
+                    return false;
+                }
+            }
+            else {
+                return false;
+            }
+        }
+        else {
+            let current_state_index = current_state_index_option.unwrap();
+            if current_state_index == 0 {
+                self.current_state_index_per_shift_index[current_shift_index] = None;
+                return false;
+            }
+            else {
+                let previous_state_index = current_state_index - 1;
+                self.current_state_index_per_shift_index[current_shift_index] = Some(previous_state_index);
+                return true;
+            }
+        }
+    }*/
     fn get_indexed_element(&self) -> IndexedElement<T> {
         let (element_index, state_index) = self.get_element_index_and_state_index();
         let element = self.possible_states[state_index].clone();
@@ -233,4 +269,7 @@ mod index_shifter_tests {
         }
         assert!(!index_shifter.try_backward());
     }
+    /*fn decrement_shifter() {
+        todo!();
+    }*/
 }

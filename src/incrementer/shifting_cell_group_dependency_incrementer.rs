@@ -185,7 +185,7 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
                                     let other_cell_group = &self.cell_groups[other_element_index_and_state_index_pair.0];
                                     let current_cell_group = &self.cell_groups[current_element_index_and_state_index_pair.0];
 
-                                    let is_adjacency_expected: bool = self.is_adjacent_cell_group_index_per_cell_group_index[current_element_index_and_state_index_pair.0][other_element_index_and_state_index_pair.0];
+                                    let is_adjacency_expected: bool = self.is_adjacent_cell_group_index_per_cell_group_index[current_element_index_and_state_index_pair.0][other_element_index_and_state_index_pair.0] || self.is_adjacent_cell_group_index_per_cell_group_index[other_element_index_and_state_index_pair.0][current_element_index_and_state_index_pair.0];
                                     let mut is_adjacent: bool = false;
 
                                     let mut detection_locations: BTreeSet<(u8, u8)> = BTreeSet::new();
@@ -197,7 +197,7 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
                                         }
                                     }
 
-                                    // check for overlap
+                                    // check for overlap and adjacency
                                     for other_cell in other_cell_group.cells.iter() {
                                         let calculated_other_cell: (u8, u8) = (other_cell.0 + other_index_element_location.0, other_cell.1 + other_index_element_location.1);
                                         for current_cell in current_cell_group.cells.iter() {
@@ -221,8 +221,12 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
                                             break 'is_current_pair_valid;
                                         }
                                     }
+
+                                    if is_adjacency_expected && !is_adjacent {
+                                        is_current_pair_valid = false;
+                                    }
                                 }
-                                
+
                                 self.current_is_checked.set(bitvec_index, true);
                                 self.current_is_valid.set(bitvec_index, is_current_pair_valid);
                             }

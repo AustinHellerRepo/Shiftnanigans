@@ -79,6 +79,7 @@ impl<T> Shifter for CombinedShifter<T> {
                 return false;
             }
         }
+        // TODO the current index should be checked and, if false, increment again
         return self.shifters[self.current_shifter_index.unwrap()].borrow_mut().try_forward();
     }
     fn try_backward(&mut self) -> bool {
@@ -107,6 +108,11 @@ impl<T> Shifter for CombinedShifter<T> {
         let is_current_shifter_try_increment_successful = self.shifters[current_shifter_index].borrow_mut().try_increment();
         return is_current_shifter_try_increment_successful;
     }
+    /*fn try_decrement(&mut self) -> bool {
+        let current_shifter_index = self.current_shifter_index.unwrap();
+        let is_current_shifter_try_decrement_successful = self.shifters[current_shifter_index].borrow_mut().try_decrement();
+        return is_current_shifter_try_decrement_successful;
+    }*/
     fn get_indexed_element(&self) -> IndexedElement<Self::T> {
         let current_shifter_index = self.current_shifter_index.unwrap();
         let mut current_shifter_get = self.shifters[current_shifter_index].borrow().get_indexed_element();
@@ -369,4 +375,7 @@ mod combined_shifter_tests {
         assert!(!combined_shifter.try_increment());  // nowhere to move segment to and no other segments to try
         assert!(!combined_shifter.try_backward());  // done
     }
+    /*fn decrement_incrementer() {
+        todo!();
+    }*/
 }

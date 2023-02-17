@@ -15,6 +15,7 @@ pub trait Shifter {
     fn try_forward(&mut self) -> bool;
     fn try_backward(&mut self) -> bool;
     fn try_increment(&mut self) -> bool;
+    //fn try_decrement(&mut self) -> bool;  // TODO implement
     // returns the current indexed element such that the IndexedElement.index is the same as element_index() and the IndexedElement.element is the same as states()[state_index()]
     fn get_indexed_element(&self) -> IndexedElement<Self::T>;
     // returns the number of shifts, so the number of valid forward movements

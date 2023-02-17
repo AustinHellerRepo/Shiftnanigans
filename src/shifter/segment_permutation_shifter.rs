@@ -358,6 +358,15 @@ impl Shifter for SegmentPermutationShifter {
         }
         return true;
     }
+    /*fn try_decrement(&mut self) -> bool {
+        let shift_index = self.current_position_offset_per_shift_index.len() - 1;
+        if self.current_position_offset_per_shift_index[shift_index].is_none() {
+            // have not incremented yet
+            return false;
+        }
+
+        todo!();
+    }*/
     fn get_indexed_element(&self) -> IndexedElement<(u8, u8)> {
         let (current_segment_index, current_position_offset) = self.get_element_index_and_state_index();
         let position: Rc<(u8, u8)>;
@@ -1146,5 +1155,8 @@ mod segment_permutation_shifter_tests {
                 assert!((1.0 - (permutations_per_scenario[scenario_index] as f32 / permutations_per_scenario[other_scenario_index] as f32)).abs() < 0.1);
             }
         }
+    }
+    fn decrement_incrementer() {
+        todo!();
     }
 }

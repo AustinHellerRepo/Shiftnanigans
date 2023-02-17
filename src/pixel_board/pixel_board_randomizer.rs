@@ -687,94 +687,96 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                         }
                     }
 
-                    let location_references_width = rightmost_x - 2;
+                    if rightmost_x > 1 && bottommost_y > 1 {
+                        let location_references_width = rightmost_x - 1;
 
-                    // TODO incorporate adjacent vector to determining which cell group indexes are adjacent to each wall-adjacent as they are being constructed
+                        // TODO incorporate adjacent vector to determining which cell group indexes are adjacent to each wall-adjacent as they are being constructed
 
-                    for y in 1..bottommost_y {
-                        for x in 1..rightmost_x {
-                            let pixel_board_coordinate: (usize, usize) = (x, y);
-                            if pixel_board.exists(pixel_board_coordinate.0, pixel_board_coordinate.1) && !visited_pixel_board_coordinates.contains(&pixel_board_coordinate) {
-                                let mut cells: Vec<(u8, u8)> = Vec::new();
-                                let mut topmost_cell_group_y: usize = bottommost_y;
-                                let mut bottommost_cell_group_y: usize = 0;
-                                let mut leftmost_cell_group_x: usize = rightmost_x;
-                                let mut rightmost_cell_group_x: usize = 0;
-                                let mut adjacent_wall_cell_group_indexes: Vec<usize> = Vec::new();
-                                let mut possible_cell_at_pixel_board_coordinates: Vec<(usize, usize)> = vec![pixel_board_coordinate];
-                                while !possible_cell_at_pixel_board_coordinates.is_empty() {
-                                    let cell_pixel_board_coordinate = possible_cell_at_pixel_board_coordinates.pop().unwrap();
-                                    visited_pixel_board_coordinates.insert(cell_pixel_board_coordinate);
-                                    // check to see if the top-left can be shifted up or left
-                                    if cell_pixel_board_coordinate.0 < leftmost_cell_group_x {
-                                        leftmost_cell_group_x = cell_pixel_board_coordinate.0;
-                                    }
-                                    if cell_pixel_board_coordinate.0 > rightmost_cell_group_x {
-                                        rightmost_cell_group_x = cell_pixel_board_coordinate.0;
-                                    }
-                                    if cell_pixel_board_coordinate.1 < topmost_cell_group_y {
-                                        topmost_cell_group_y = cell_pixel_board_coordinate.1;
-                                    }
-                                    if cell_pixel_board_coordinate.1 > bottommost_cell_group_y {
-                                        bottommost_cell_group_y = cell_pixel_board_coordinate.1;
-                                    }
-                                    // check if there are any wall indexes this cell is adjacent to
-                                    for wall_cell_group_index in wall_cell_group_indexes.iter() {
-                                        if adjacent_pixel_board_coordinates_per_cell_group_index[*wall_cell_group_index].contains(&cell_pixel_board_coordinate) && !adjacent_wall_cell_group_indexes.contains(wall_cell_group_index) {
-                                            adjacent_wall_cell_group_indexes.push(*wall_cell_group_index);
+                        for y in 1..bottommost_y {
+                            for x in 1..rightmost_x {
+                                let pixel_board_coordinate: (usize, usize) = (x, y);
+                                if pixel_board.exists(pixel_board_coordinate.0, pixel_board_coordinate.1) && !visited_pixel_board_coordinates.contains(&pixel_board_coordinate) {
+                                    let mut cells: Vec<(u8, u8)> = Vec::new();
+                                    let mut topmost_cell_group_y: usize = bottommost_y;
+                                    let mut bottommost_cell_group_y: usize = 0;
+                                    let mut leftmost_cell_group_x: usize = rightmost_x;
+                                    let mut rightmost_cell_group_x: usize = 0;
+                                    let mut adjacent_wall_cell_group_indexes: Vec<usize> = Vec::new();
+                                    let mut possible_cell_at_pixel_board_coordinates: Vec<(usize, usize)> = vec![pixel_board_coordinate];
+                                    while !possible_cell_at_pixel_board_coordinates.is_empty() {
+                                        let cell_pixel_board_coordinate = possible_cell_at_pixel_board_coordinates.pop().unwrap();
+                                        visited_pixel_board_coordinates.insert(cell_pixel_board_coordinate);
+                                        // check to see if the top-left can be shifted up or left
+                                        if cell_pixel_board_coordinate.0 < leftmost_cell_group_x {
+                                            leftmost_cell_group_x = cell_pixel_board_coordinate.0;
+                                        }
+                                        if cell_pixel_board_coordinate.0 > rightmost_cell_group_x {
+                                            rightmost_cell_group_x = cell_pixel_board_coordinate.0;
+                                        }
+                                        if cell_pixel_board_coordinate.1 < topmost_cell_group_y {
+                                            topmost_cell_group_y = cell_pixel_board_coordinate.1;
+                                        }
+                                        if cell_pixel_board_coordinate.1 > bottommost_cell_group_y {
+                                            bottommost_cell_group_y = cell_pixel_board_coordinate.1;
+                                        }
+                                        // check if there are any wall indexes this cell is adjacent to
+                                        for wall_cell_group_index in wall_cell_group_indexes.iter() {
+                                            if adjacent_pixel_board_coordinates_per_cell_group_index[*wall_cell_group_index].contains(&cell_pixel_board_coordinate) && !adjacent_wall_cell_group_indexes.contains(wall_cell_group_index) {
+                                                adjacent_wall_cell_group_indexes.push(*wall_cell_group_index);
+                                            }
+                                        }
+                                        let cell = (cell_pixel_board_coordinate.0 as u8, cell_pixel_board_coordinate.1 as u8);
+                                        cells.push(cell);
+                                        if cell_pixel_board_coordinate.0 > 1 {
+                                            let next_pixel_board_coordinate = (cell_pixel_board_coordinate.0 - 1, cell_pixel_board_coordinate.1);
+                                            if pixel_board.exists(next_pixel_board_coordinate.0, next_pixel_board_coordinate.1) && !visited_pixel_board_coordinates.contains(&next_pixel_board_coordinate) && !possible_cell_at_pixel_board_coordinates.contains(&next_pixel_board_coordinate) {
+                                                possible_cell_at_pixel_board_coordinates.push(next_pixel_board_coordinate);
+                                            }
+                                        }
+                                        if cell_pixel_board_coordinate.1 > 1 {
+                                            let next_pixel_board_coordinate = (cell_pixel_board_coordinate.0, cell_pixel_board_coordinate.1 - 1);
+                                            if pixel_board.exists(next_pixel_board_coordinate.0, next_pixel_board_coordinate.1) && !visited_pixel_board_coordinates.contains(&next_pixel_board_coordinate) && !possible_cell_at_pixel_board_coordinates.contains(&next_pixel_board_coordinate) {
+                                                possible_cell_at_pixel_board_coordinates.push(next_pixel_board_coordinate);
+                                            }
+                                        }
+                                        if cell_pixel_board_coordinate.0 < rightmost_x - 1 {
+                                            let next_pixel_board_coordinate = (cell_pixel_board_coordinate.0 + 1, cell_pixel_board_coordinate.1);
+                                            if pixel_board.exists(next_pixel_board_coordinate.0, next_pixel_board_coordinate.1) && !visited_pixel_board_coordinates.contains(&next_pixel_board_coordinate) && !possible_cell_at_pixel_board_coordinates.contains(&next_pixel_board_coordinate) {
+                                                possible_cell_at_pixel_board_coordinates.push(next_pixel_board_coordinate);
+                                            }
+                                        }
+                                        if cell_pixel_board_coordinate.1 < bottommost_y - 1 {
+                                            let next_pixel_board_coordinate = (cell_pixel_board_coordinate.0, cell_pixel_board_coordinate.1 + 1);
+                                            if pixel_board.exists(next_pixel_board_coordinate.0, next_pixel_board_coordinate.1) && !visited_pixel_board_coordinates.contains(&next_pixel_board_coordinate) && !possible_cell_at_pixel_board_coordinates.contains(&next_pixel_board_coordinate) {
+                                                possible_cell_at_pixel_board_coordinates.push(next_pixel_board_coordinate);
+                                            }
                                         }
                                     }
-                                    let cell = (cell_pixel_board_coordinate.0 as u8, cell_pixel_board_coordinate.1 as u8);
-                                    cells.push(cell);
-                                    if cell_pixel_board_coordinate.0 > 1 {
-                                        let next_pixel_board_coordinate = (cell_pixel_board_coordinate.0 - 1, cell_pixel_board_coordinate.1);
-                                        if pixel_board.exists(next_pixel_board_coordinate.0, next_pixel_board_coordinate.1) && !visited_pixel_board_coordinates.contains(&next_pixel_board_coordinate) && !possible_cell_at_pixel_board_coordinates.contains(&next_pixel_board_coordinate) {
-                                            possible_cell_at_pixel_board_coordinates.push(next_pixel_board_coordinate);
+                                    // at this point there are one or more cells found
+                                    if wall_adjacent_cell_group_index_offset_option.is_none() {
+                                        wall_adjacent_cell_group_index_offset_option = Some(raw_cell_groups.len());
+                                    }
+                                    wall_adjacent_cell_group_indexes.push(raw_cell_groups.len());
+                                    raw_cell_groups.push(CellGroup {
+                                        cells: cells
+                                    });
+                                    adjacent_cell_group_indexes_per_cell_group_index.push(adjacent_wall_cell_group_indexes.clone());
+                                    adjacent_wall_cell_group_indexes.clear();
+                                    pixel_board_coordinate_per_cell_group_index.push((leftmost_cell_group_x, topmost_cell_group_y));
+                                    
+                                    // construct index shifter
+                                    let mut states: Vec<Rc<(u8, u8)>> = Vec::new();
+                                    let cell_group_width = rightmost_cell_group_x - leftmost_cell_group_x + 1;
+                                    let cell_group_height = bottommost_cell_group_y - topmost_cell_group_y + 1;
+                                    for y in 1..=(bottommost_y - cell_group_height) {
+                                        for x in 1..=(rightmost_x - cell_group_width) {
+                                            let location_reference_index = (y - 1) * location_references_width + (x - 1);
+                                            states.push(location_references[location_reference_index].clone());
                                         }
                                     }
-                                    if cell_pixel_board_coordinate.1 > 1 {
-                                        let next_pixel_board_coordinate = (cell_pixel_board_coordinate.0, cell_pixel_board_coordinate.1 - 1);
-                                        if pixel_board.exists(next_pixel_board_coordinate.0, next_pixel_board_coordinate.1) && !visited_pixel_board_coordinates.contains(&next_pixel_board_coordinate) && !possible_cell_at_pixel_board_coordinates.contains(&next_pixel_board_coordinate) {
-                                            possible_cell_at_pixel_board_coordinates.push(next_pixel_board_coordinate);
-                                        }
-                                    }
-                                    if cell_pixel_board_coordinate.0 < rightmost_x - 1 {
-                                        let next_pixel_board_coordinate = (cell_pixel_board_coordinate.0 + 1, cell_pixel_board_coordinate.1);
-                                        if pixel_board.exists(next_pixel_board_coordinate.0, next_pixel_board_coordinate.1) && !visited_pixel_board_coordinates.contains(&next_pixel_board_coordinate) && !possible_cell_at_pixel_board_coordinates.contains(&next_pixel_board_coordinate) {
-                                            possible_cell_at_pixel_board_coordinates.push(next_pixel_board_coordinate);
-                                        }
-                                    }
-                                    if cell_pixel_board_coordinate.1 < bottommost_y - 1 {
-                                        let next_pixel_board_coordinate = (cell_pixel_board_coordinate.0, cell_pixel_board_coordinate.1 + 1);
-                                        if pixel_board.exists(next_pixel_board_coordinate.0, next_pixel_board_coordinate.1) && !visited_pixel_board_coordinates.contains(&next_pixel_board_coordinate) && !possible_cell_at_pixel_board_coordinates.contains(&next_pixel_board_coordinate) {
-                                            possible_cell_at_pixel_board_coordinates.push(next_pixel_board_coordinate);
-                                        }
-                                    }
+                                    let index_shifter = IndexShifter::new(&vec![states]);
+                                    wall_adjacent_index_shifters.push(index_shifter);
                                 }
-                                // at this point there are one or more cells found
-                                if wall_adjacent_cell_group_index_offset_option.is_none() {
-                                    wall_adjacent_cell_group_index_offset_option = Some(raw_cell_groups.len());
-                                }
-                                wall_adjacent_cell_group_indexes.push(raw_cell_groups.len());
-                                raw_cell_groups.push(CellGroup {
-                                    cells: cells
-                                });
-                                adjacent_cell_group_indexes_per_cell_group_index.push(adjacent_wall_cell_group_indexes.clone());
-                                adjacent_wall_cell_group_indexes.clear();
-                                pixel_board_coordinate_per_cell_group_index.push((leftmost_cell_group_x, topmost_cell_group_y));
-                                
-                                // construct index shifter
-                                let mut states: Vec<Rc<(u8, u8)>> = Vec::new();
-                                let cell_group_width = rightmost_cell_group_x - leftmost_cell_group_x + 1;
-                                let cell_group_height = bottommost_cell_group_y - topmost_cell_group_y + 1;
-                                for y in 1..=(bottommost_y - cell_group_height) {
-                                    for x in 1..=(rightmost_x - cell_group_width) {
-                                        let location_reference_index = (y - 1) * location_references_width + (x - 1);
-                                        states.push(location_references[location_reference_index].clone());
-                                    }
-                                }
-                                let index_shifter = IndexShifter::new(&vec![states]);
-                                wall_adjacent_index_shifters.push(index_shifter);
                             }
                         }
                     }
@@ -1428,57 +1430,72 @@ mod pixel_board_randomizer_tests {
 
     #[rstest]
     fn corner_wall_with_wall_adjacent_one_each() {
-        let wall_height: usize = 4;
-        let mut wall_image_ids: Vec<String> = Vec::new();
-        let mut pixel_board: PixelBoard<ExamplePixel> = PixelBoard::new(3, 4);
-        for height_index in 0..wall_height {
-            let image_id = Uuid::new_v4().to_string();
-            pixel_board.set(0, height_index, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
-                image_id: image_id.clone()
-            }))));
-            wall_image_ids.push(image_id);
-        }
-        let wall_adjacent_image_id = Uuid::new_v4().to_string();
-        pixel_board.set(1, 1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
-            image_id: wall_adjacent_image_id.clone()
-        }))));
-        let pixel_board_randomizer = PixelBoardRandomizer::new(pixel_board);
-        for _ in 0..10 {
-            let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
-            assert!(!random_pixel_board.exists(1, 0));
-            assert!(!random_pixel_board.exists(1, wall_height - 1));
-            let mut wall_adjacents_total = 0;
-            for height_index in 0..wall_height {
-                assert!(random_pixel_board.exists(0, height_index));
-                {
-                    let wrapped_random_wall_pixel = random_pixel_board.get(0, height_index).unwrap();
-                    let borrowed_random_wall_pixel: &ExamplePixel = &wrapped_random_wall_pixel.borrow();
-                    if let ExamplePixel::Tile(random_wall_pixel) = borrowed_random_wall_pixel {
-                        let wall_image_id = &wall_image_ids[height_index];
-                        assert_eq!(wall_image_id, &random_wall_pixel.image_id);
-                    }
-                    else {
-                        panic!("Unexpected ExamplePixel type");
-                    }
+        for board_width in 4..=5 {
+            for wall_height in 3..=8 {
+                let mut wall_image_ids: Vec<String> = Vec::new();
+                let mut pixel_board: PixelBoard<ExamplePixel> = PixelBoard::new(board_width, wall_height);
+                for height_index in 0..wall_height {
+                    let image_id = Uuid::new_v4().to_string();
+                    pixel_board.set(0, height_index, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+                        image_id: image_id.clone()
+                    }))));
+                    wall_image_ids.push(image_id);
                 }
-                {
-                    let wrapped_wall_adjacent_pixel_option = random_pixel_board.get(1, height_index);
-                    if wrapped_wall_adjacent_pixel_option.is_some() {
-                        wall_adjacents_total += 1;
-                        let wrapped_wall_adjacent_pixel = wrapped_wall_adjacent_pixel_option.unwrap();
-                        let borrowed_wall_adjacent_pixel: &ExamplePixel = &wrapped_wall_adjacent_pixel.borrow();
-                        if let ExamplePixel::Tile(wall_adjacent_pixel) = borrowed_wall_adjacent_pixel {
-                            assert_eq!(&wall_adjacent_image_id, &wall_adjacent_pixel.image_id);
+                let wall_adjacent_image_id = Uuid::new_v4().to_string();
+                pixel_board.set(1, 1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+                    image_id: wall_adjacent_image_id.clone()
+                }))));
+                let pixel_board_randomizer = PixelBoardRandomizer::new(pixel_board);
+                let mut appearances_totals: Vec<u32> = Vec::new();
+                for _ in 0..(wall_height - 2) {
+                    appearances_totals.push(0);
+                }
+                for _ in 0..10000 {
+                    let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
+                    assert!(!random_pixel_board.exists(1, 0));
+                    assert!(!random_pixel_board.exists(1, wall_height - 1));
+                    let mut wall_adjacents_total = 0;
+                    for height_index in 0..wall_height {
+                        assert!(random_pixel_board.exists(0, height_index));
+                        {
+                            let wrapped_random_wall_pixel = random_pixel_board.get(0, height_index).unwrap();
+                            let borrowed_random_wall_pixel: &ExamplePixel = &wrapped_random_wall_pixel.borrow();
+                            if let ExamplePixel::Tile(random_wall_pixel) = borrowed_random_wall_pixel {
+                                let wall_image_id = &wall_image_ids[height_index];
+                                assert_eq!(wall_image_id, &random_wall_pixel.image_id);
+                            }
+                            else {
+                                panic!("Unexpected ExamplePixel type");
+                            }
                         }
-                        else {
-                            panic!("Unexpected ExamplePixel type");
+                        {
+                            let wrapped_wall_adjacent_pixel_option = random_pixel_board.get(1, height_index);
+                            if wrapped_wall_adjacent_pixel_option.is_some() {
+                                wall_adjacents_total += 1;
+                                appearances_totals[height_index - 1] += 1;
+                                let wrapped_wall_adjacent_pixel = wrapped_wall_adjacent_pixel_option.unwrap();
+                                let borrowed_wall_adjacent_pixel: &ExamplePixel = &wrapped_wall_adjacent_pixel.borrow();
+                                if let ExamplePixel::Tile(wall_adjacent_pixel) = borrowed_wall_adjacent_pixel {
+                                    assert_eq!(&wall_adjacent_image_id, &wall_adjacent_pixel.image_id);
+                                }
+                                else {
+                                    panic!("Unexpected ExamplePixel type");
+                                }
+                            }
+                        }
+                        
+                        for board_width_index in 0..(board_width - 2) {
+                            assert!(!random_pixel_board.exists(board_width_index + 2, height_index));
                         }
                     }
+                    assert_eq!(1, wall_adjacents_total);
                 }
-                
-                assert!(!random_pixel_board.exists(2, height_index));
+                println!("appearances_totals: {:?}", appearances_totals);
+                for appearances_total in appearances_totals.iter() {
+                    let expected_value = &(10000 / appearances_totals.len() as u32 - 1000 / appearances_totals.len() as u32);
+                    assert!(appearances_total > expected_value);
+                }
             }
-            assert_eq!(1, wall_adjacents_total);
         }
     }
 
