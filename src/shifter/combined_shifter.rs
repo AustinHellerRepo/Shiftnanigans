@@ -65,43 +65,37 @@ impl<T> Shifter for CombinedShifter<T> {
             }
             self.current_shifter_index = Some(0);
         }
-        else {
-            let mut current_shifter_index = self.current_shifter_index.unwrap();
-            if current_shifter_index != self.shifters.len() {
-                let is_current_shifter_try_forward_successful = self.shifters[current_shifter_index].borrow_mut().try_forward();
-                if is_current_shifter_try_forward_successful {
-                    return true;
-                }
-                current_shifter_index += 1;
-                self.current_shifter_index = Some(current_shifter_index);
+        let mut current_shifter_index = self.current_shifter_index.unwrap();
+        while current_shifter_index != self.shifters.len() {
+            let is_current_shifter_try_forward_successful = self.shifters[current_shifter_index].borrow_mut().try_forward();
+            if is_current_shifter_try_forward_successful {
+                return true;
             }
-            if current_shifter_index == self.shifters.len() {
-                return false;
-            }
+            current_shifter_index += 1;
+            self.current_shifter_index = Some(current_shifter_index);
         }
-        // TODO the current index should be checked and, if false, increment again
-        return self.shifters[self.current_shifter_index.unwrap()].borrow_mut().try_forward();
+        return current_shifter_index != self.shifters.len();
     }
     fn try_backward(&mut self) -> bool {
-        if self.current_shifter_index.is_none() {
+        if self.current_shifter_index.is_none() || self.shifters.len() == 0 {
             return false;
         }
-        else {
-            let mut current_shifter_index = self.current_shifter_index.unwrap();
-            if current_shifter_index != self.shifters.len() {
-                let is_current_shifter_try_backward_successful = self.shifters[current_shifter_index].borrow_mut().try_backward();
-                if is_current_shifter_try_backward_successful {
-                    return true;
-                }
-            }
-            if current_shifter_index == 0 {
-                self.current_shifter_index = None;
-                return false;
-            }
-            current_shifter_index -= 1;
-            self.current_shifter_index = Some(current_shifter_index);
-            return self.shifters[current_shifter_index].borrow_mut().try_backward();
+        if self.current_shifter_index.unwrap() == self.shifters.len() {
+            self.current_shifter_index = Some(self.current_shifter_index.unwrap() - 1);
         }
+        while self.current_shifter_index.is_some() {
+            let is_current_shifter_try_backward_successful = self.shifters[self.current_shifter_index.unwrap()].borrow_mut().try_backward();
+            if is_current_shifter_try_backward_successful {
+                return true;
+            }
+            if self.current_shifter_index.unwrap() == 0 {
+                self.current_shifter_index = None;
+            }
+            else {
+                self.current_shifter_index = Some(self.current_shifter_index.unwrap() - 1);
+            }
+        }
+        return self.current_shifter_index.is_some();
     }
     fn try_increment(&mut self) -> bool {
         let current_shifter_index = self.current_shifter_index.unwrap();
@@ -133,6 +127,7 @@ impl<T> Shifter for CombinedShifter<T> {
         return self.possible_states.clone();
     }
     fn randomize(&mut self) {
+        // TODO determine if this misorders indexes - should a mapper be used and randomized instead?
         for shifter in self.shifters.iter() {
             shifter.borrow_mut().randomize();
         }
