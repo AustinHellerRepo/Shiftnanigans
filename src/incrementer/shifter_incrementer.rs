@@ -32,6 +32,7 @@ impl<T> Incrementer for ShifterIncrementer<T> {
         }
         let mut borrowed_shifter = self.shifter.borrow_mut();
         if !self.is_started {
+            self.is_started = true;
             for _ in 0..self.shifter_length {
                 if !borrowed_shifter.try_forward() {
                     self.is_completed = true;

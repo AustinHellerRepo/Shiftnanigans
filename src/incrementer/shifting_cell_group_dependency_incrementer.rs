@@ -7,9 +7,7 @@
 //                  It is filled from a master collection per shift index and state key of vectors of BTreeSets, filled as new bad pairs are discovered.
 
 use std::{collections::{VecDeque, BTreeSet}, rc::Rc, cell::RefCell};
-
 use bitvec::vec::BitVec;
-
 use crate::{shifter::{combined_shifter::CombinedShifter, Shifter}, IndexedElement, CellGroup};
 use super::Incrementer;
 
@@ -395,7 +393,7 @@ mod shifting_cell_group_dependency_incrementer_tests {
 
         time_graph::enable_data_collection(true);
 
-        let mut detection_offsets_per_cell_group_index_per_cell_group_index: Vec<Vec<Vec<(i32, i32)>>> = Vec::new();
+        let mut detection_offsets_per_cell_group_index_per_cell_group_index: Vec<Vec<Vec<(i16, i16)>>> = Vec::new();
         let mut is_adjacent_cell_group_index_per_cell_group_index: Vec<BitVec> = Vec::new();
         let mut cell_group_dependencies: Vec<CellGroupDependency> = Vec::new();
 
@@ -415,6 +413,7 @@ mod shifting_cell_group_dependency_incrementer_tests {
         //      2023-01-06     3.15s on potato
         //      2023-01-08     0.392s
         //      2023-01-10     0.819s on potato
+        //      2023-02-18     1.08s on potato
         //  6
         //      2023-01-08   327.12s
 
@@ -457,7 +456,16 @@ mod shifting_cell_group_dependency_incrementer_tests {
         }
         let cell_groups: Rc<Vec<CellGroup>> = Rc::new(cell_groups);
 
-        detection_offsets_per_cell_group_index_per_cell_group_index.push(vec![vec![]]);
+        // construct detection offsets
+        {
+            for _ in 0..cell_groups_total {
+                let mut detection_offsets_per_cell_group_index: Vec<Vec<(i16, i16)>> = Vec::new();
+                for _ in 0..cell_groups_total {
+                    detection_offsets_per_cell_group_index.push(Vec::new());
+                }
+                detection_offsets_per_cell_group_index_per_cell_group_index.push(detection_offsets_per_cell_group_index);
+            }
+        }
 
         // construct adjacency bitvec
         {
@@ -506,11 +514,7 @@ mod shifting_cell_group_dependency_incrementer_tests {
         let shifting_cell_group_dependency_incrementer = ShiftingCellGroupDependencyIncrementer::new(
             cell_groups.clone(),
             cell_group_dependencies,
-            Rc::new(vec![
-                vec![
-                    Vec::new()
-                ],
-            ]),
+            Rc::new(detection_offsets_per_cell_group_index_per_cell_group_index),
             Rc::new(is_adjacent_cell_group_index_per_cell_group_index)
         );
 

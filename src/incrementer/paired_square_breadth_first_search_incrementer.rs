@@ -4,7 +4,6 @@ use super::Incrementer;
 
 pub struct PairedSquareBreadthFirstSearchIncrementer<T> {
     incrementers: Vec<Rc<RefCell<dyn Incrementer<T = T>>>>,
-    indexed_element_index_mapping: Vec<usize>,
     current_size: Option<usize>,
     current_x: Option<usize>,
     current_y: Option<usize>,
@@ -13,13 +12,10 @@ pub struct PairedSquareBreadthFirstSearchIncrementer<T> {
 }
 
 impl<T> PairedSquareBreadthFirstSearchIncrementer<T> {
-    pub fn new(incrementers: (Rc<RefCell<dyn Incrementer<T = T>>>, Rc<RefCell<dyn Incrementer<T = T>>>), indexed_element_index_mapping: Vec<usize>) -> Self {
-        let mut indexed_elements_per_incrementer_index: Vec<Vec<IndexedElement<T>>> = Vec::with_capacity(2);
-        indexed_elements_per_incrementer_index.push(Vec::new());
-        indexed_elements_per_incrementer_index.push(Vec::new());
+    pub fn new(incrementers: (Rc<RefCell<dyn Incrementer<T = T>>>, Rc<RefCell<dyn Incrementer<T = T>>>)) -> Self {
+        let indexed_elements_per_incrementer_index: Vec<Vec<IndexedElement<T>>> = Vec::with_capacity(2);
         PairedSquareBreadthFirstSearchIncrementer {
             incrementers: vec![incrementers.0, incrementers.1],
-            indexed_element_index_mapping: indexed_element_index_mapping,
             current_size: None,
             current_x: None,
             current_y: None,
@@ -33,6 +29,10 @@ impl<T> Incrementer for PairedSquareBreadthFirstSearchIncrementer<T> {
     type T = T;
 
     fn try_increment(&mut self) -> bool {
+
+        if self.is_completed {
+            return false;
+        }
 
         if self.current_size.is_none() {
 
@@ -51,6 +51,7 @@ impl<T> Incrementer for PairedSquareBreadthFirstSearchIncrementer<T> {
             self.current_y = Some(0);
             return true;
         }
+
         // if the previous step was one that ended in a square shape
         if self.current_x.unwrap() == self.current_y.unwrap() {
 
@@ -63,9 +64,9 @@ impl<T> Incrementer for PairedSquareBreadthFirstSearchIncrementer<T> {
                 if !self.incrementers[1].borrow_mut().try_increment() {
                     panic!("Unexpectedly failed to increment y incrementer after succeeding before.");
                 }
+                self.current_size = Some(self.current_size.unwrap() + 1);
                 self.current_x = Some(self.current_x.unwrap() + 1);
                 self.current_y = Some(0);
-                self.current_size = Some(self.current_size.unwrap() + 1);
 
                 for incrementer in self.incrementers.iter() {
                     let borrowed_incrementer = incrementer.borrow();
@@ -76,12 +77,13 @@ impl<T> Incrementer for PairedSquareBreadthFirstSearchIncrementer<T> {
                 return true;
             }
 
-            // x was not able to move to the new size, so reset x and move y to the new size
+            // x was not able to move to the new size, so reset x and move y to the new size, starting a tall rectangle
             if self.incrementers[1].borrow_mut().try_increment() {
                 self.incrementers[0].borrow_mut().reset();
                 if !self.incrementers[0].borrow_mut().try_increment() {
                     panic!("Unexpectedly failed to increment x incrementers after succeeding before.");
                 }
+                self.current_size = Some(self.current_size.unwrap() + 1);
                 self.current_x = Some(0);
                 self.current_y = Some(self.current_y.unwrap() + 1);
 
@@ -100,9 +102,9 @@ impl<T> Incrementer for PairedSquareBreadthFirstSearchIncrementer<T> {
         }
 
         // if x is to the far right, we need to increment the y downward
-        if self.current_x.unwrap() == self.current_size.unwrap() {
+        if self.current_x.unwrap() == self.current_size.unwrap() - 1 {
             // if y is one step away from the far bottom, then we need to start y at the bottom and move once to the right
-            if self.current_y.unwrap() == self.current_size.unwrap() - 1 {
+            if self.current_y.unwrap() == self.current_size.unwrap() - 2 {
                 self.current_indexed_elements_per_incrementer_index.clear();
                 if self.incrementers[1].borrow_mut().try_increment() {
                     self.incrementers[0].borrow_mut().reset();
@@ -114,13 +116,14 @@ impl<T> Incrementer for PairedSquareBreadthFirstSearchIncrementer<T> {
                         let indexed_elements = borrowed_incrementer.get();
                         self.current_indexed_elements_per_incrementer_index.push(indexed_elements);
                     }
+                    // the size is the same, we're just making our way along the bottom of the square now
                     self.current_x = Some(0);
                     self.current_y = Some(self.current_y.unwrap() + 1);
                     return true;
                 }
                 
                 // we have reached the end of what y is capable of, but maybe not x
-                // we should increment x and reset y
+                // we should increment x and reset y, moving along a wide rectangle
                 if self.incrementers[0].borrow_mut().try_increment() {
                     self.incrementers[1].borrow_mut().reset();
                     if !self.incrementers[1].borrow_mut().try_increment() {
@@ -131,6 +134,7 @@ impl<T> Incrementer for PairedSquareBreadthFirstSearchIncrementer<T> {
                         let indexed_elements = borrowed_incrementer.get();
                         self.current_indexed_elements_per_incrementer_index.push(indexed_elements);
                     }
+                    self.current_size = Some(self.current_size.unwrap() + 1);
                     self.current_x = Some(self.current_x.unwrap() + 1);
                     self.current_y = Some(0);
                     return true;
@@ -197,9 +201,9 @@ impl<T> Incrementer for PairedSquareBreadthFirstSearchIncrementer<T> {
             if !self.incrementers[0].borrow_mut().try_increment() {
                 panic!("Unexpectedly failed to increment x incrementer after succeeding before.");
             }
+            self.current_size = Some(self.current_size.unwrap() + 1);
             self.current_x = Some(0);
             self.current_y = Some(self.current_y.unwrap() + 1);
-            self.current_size = Some(self.current_size.unwrap() + 1);
 
             for incrementer in self.incrementers.iter() {
                 let indexed_elements = incrementer.borrow().get();
@@ -227,12 +231,12 @@ impl<T> Incrementer for PairedSquareBreadthFirstSearchIncrementer<T> {
     fn get(&self) -> Vec<IndexedElement<Self::T>> {
         let mut combined_indexed_elements: Vec<IndexedElement<T>> = Vec::new();
         for indexed_element in self.current_indexed_elements_per_incrementer_index[0].iter() {
-            let mapped_indexed_element = IndexedElement::new(indexed_element.element.clone(), self.indexed_element_index_mapping[indexed_element.index]);
+            let mapped_indexed_element = IndexedElement::new(indexed_element.element.clone(), indexed_element.index);
             combined_indexed_elements.push(mapped_indexed_element);
         }
         let indexed_element_index_offset = self.current_indexed_elements_per_incrementer_index[0].len();
         for indexed_element in self.current_indexed_elements_per_incrementer_index[1].iter() {
-            let mapped_indexed_element = IndexedElement::new(indexed_element.element.clone(), self.indexed_element_index_mapping[indexed_element.index + indexed_element_index_offset]);
+            let mapped_indexed_element = IndexedElement::new(indexed_element.element.clone(), indexed_element.index + indexed_element_index_offset);
             combined_indexed_elements.push(mapped_indexed_element);
         }
         return combined_indexed_elements;
@@ -288,15 +292,126 @@ mod paired_square_breadth_first_search_incrementer_tests {
                     1,
                     false
                 ))))))
-            ),
-            vec![10, 21, 32, 43]
+            )
         );
 
         assert!(paired_incrementer.try_increment());
         {
             let indexed_elements = paired_incrementer.get();
-            assert_eq!(10, indexed_elements[0].index);
+            assert_eq!(4, indexed_elements.len());
+            assert_eq!(0, indexed_elements[0].index);
             assert_eq!(&(10, 100), indexed_elements[0].element.as_ref());
+            assert_eq!(1, indexed_elements[1].index);
+            assert_eq!(&(12, 100), indexed_elements[1].element.as_ref());
+            assert_eq!(2, indexed_elements[2].index);
+            assert_eq!(&(20, 200), indexed_elements[2].element.as_ref());
+            assert_eq!(3, indexed_elements[3].index);
+            assert_eq!(&(20, 202), indexed_elements[3].element.as_ref());
         }
+        assert!(paired_incrementer.try_increment());
+        {
+            let indexed_elements = paired_incrementer.get();
+            assert_eq!(4, indexed_elements.len());
+            assert_eq!(0, indexed_elements[0].index);
+            assert_eq!(&(10, 100), indexed_elements[0].element.as_ref());
+            assert_eq!(1, indexed_elements[1].index);
+            assert_eq!(&(13, 100), indexed_elements[1].element.as_ref());
+            assert_eq!(2, indexed_elements[2].index);
+            assert_eq!(&(20, 200), indexed_elements[2].element.as_ref());
+            assert_eq!(3, indexed_elements[3].index);
+            assert_eq!(&(20, 202), indexed_elements[3].element.as_ref());
+        }
+        assert!(paired_incrementer.try_increment());
+        {
+            let indexed_elements = paired_incrementer.get();
+            assert_eq!(4, indexed_elements.len());
+            assert_eq!(0, indexed_elements[0].index);
+            assert_eq!(&(10, 100), indexed_elements[0].element.as_ref());
+            assert_eq!(1, indexed_elements[1].index);
+            assert_eq!(&(12, 100), indexed_elements[1].element.as_ref());
+            assert_eq!(2, indexed_elements[2].index);
+            assert_eq!(&(20, 200), indexed_elements[2].element.as_ref());
+            assert_eq!(3, indexed_elements[3].index);
+            assert_eq!(&(20, 203), indexed_elements[3].element.as_ref());
+        }
+        assert!(paired_incrementer.try_increment());
+        {
+            let indexed_elements = paired_incrementer.get();
+            assert_eq!(4, indexed_elements.len());
+            assert_eq!(0, indexed_elements[0].index);
+            assert_eq!(&(10, 100), indexed_elements[0].element.as_ref());
+            assert_eq!(1, indexed_elements[1].index);
+            assert_eq!(&(13, 100), indexed_elements[1].element.as_ref());
+            assert_eq!(2, indexed_elements[2].index);
+            assert_eq!(&(20, 200), indexed_elements[2].element.as_ref());
+            assert_eq!(3, indexed_elements[3].index);
+            assert_eq!(&(20, 203), indexed_elements[3].element.as_ref());
+        }
+        assert!(paired_incrementer.try_increment());
+        {
+            let indexed_elements = paired_incrementer.get();
+            assert_eq!(4, indexed_elements.len());
+            assert_eq!(0, indexed_elements[0].index);
+            assert_eq!(&(11, 100), indexed_elements[0].element.as_ref());
+            assert_eq!(1, indexed_elements[1].index);
+            assert_eq!(&(13, 100), indexed_elements[1].element.as_ref());
+            assert_eq!(2, indexed_elements[2].index);
+            assert_eq!(&(20, 200), indexed_elements[2].element.as_ref());
+            assert_eq!(3, indexed_elements[3].index);
+            assert_eq!(&(20, 202), indexed_elements[3].element.as_ref());
+        }
+        assert!(paired_incrementer.try_increment());
+        {
+            let indexed_elements = paired_incrementer.get();
+            assert_eq!(4, indexed_elements.len());
+            assert_eq!(0, indexed_elements[0].index);
+            assert_eq!(&(11, 100), indexed_elements[0].element.as_ref());
+            assert_eq!(1, indexed_elements[1].index);
+            assert_eq!(&(13, 100), indexed_elements[1].element.as_ref());
+            assert_eq!(2, indexed_elements[2].index);
+            assert_eq!(&(20, 200), indexed_elements[2].element.as_ref());
+            assert_eq!(3, indexed_elements[3].index);
+            assert_eq!(&(20, 203), indexed_elements[3].element.as_ref());
+        }
+        assert!(paired_incrementer.try_increment());
+        {
+            let indexed_elements = paired_incrementer.get();
+            assert_eq!(4, indexed_elements.len());
+            assert_eq!(0, indexed_elements[0].index);
+            assert_eq!(&(10, 100), indexed_elements[0].element.as_ref());
+            assert_eq!(1, indexed_elements[1].index);
+            assert_eq!(&(12, 100), indexed_elements[1].element.as_ref());
+            assert_eq!(2, indexed_elements[2].index);
+            assert_eq!(&(20, 201), indexed_elements[2].element.as_ref());
+            assert_eq!(3, indexed_elements[3].index);
+            assert_eq!(&(20, 203), indexed_elements[3].element.as_ref());
+        }
+        assert!(paired_incrementer.try_increment());
+        {
+            let indexed_elements = paired_incrementer.get();
+            assert_eq!(4, indexed_elements.len());
+            assert_eq!(0, indexed_elements[0].index);
+            assert_eq!(&(10, 100), indexed_elements[0].element.as_ref());
+            assert_eq!(1, indexed_elements[1].index);
+            assert_eq!(&(13, 100), indexed_elements[1].element.as_ref());
+            assert_eq!(2, indexed_elements[2].index);
+            assert_eq!(&(20, 201), indexed_elements[2].element.as_ref());
+            assert_eq!(3, indexed_elements[3].index);
+            assert_eq!(&(20, 203), indexed_elements[3].element.as_ref());
+        }
+        assert!(paired_incrementer.try_increment());
+        {
+            let indexed_elements = paired_incrementer.get();
+            assert_eq!(4, indexed_elements.len());
+            assert_eq!(0, indexed_elements[0].index);
+            assert_eq!(&(11, 100), indexed_elements[0].element.as_ref());
+            assert_eq!(1, indexed_elements[1].index);
+            assert_eq!(&(13, 100), indexed_elements[1].element.as_ref());
+            assert_eq!(2, indexed_elements[2].index);
+            assert_eq!(&(20, 201), indexed_elements[2].element.as_ref());
+            assert_eq!(3, indexed_elements[3].index);
+            assert_eq!(&(20, 203), indexed_elements[3].element.as_ref());
+        }
+        assert!(!paired_incrementer.try_increment());
     }
 }
