@@ -500,6 +500,8 @@ mod shifting_cell_group_dependency_incrementer_tests {
                 shifters.push(Rc::new(RefCell::new(IndexShifter::new(&vec![locations]))));
             }
             
+            // the single cell group dependency contains all possible shifters because they each must be valid compared to all other shifters
+            // the PixelBoardRandomizer connects different ShiftingCellGroupDependencyIncrementer results together until enough pairs are traversed, producing a cycle
             cell_group_dependencies.push(CellGroupDependency {
                 cell_group_index_mapping: cell_group_index_mapping,
                 combined_shifter: RefCell::new(CombinedShifter::new(&shifters, false))

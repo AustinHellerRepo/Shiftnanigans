@@ -5,6 +5,7 @@ pub mod round_robin_incrementer;
 pub mod square_breadth_first_search_incrementer;
 pub mod paired_square_breadth_first_search_incrementer;
 pub mod shifter_incrementer;
+pub mod binary_density_incrementer;
 
 pub trait Incrementer {
     type T;
