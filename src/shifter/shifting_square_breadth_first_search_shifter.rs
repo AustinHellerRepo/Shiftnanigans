@@ -62,28 +62,35 @@ use super::{singular_shifter::SingularShifter, Shifter};
 ///         1  2  2
 ///         2  2  2
 /// 
-pub struct BreadthFirstSearchShifter<T> {
-    shifters: Vec<SingularShifter<T>>,
-    length_per_shifter_index: Vec<usize>
+pub struct ShiftingSquareBreadthFirstSearchShifter<T> {
+    shifters: Vec<Rc<RefCell<dyn Shifter<T = T>>>>,
+    length_per_shifter_index: Vec<usize>,
+    current_indexed_elements: Vec<IndexedElement<T>>,
+    current_shifter_index: Option<usize>,
+    length: usize
 }
 
-impl<T> BreadthFirstSearchShifter<T> {
+impl<T> ShiftingSquareBreadthFirstSearchShifter<T> {
     pub fn new(shifters: Vec<Rc<RefCell<dyn Shifter<T = T>>>>) -> Self {
         let mut length_per_shifter_index: Vec<usize> = Vec::new();
-        let mut singular_shifters: Vec<SingularShifter<T>> = Vec::new();
-        for shifter in shifters {
-            length_per_shifter_index.push(shifter.borrow().get_length());
-            let singular_shifter = SingularShifter::new(shifter);
-            singular_shifters.push(singular_shifter);
+        let mut length = 0;
+        for shifter in shifters.iter() {
+            let borrowed_shifter = shifter.borrow();
+            let shifter_length = borrowed_shifter.get_length();
+            length_per_shifter_index.push(shifter_length);
+            length += shifter_length;
         }
-        BreadthFirstSearchShifter {
-            shifters: singular_shifters,
-            length_per_shifter_index: length_per_shifter_index
+        ShiftingSquareBreadthFirstSearchShifter {
+            shifters: shifters,
+            length_per_shifter_index: length_per_shifter_index,
+            current_indexed_elements: Vec::new(),
+            current_shifter_index: None,
+            length: length
         }
     }
 }
 
-impl<T> Shifter for BreadthFirstSearchShifter<T> {
+impl<T> Shifter for ShiftingSquareBreadthFirstSearchShifter<T> {
     type T = T;
 
     fn try_forward(&mut self) -> bool {
