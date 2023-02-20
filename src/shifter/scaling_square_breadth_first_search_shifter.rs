@@ -10,6 +10,7 @@ use super::Shifter;
 pub struct ScalingSquareBreadthFirstSearchShifter {
     length: usize,
     maximum_scale: usize,
+    current_scale: usize,
     binary_density_incrementer: BinaryDensityIncrementer,
     current_binary_density_mask: BitVec,
     current_scale_per_index: Vec<Option<usize>>,
@@ -26,6 +27,7 @@ impl ScalingSquareBreadthFirstSearchShifter {
         ScalingSquareBreadthFirstSearchShifter {
             length: length,
             maximum_scale: maximum_scale,
+            current_scale: 0,
             binary_density_incrementer: BinaryDensityIncrementer::new(length),
             current_binary_density_mask: BitVec::repeat(false, length),
             current_scale_per_index: Vec::new(),
@@ -46,8 +48,8 @@ impl Shifter for ScalingSquareBreadthFirstSearchShifter {
             if !self.binary_density_incrementer.try_increment() {
                 panic!("Unexpectedly failed to do the initial increment of the binary density incrementer.");
             }
-            // if the binary density incrementer would have any influence, since the all-zero state should only exist for when the self.maximum_scale equals zero
-            if self.maximum_scale != 0 {
+            // if the binary density incrementer would have any influence, since the all-zero state should only exist for when the self.current_scale equals zero
+            if self.current_scale != 0 {
                 if !self.binary_density_incrementer.try_increment() {
                     panic!("Unexpectedly failed to do the second increment of the binary density incrementer.");
                 }
@@ -86,6 +88,7 @@ impl Shifter for ScalingSquareBreadthFirstSearchShifter {
         }
         if current_index == 0 {
             self.current_index = None;
+            self.current_scale = 0;
             self.binary_density_incrementer.reset();
             return false;
         }
@@ -100,7 +103,7 @@ impl Shifter for ScalingSquareBreadthFirstSearchShifter {
         // if this the first increment at this index
         if self.current_scale_per_index[current_index].is_none() {
             if self.current_binary_density_mask[current_index] {
-                self.current_scale_per_index[current_index] = Some(self.maximum_scale);
+                self.current_scale_per_index[current_index] = Some(self.current_scale);
             }
             else {
                 self.current_scale_per_index[current_index] = Some(0);
@@ -110,18 +113,26 @@ impl Shifter for ScalingSquareBreadthFirstSearchShifter {
         // if the current index is at the limit
         let current_scale = self.current_scale_per_index[current_index].unwrap();
         // if the current_scale represents a binary density point or is not a binary density point that has reached the end
-        if current_scale == self.maximum_scale || current_scale == self.maximum_scale - 1 {
+        if current_scale == self.current_scale || current_scale == self.current_scale - 1 {
             // is the current index the first index, permitting an increment of the binary density mask
             if current_index == 0 {
-                // if there are no other possible set of states
-                if self.maximum_scale == 0 {
-                    return false;
-                }
                 self.current_scale_per_index.pop();
+                // if we are at the end of this self.current_shift
                 // need to increment the binary density and resize self.current_scale_per_index
-                if !self.binary_density_incrementer.try_increment() {
-                    // reached the end
-                    return false;
+                if self.current_scale == 0 || !self.binary_density_incrementer.try_increment() {
+                    if self.current_scale == self.maximum_scale {
+                        // reached the end
+                        return false;
+                    }
+                    self.current_scale += 1;
+                    self.binary_density_incrementer.reset();
+                    if !self.binary_density_incrementer.try_increment() {
+                        panic!("Unexpectedly failed to perform initial increment of binary density incrementer after previously succeeding.");
+                    }
+                    if !self.binary_density_incrementer.try_increment() {
+                        panic!("Unexpectedly failed to perform second increment of binary density incrementer after previously succeeding.");
+                    }
+                    // fall through and collect the updated mask and set the 0th self.current_scale_per_index
                 }
                 // reset self.current_binary_density_mask
                 self.current_binary_density_mask = BitVec::repeat(false, self.length);
@@ -132,7 +143,7 @@ impl Shifter for ScalingSquareBreadthFirstSearchShifter {
                 }
                 // initialize the 0th element
                 if self.current_binary_density_mask[0] {
-                    self.current_scale_per_index.push(Some(self.maximum_scale));
+                    self.current_scale_per_index.push(Some(self.current_scale));
                 }
                 else {
                     self.current_scale_per_index.push(Some(0));
@@ -218,6 +229,14 @@ mod scaling_square_breadth_first_search_shifter_tests {
             {
                 let indexed_element = shifter.get_indexed_element();
                 assert_eq!(0, indexed_element.index);
+                assert_eq!(&0, indexed_element.element.as_ref());
+            }
+            assert!(!shifter.try_forward());
+            assert!(shifter.try_backward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(0, indexed_element.index);
                 assert_eq!(&1, indexed_element.element.as_ref());
             }
             assert!(!shifter.try_forward());
@@ -234,6 +253,22 @@ mod scaling_square_breadth_first_search_shifter_tests {
         let mut shifter = ScalingSquareBreadthFirstSearchShifter::new(1, 2);
         for _ in 0..10 {
             assert!(shifter.try_forward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(0, indexed_element.index);
+                assert_eq!(&0, indexed_element.element.as_ref());
+            }
+            assert!(!shifter.try_forward());
+            assert!(shifter.try_backward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(0, indexed_element.index);
+                assert_eq!(&1, indexed_element.element.as_ref());
+            }
+            assert!(!shifter.try_forward());
+            assert!(shifter.try_backward());
             assert!(shifter.try_increment());
             {
                 let indexed_element = shifter.get_indexed_element();
@@ -283,6 +318,23 @@ mod scaling_square_breadth_first_search_shifter_tests {
         let mut shifter = ScalingSquareBreadthFirstSearchShifter::new(2, 1);
         for _ in 0..10 {
             assert!(shifter.try_forward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(0, indexed_element.index);
+                assert_eq!(&0, indexed_element.element.as_ref());
+            }
+            assert!(shifter.try_forward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(1, indexed_element.index);
+                assert_eq!(&0, indexed_element.element.as_ref());
+            }
+            assert!(!shifter.try_forward());
+            assert!(shifter.try_backward());
+            assert!(!shifter.try_increment());
+            assert!(shifter.try_backward());
             assert!(shifter.try_increment());
             {
                 let indexed_element = shifter.get_indexed_element();
@@ -344,6 +396,214 @@ mod scaling_square_breadth_first_search_shifter_tests {
         let mut shifter = ScalingSquareBreadthFirstSearchShifter::new(3, 2);
         for _ in 0..10 {
             assert!(shifter.try_forward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(0, indexed_element.index);
+                assert_eq!(&0, indexed_element.element.as_ref());
+            }
+            assert!(shifter.try_forward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(1, indexed_element.index);
+                assert_eq!(&0, indexed_element.element.as_ref());
+            }
+            assert!(shifter.try_forward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(2, indexed_element.index);
+                assert_eq!(&0, indexed_element.element.as_ref());
+            }
+            assert!(!shifter.try_forward());
+            assert!(shifter.try_backward());
+            assert!(!shifter.try_increment());
+            assert!(shifter.try_backward());
+            assert!(!shifter.try_increment());
+            assert!(shifter.try_backward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(0, indexed_element.index);
+                assert_eq!(&1, indexed_element.element.as_ref());
+            }
+            assert!(shifter.try_forward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(1, indexed_element.index);
+                assert_eq!(&0, indexed_element.element.as_ref());
+            }
+            assert!(shifter.try_forward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(2, indexed_element.index);
+                assert_eq!(&0, indexed_element.element.as_ref());
+            }
+            assert!(!shifter.try_forward());
+            assert!(shifter.try_backward());
+            assert!(!shifter.try_increment());
+            assert!(shifter.try_backward());
+            assert!(!shifter.try_increment());
+            assert!(shifter.try_backward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(0, indexed_element.index);
+                assert_eq!(&0, indexed_element.element.as_ref());
+            }
+            assert!(shifter.try_forward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(1, indexed_element.index);
+                assert_eq!(&1, indexed_element.element.as_ref());
+            }
+            assert!(shifter.try_forward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(2, indexed_element.index);
+                assert_eq!(&0, indexed_element.element.as_ref());
+            }
+            assert!(!shifter.try_forward());
+            assert!(shifter.try_backward());
+            assert!(!shifter.try_increment());
+            assert!(shifter.try_backward());
+            assert!(!shifter.try_increment());
+            assert!(shifter.try_backward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(0, indexed_element.index);
+                assert_eq!(&0, indexed_element.element.as_ref());
+            }
+            assert!(shifter.try_forward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(1, indexed_element.index);
+                assert_eq!(&0, indexed_element.element.as_ref());
+            }
+            assert!(shifter.try_forward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(2, indexed_element.index);
+                assert_eq!(&1, indexed_element.element.as_ref());
+            }
+            assert!(!shifter.try_forward());
+            assert!(shifter.try_backward());
+            assert!(!shifter.try_increment());
+            assert!(shifter.try_backward());
+            assert!(!shifter.try_increment());
+            assert!(shifter.try_backward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(0, indexed_element.index);
+                assert_eq!(&1, indexed_element.element.as_ref());
+            }
+            assert!(shifter.try_forward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(1, indexed_element.index);
+                assert_eq!(&1, indexed_element.element.as_ref());
+            }
+            assert!(shifter.try_forward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(2, indexed_element.index);
+                assert_eq!(&0, indexed_element.element.as_ref());
+            }
+            assert!(!shifter.try_forward());
+            assert!(shifter.try_backward());
+            assert!(!shifter.try_increment());
+            assert!(shifter.try_backward());
+            assert!(!shifter.try_increment());
+            assert!(shifter.try_backward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(0, indexed_element.index);
+                assert_eq!(&1, indexed_element.element.as_ref());
+            }
+            assert!(shifter.try_forward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(1, indexed_element.index);
+                assert_eq!(&0, indexed_element.element.as_ref());
+            }
+            assert!(shifter.try_forward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(2, indexed_element.index);
+                assert_eq!(&1, indexed_element.element.as_ref());
+            }
+            assert!(!shifter.try_forward());
+            assert!(shifter.try_backward());
+            assert!(!shifter.try_increment());
+            assert!(shifter.try_backward());
+            assert!(!shifter.try_increment());
+            assert!(shifter.try_backward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(0, indexed_element.index);
+                assert_eq!(&0, indexed_element.element.as_ref());
+            }
+            assert!(shifter.try_forward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(1, indexed_element.index);
+                assert_eq!(&1, indexed_element.element.as_ref());
+            }
+            assert!(shifter.try_forward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(2, indexed_element.index);
+                assert_eq!(&1, indexed_element.element.as_ref());
+            }
+            assert!(!shifter.try_forward());
+            assert!(shifter.try_backward());
+            assert!(!shifter.try_increment());
+            assert!(shifter.try_backward());
+            assert!(!shifter.try_increment());
+            assert!(shifter.try_backward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(0, indexed_element.index);
+                assert_eq!(&1, indexed_element.element.as_ref());
+            }
+            assert!(shifter.try_forward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(1, indexed_element.index);
+                assert_eq!(&1, indexed_element.element.as_ref());
+            }
+            assert!(shifter.try_forward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(2, indexed_element.index);
+                assert_eq!(&1, indexed_element.element.as_ref());
+            }
+            assert!(!shifter.try_forward());
+            assert!(shifter.try_backward());
+            assert!(!shifter.try_increment());
+            assert!(shifter.try_backward());
+            assert!(!shifter.try_increment());
+            assert!(shifter.try_backward());
             assert!(shifter.try_increment());
             {
                 let indexed_element = shifter.get_indexed_element();
@@ -724,6 +984,150 @@ mod scaling_square_breadth_first_search_shifter_tests {
         let mut shifter = ScalingSquareBreadthFirstSearchShifter::new(2, 3);
         for _ in 0..10 {
             assert!(shifter.try_forward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(0, indexed_element.index);
+                assert_eq!(&0, indexed_element.element.as_ref());
+            }
+            assert!(shifter.try_forward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(1, indexed_element.index);
+                assert_eq!(&0, indexed_element.element.as_ref());
+            }
+            assert!(!shifter.try_forward());
+            assert!(shifter.try_backward());
+            assert!(!shifter.try_increment());
+            assert!(shifter.try_backward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(0, indexed_element.index);
+                assert_eq!(&1, indexed_element.element.as_ref());
+            }
+            assert!(shifter.try_forward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(1, indexed_element.index);
+                assert_eq!(&0, indexed_element.element.as_ref());
+            }
+            assert!(!shifter.try_forward());
+            assert!(shifter.try_backward());
+            assert!(!shifter.try_increment());
+            assert!(shifter.try_backward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(0, indexed_element.index);
+                assert_eq!(&0, indexed_element.element.as_ref());
+            }
+            assert!(shifter.try_forward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(1, indexed_element.index);
+                assert_eq!(&1, indexed_element.element.as_ref());
+            }
+            assert!(!shifter.try_forward());
+            assert!(shifter.try_backward());
+            assert!(!shifter.try_increment());
+            assert!(shifter.try_backward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(0, indexed_element.index);
+                assert_eq!(&1, indexed_element.element.as_ref());
+            }
+            assert!(shifter.try_forward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(1, indexed_element.index);
+                assert_eq!(&1, indexed_element.element.as_ref());
+            }
+            assert!(!shifter.try_forward());
+            assert!(shifter.try_backward());
+            assert!(!shifter.try_increment());
+            assert!(shifter.try_backward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(0, indexed_element.index);
+                assert_eq!(&2, indexed_element.element.as_ref());
+            }
+            assert!(shifter.try_forward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(1, indexed_element.index);
+                assert_eq!(&0, indexed_element.element.as_ref());
+            }
+            assert!(!shifter.try_forward());
+            assert!(shifter.try_backward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(1, indexed_element.index);
+                assert_eq!(&1, indexed_element.element.as_ref());
+            }
+            assert!(!shifter.try_forward());
+            assert!(shifter.try_backward());
+            assert!(!shifter.try_increment());
+            assert!(shifter.try_backward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(0, indexed_element.index);
+                assert_eq!(&0, indexed_element.element.as_ref());
+            }
+            assert!(shifter.try_forward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(1, indexed_element.index);
+                assert_eq!(&2, indexed_element.element.as_ref());
+            }
+            assert!(!shifter.try_forward());
+            assert!(shifter.try_backward());
+            assert!(!shifter.try_increment());
+            assert!(shifter.try_backward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(0, indexed_element.index);
+                assert_eq!(&1, indexed_element.element.as_ref());
+            }
+            assert!(shifter.try_forward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(1, indexed_element.index);
+                assert_eq!(&2, indexed_element.element.as_ref());
+            }
+            assert!(!shifter.try_forward());
+            assert!(shifter.try_backward());
+            assert!(!shifter.try_increment());
+            assert!(shifter.try_backward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(0, indexed_element.index);
+                assert_eq!(&2, indexed_element.element.as_ref());
+            }
+            assert!(shifter.try_forward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(1, indexed_element.index);
+                assert_eq!(&2, indexed_element.element.as_ref());
+            }
+            assert!(!shifter.try_forward());
+            assert!(shifter.try_backward());
+            assert!(!shifter.try_increment());
+            assert!(shifter.try_backward());
             assert!(shifter.try_increment());
             {
                 let indexed_element = shifter.get_indexed_element();
