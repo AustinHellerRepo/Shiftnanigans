@@ -1,7 +1,7 @@
 use std::{rc::Rc, cell::RefCell, collections::{BTreeSet, BTreeMap}};
 use bitvec::vec::BitVec;
 use itertools::Itertools;
-use crate::{CellGroup, incrementer::{round_robin_incrementer::RoundRobinIncrementer, Incrementer, shifting_cell_group_dependency_incrementer::{self, CellGroupDependency, ShiftingCellGroupDependencyIncrementer}}, shifter::{Shifter, segment_permutation_shifter::{Segment, SegmentPermutationShifter}, index_shifter::IndexShifter, combined_shifter::CombinedShifter}};
+use crate::{CellGroup, incrementer::{round_robin_incrementer::RoundRobinIncrementer, Incrementer, shifting_cell_group_dependency_incrementer::{self, CellGroupDependency, ShiftingCellGroupDependencyIncrementer}}, shifter::{Shifter, segment_permutation_shifter::{Segment, SegmentPermutationShifter}, index_shifter::IndexShifter, combined_shifter::CombinedShifter, shifting_square_breadth_first_search_shifter::ShiftingSquareBreadthFirstSearchShifter}};
 use super::{PixelBoard, Pixel};
 
 // TODO construct an undirected graph, search the graph starting with one of the newest edges, doing a depth-first search starting with the newest edge, only permitting the next node to be a cell group not yet traveled to and a location not yet traveled to.
@@ -916,15 +916,15 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                 }
                 else if corner_wall_index_shifters.len() + wall_segment_permutation_shifters.len() + wall_adjacent_index_shifters.len() == 1 {
                     if corner_wall_index_shifters.len() == 1 {
-                        let cell_group_dependency = CellGroupDependency::new(corner_wall_cell_group_index_per_shifter, CombinedShifter::new(&vec![Rc::new(RefCell::new(corner_wall_index_shifters[0].clone()))], true));
+                        let cell_group_dependency = CellGroupDependency::new(corner_wall_cell_group_index_per_shifter, Rc::new(RefCell::new(ShiftingSquareBreadthFirstSearchShifter::new(vec![Rc::new(RefCell::new(corner_wall_index_shifters[0].clone()))], true))));
                         cell_group_dependencies.push(cell_group_dependency);
                     }
                     else if wall_segment_permutation_shifters.len() == 1 {
-                        let cell_group_dependency = CellGroupDependency::new(wall_segment_cell_group_indexes_per_shifter[0].clone(), CombinedShifter::new(&vec![Rc::new(RefCell::new(wall_segment_permutation_shifters[0].clone()))], true));
+                        let cell_group_dependency = CellGroupDependency::new(wall_segment_cell_group_indexes_per_shifter[0].clone(), Rc::new(RefCell::new(ShiftingSquareBreadthFirstSearchShifter::new(vec![Rc::new(RefCell::new(wall_segment_permutation_shifters[0].clone()))], true))));
                         cell_group_dependencies.push(cell_group_dependency);
                     }
                     else if wall_adjacent_index_shifters.len() == 1 {
-                        let cell_group_dependency = CellGroupDependency::new(wall_adjacent_cell_group_index_per_shifter, CombinedShifter::new(&vec![Rc::new(RefCell::new(wall_adjacent_index_shifters[0].clone()))], true));
+                        let cell_group_dependency = CellGroupDependency::new(wall_adjacent_cell_group_index_per_shifter, Rc::new(RefCell::new(ShiftingSquareBreadthFirstSearchShifter::new(vec![Rc::new(RefCell::new(wall_adjacent_index_shifters[0].clone()))], true))));
                         cell_group_dependencies.push(cell_group_dependency);
                     }
                     else {
@@ -937,9 +937,9 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                     if !corner_wall_index_shifters.is_empty() {
                         for shifter_index in 0..(corner_wall_index_shifters.len() - 1) {
                             for other_shifter_index in (shifter_index + 1)..corner_wall_index_shifters.len() {
-                                let combined_shifter: CombinedShifter<(u8, u8)> = CombinedShifter::new(&vec![Rc::new(RefCell::new(corner_wall_index_shifters[shifter_index].clone())), Rc::new(RefCell::new(corner_wall_index_shifters[other_shifter_index].clone()))], true);
+                                let shifter = ShiftingSquareBreadthFirstSearchShifter::new(vec![Rc::new(RefCell::new(corner_wall_index_shifters[shifter_index].clone())), Rc::new(RefCell::new(corner_wall_index_shifters[other_shifter_index].clone()))], true);
                                 let combined_cell_group_indexes: Vec<usize> = vec![corner_wall_cell_group_index_per_shifter[shifter_index], corner_wall_cell_group_index_per_shifter[other_shifter_index]];
-                                let cell_group_dependency = CellGroupDependency::new(combined_cell_group_indexes, combined_shifter);
+                                let cell_group_dependency = CellGroupDependency::new(combined_cell_group_indexes, Rc::new(RefCell::new(shifter)));
                                 cell_group_dependencies.push(cell_group_dependency);
                             }
                         }
@@ -948,12 +948,12 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                     if !wall_segment_permutation_shifters.is_empty() {
                         for shifter_index in 0..(wall_segment_permutation_shifters.len() - 1) {
                             for other_shifter_index in (shifter_index + 1)..wall_segment_permutation_shifters.len() {
-                                let combined_shifter: CombinedShifter<(u8, u8)> = CombinedShifter::new(&vec![Rc::new(RefCell::new(wall_segment_permutation_shifters[shifter_index].clone())), Rc::new(RefCell::new(wall_segment_permutation_shifters[other_shifter_index].clone()))], true);
+                                let shifter = ShiftingSquareBreadthFirstSearchShifter::new(vec![Rc::new(RefCell::new(wall_segment_permutation_shifters[shifter_index].clone())), Rc::new(RefCell::new(wall_segment_permutation_shifters[other_shifter_index].clone()))], true);
                                 let mut combined_cell_group_indexes: Vec<usize> = Vec::new();
                                 for wall_segment_cell_group_index in wall_segment_cell_group_indexes_per_shifter[shifter_index].iter().chain(wall_segment_cell_group_indexes_per_shifter[other_shifter_index].iter()) {
                                     combined_cell_group_indexes.push(*wall_segment_cell_group_index);
                                 }
-                                let cell_group_dependency = CellGroupDependency::new(combined_cell_group_indexes, combined_shifter);
+                                let cell_group_dependency = CellGroupDependency::new(combined_cell_group_indexes, Rc::new(RefCell::new(shifter)));
                                 cell_group_dependencies.push(cell_group_dependency);
                             }
                         }
@@ -962,9 +962,9 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                     if !wall_adjacent_index_shifters.is_empty() {
                         for shifter_index in 0..(wall_adjacent_index_shifters.len() - 1) {
                             for other_shifter_index in (shifter_index + 1)..wall_adjacent_index_shifters.len() {
-                                let combined_shifter: CombinedShifter<(u8, u8)> = CombinedShifter::new(&vec![Rc::new(RefCell::new(wall_adjacent_index_shifters[shifter_index].clone())), Rc::new(RefCell::new(wall_adjacent_index_shifters[other_shifter_index].clone()))], true);
+                                let shifter = ShiftingSquareBreadthFirstSearchShifter::new(vec![Rc::new(RefCell::new(wall_adjacent_index_shifters[shifter_index].clone())), Rc::new(RefCell::new(wall_adjacent_index_shifters[other_shifter_index].clone()))], true);
                                 let combined_cell_group_indexes: Vec<usize> = vec![wall_adjacent_cell_group_index_per_shifter[shifter_index], wall_adjacent_cell_group_index_per_shifter[other_shifter_index]];
-                                let cell_group_dependency = CellGroupDependency::new(combined_cell_group_indexes, combined_shifter);
+                                let cell_group_dependency = CellGroupDependency::new(combined_cell_group_indexes, Rc::new(RefCell::new(shifter)));
                                 cell_group_dependencies.push(cell_group_dependency);
                             }
                         }
@@ -972,34 +972,34 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                     // create a combined shifter per corner wall shifter and segment wall shifter pair
                     for corner_wall_shifter_index in 0..corner_wall_index_shifters.len() {
                         for wall_segment_shifter_index in 0..wall_segment_permutation_shifters.len() {
-                            let combined_shifter: CombinedShifter<(u8, u8)> = CombinedShifter::new(&vec![Rc::new(RefCell::new(corner_wall_index_shifters[corner_wall_shifter_index].clone())), Rc::new(RefCell::new(wall_segment_permutation_shifters[wall_segment_shifter_index].clone()))], true);
+                            let shifter = ShiftingSquareBreadthFirstSearchShifter::new(vec![Rc::new(RefCell::new(corner_wall_index_shifters[corner_wall_shifter_index].clone())), Rc::new(RefCell::new(wall_segment_permutation_shifters[wall_segment_shifter_index].clone()))], true);
                             let mut combined_cell_group_indexes: Vec<usize> = vec![corner_wall_cell_group_index_per_shifter[corner_wall_shifter_index]];
                             for wall_segment_cell_group_index in wall_segment_cell_group_indexes_per_shifter[wall_segment_shifter_index].iter() {
                                 combined_cell_group_indexes.push(*wall_segment_cell_group_index);
                             }
-                            let cell_group_dependency = CellGroupDependency::new(combined_cell_group_indexes, combined_shifter);
+                            let cell_group_dependency = CellGroupDependency::new(combined_cell_group_indexes, Rc::new(RefCell::new(shifter)));
                             cell_group_dependencies.push(cell_group_dependency);
                         }
                     }
                     // create a combined shifter per corner wall shifter and non-wall shifter pair
                     for corner_wall_shifter_index in 0..corner_wall_index_shifters.len() {
                         for wall_adjacent_shifter_index in 0..wall_adjacent_index_shifters.len() {
-                            let combined_shifter: CombinedShifter<(u8, u8)> = CombinedShifter::new(&vec![Rc::new(RefCell::new(corner_wall_index_shifters[corner_wall_shifter_index].clone())), Rc::new(RefCell::new(wall_adjacent_index_shifters[wall_adjacent_shifter_index].clone()))], true);
+                            let shifter = ShiftingSquareBreadthFirstSearchShifter::new(vec![Rc::new(RefCell::new(corner_wall_index_shifters[corner_wall_shifter_index].clone())), Rc::new(RefCell::new(wall_adjacent_index_shifters[wall_adjacent_shifter_index].clone()))], true);
                             let combined_cell_group_indexes: Vec<usize> = vec![corner_wall_cell_group_index_per_shifter[corner_wall_shifter_index], wall_adjacent_cell_group_index_per_shifter[wall_adjacent_shifter_index]];
-                            let cell_group_dependency = CellGroupDependency::new(combined_cell_group_indexes, combined_shifter);
+                            let cell_group_dependency = CellGroupDependency::new(combined_cell_group_indexes, Rc::new(RefCell::new(shifter)));
                             cell_group_dependencies.push(cell_group_dependency);
                         }
                     }
                     // create a combined shifter per segment wall shifter and non-wall shifter pair
                     for wall_segment_shifter_index in 0..wall_segment_permutation_shifters.len() {
                         for wall_adjacent_shifter_index in 0..wall_adjacent_index_shifters.len() {
-                            let combined_shifter: CombinedShifter<(u8, u8)> = CombinedShifter::new(&vec![Rc::new(RefCell::new(wall_segment_permutation_shifters[wall_segment_shifter_index].clone())), Rc::new(RefCell::new(wall_adjacent_index_shifters[wall_adjacent_shifter_index].clone()))], true);
+                            let shifter = ShiftingSquareBreadthFirstSearchShifter::new(vec![Rc::new(RefCell::new(wall_segment_permutation_shifters[wall_segment_shifter_index].clone())), Rc::new(RefCell::new(wall_adjacent_index_shifters[wall_adjacent_shifter_index].clone()))], true);
                             let mut combined_cell_group_indexes: Vec<usize> = Vec::new();
                             for wall_segment_cell_group_index in wall_segment_cell_group_indexes_per_shifter[wall_segment_shifter_index].iter() {
                                 combined_cell_group_indexes.push(*wall_segment_cell_group_index);
                             }
                             combined_cell_group_indexes.push(wall_adjacent_cell_group_index_per_shifter[wall_adjacent_shifter_index]);
-                            let cell_group_dependency = CellGroupDependency::new(combined_cell_group_indexes, combined_shifter);
+                            let cell_group_dependency = CellGroupDependency::new(combined_cell_group_indexes, Rc::new(RefCell::new(shifter)));
                             cell_group_dependencies.push(cell_group_dependency);
                         }
                     }
