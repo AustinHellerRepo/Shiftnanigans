@@ -70,24 +70,41 @@ impl SegmentPermutationShifter {
         let mut current_mask: BitVec = BitVec::with_capacity(segments_length);
         current_mask.resize(segments.len(), false);
 
+        let mut smallest_segment_length_option: Option<usize> = None;
         let mut smallest_bounding_length: usize = 0;
         for (segment_index, segment) in segments.iter().enumerate() {
+            if smallest_segment_length_option.is_none() || smallest_segment_length_option.unwrap() > segment.length {
+                smallest_segment_length_option = Some(segment.length);
+            }
             if segment_index != 0 {
                 smallest_bounding_length += padding;
             }
             smallest_bounding_length += segment.length;
         }
 
+        let reduced_bounding_length_offset: usize;
+        if let Some(smallest_segment_length) = smallest_segment_length_option {
+            if smallest_segment_length != 0 {
+                reduced_bounding_length_offset = smallest_segment_length - 1;
+            }
+            else {
+                reduced_bounding_length_offset = 0;
+            }
+        }
+        else {
+            reduced_bounding_length_offset = 0;
+        }
+
         let mut possible_locations: Vec<Rc<(u8, u8)>> = Vec::new();
         let mut current_possible_location = origin.clone();
         if is_horizontal {
-            for _ in 0..bounding_length {
+            for _ in 0..(bounding_length - reduced_bounding_length_offset) {
                 possible_locations.push(Rc::new(current_possible_location));
                 current_possible_location.0 += 1;
             }
         }
         else {
-            for _ in 0..bounding_length {
+            for _ in 0..(bounding_length - reduced_bounding_length_offset) {
                 possible_locations.push(Rc::new(current_possible_location));
                 current_possible_location.1 += 1;
             }
@@ -96,7 +113,7 @@ impl SegmentPermutationShifter {
         let mut starting_segment_index_per_shift_index: Vec<usize> = Vec::new();  // the "ending" state is always going to occur when the segment indexes are sequential with the shift indexes, but it may randomly be at the very end
         let mut starting_minimum_position_offset_per_shift_index: Vec<usize> = Vec::new();
         let mut starting_maximum_position_offset_per_shift_index: Vec<usize> = Vec::new();
-        let mut starting_initial_position_offset_per_shift_index: Vec<usize>;
+        let starting_initial_position_offset_per_shift_index: Vec<usize>;
         let mut ending_segment_index_per_shift_index: Vec<usize> = Vec::new();
         let mut ending_position_offset_per_shift_index: Vec<usize> = Vec::new();
 

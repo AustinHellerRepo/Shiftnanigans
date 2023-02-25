@@ -16,6 +16,7 @@ pub struct CombinedShifter<T> {
 
 impl<T: PartialEq> CombinedShifter<T> {
     pub fn new(shifters: &Vec<Rc<RefCell<dyn Shifter<T = T>>>>, is_shifter_order_preserved_on_randomize: bool) -> Self {
+        // TODO determine how to share this functionality between CombinedShifter and ShiftingSquareBreadthFirstSearchShifter
         let mut index_offset_per_shifter: Vec<usize> = Vec::new();
         let mut current_index_offset: usize = 0;
         let mut state_index_mapping_per_shifter_index: Vec<Vec<usize>> = Vec::new();
@@ -109,9 +110,9 @@ impl<T> Shifter for CombinedShifter<T> {
     }*/
     fn get_indexed_element(&self) -> IndexedElement<Self::T> {
         let current_shifter_index = self.current_shifter_index.unwrap();
-        let mut current_shifter_get = self.shifters[current_shifter_index].borrow().get_indexed_element();
-        current_shifter_get.index += self.index_offset_per_shifter[current_shifter_index];
-        return current_shifter_get;
+        let mut indexed_element = self.shifters[current_shifter_index].borrow().get_indexed_element();
+        indexed_element.index += self.index_offset_per_shifter[current_shifter_index];
+        return indexed_element;
     }
     fn get_element_index_and_state_index(&self) -> (usize, usize) {
         let current_shifter_index = self.current_shifter_index.unwrap();
