@@ -128,17 +128,11 @@ impl<T> Shifter for IndexShifter<T> {
         }
         else {
             let current_state_index = current_state_index_option.unwrap();
-            if current_state_index == self.state_indexes_per_shift_index[current_shift_index].len() {
+            if current_state_index + 1 == self.state_indexes_per_shift_index[current_shift_index].len() {
                 return false;
             }
-            else {
-                let next_state_index = current_state_index + 1;
-                self.current_state_index_per_shift_index[current_shift_index] = Some(next_state_index);
-                if next_state_index == self.state_indexes_per_shift_index[current_shift_index].len() {
-                    return false;
-                }
-                return true;
-            }
+            self.current_state_index_per_shift_index[current_shift_index] = Some(current_state_index + 1);
+            return true;
         }
     }
     /*fn try_decrement(&mut self) -> bool {

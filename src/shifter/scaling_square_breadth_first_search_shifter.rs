@@ -102,6 +102,7 @@ impl Shifter for ScalingSquareBreadthFirstSearchShifter {
         let current_index = self.current_index.unwrap();
         // if this the first increment at this index
         if self.current_scale_per_index[current_index].is_none() {
+            debug!("try_increment: setting current_scale_per_index at {:?} based on current_scale {:?} and current_binary_density_mask {:?}.", current_index, self.current_scale, self.current_binary_density_mask);
             if self.current_binary_density_mask[current_index] {
                 self.current_scale_per_index[current_index] = Some(self.current_scale);
             }

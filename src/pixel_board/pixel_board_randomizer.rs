@@ -834,9 +834,31 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
             }
         }
 
+        // move raw cell groups to top-left corner
+        let mut transformed_cell_groups: Vec<CellGroup> = Vec::new();
+        for raw_cell_group in raw_cell_groups {
+            let mut left_most_x: Option<u8> = None;
+            let mut top_most_y: Option<u8> = None;
+            for cell in raw_cell_group.cells.iter() {
+                if left_most_x.is_none() || left_most_x.unwrap() > cell.0 {
+                    left_most_x = Some(cell.0);
+                }
+                if top_most_y.is_none() || top_most_y.unwrap() > cell.1 {
+                    top_most_y = Some(cell.1);
+                }
+            }
+            let mut cells = Vec::new();
+            for cell in raw_cell_group.cells {
+                cells.push((cell.0 - left_most_x.unwrap(), cell.1 - top_most_y.unwrap()));
+            }
+            transformed_cell_groups.push(CellGroup {
+                cells: cells
+            });
+        }
+
         PixelBoardRandomizer {
             pixel_board: pixel_board,
-            cell_groups: Rc::new(raw_cell_groups),
+            cell_groups: Rc::new(transformed_cell_groups),
             pixel_board_coordinate_per_cell_group_index: pixel_board_coordinate_per_cell_group_index,
             top_left_corner_wall_cell_group_index: top_left_corner_wall_cell_group_index,
             top_right_corner_wall_cell_group_index: top_right_corner_wall_cell_group_index,
@@ -1215,10 +1237,12 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                                         let mut random_pixel_board: PixelBoard<TPixel> = PixelBoard::new(self.pixel_board.get_width(), self.pixel_board.get_height());
                                         for (cell_group_index, location) in first_fully_connected_located_cell_groups_per_isolated_graph.remove(check_for_cycle_at_isolated_graph_index.unwrap()).into_iter() {
                                             for cell in self.cell_groups[cell_group_index].cells.iter() {
+                                                let calculated_pixel_board_index_x: usize = (location.0 + cell.0) as usize;
+                                                let calculated_pixel_board_index_y: usize = (location.1 + cell.1) as usize;
                                                 let pixel_board_coordinate = self.pixel_board_coordinate_per_cell_group_index[cell_group_index];
-                                                let calculated_pixel_board_index_x: usize = (location.0 + cell.0 - pixel_board_coordinate.0 as u8) as usize;
-                                                let calculated_pixel_board_index_y: usize = (location.1 + cell.1 - pixel_board_coordinate.1 as u8) as usize;
-                                                random_pixel_board.set(calculated_pixel_board_index_x, calculated_pixel_board_index_y, self.pixel_board.get(cell.0 as usize, cell.1 as usize).unwrap());
+                                                let original_pixel_board_index_x: usize = (cell.0 as usize + pixel_board_coordinate.0);
+                                                let original_pixel_board_index_y: usize = (cell.1 as usize + pixel_board_coordinate.1);
+                                                random_pixel_board.set(calculated_pixel_board_index_x, calculated_pixel_board_index_y, self.pixel_board.get(original_pixel_board_index_x, original_pixel_board_index_y).unwrap());
                                             }
                                         }
                                         return random_pixel_board;
