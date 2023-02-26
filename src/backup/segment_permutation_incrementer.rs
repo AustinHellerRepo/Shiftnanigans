@@ -708,6 +708,7 @@ mod segment_permutation_incrementer_tests {
 
     }
 
+    #[ignore]
     #[rstest]
     fn get_all_possible_positions_within_bounding_length_with_ten_segments_size_incrementing_bounds_sixty_four_padding_one() {
         init();

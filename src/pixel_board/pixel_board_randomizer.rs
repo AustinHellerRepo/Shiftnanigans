@@ -1061,10 +1061,12 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                     let location = locations[0].element.as_ref();
                     let mut random_pixel_board: PixelBoard<TPixel> = PixelBoard::new(self.pixel_board.get_width(), self.pixel_board.get_height());
                     for cell in self.cell_groups[cell_group_index].cells.iter() {
+                        let calculated_pixel_board_index_x: usize = (location.0 + cell.0) as usize;
+                        let calculated_pixel_board_index_y: usize = (location.1 + cell.1) as usize;
                         let pixel_board_coordinate = self.pixel_board_coordinate_per_cell_group_index[cell_group_index];
-                        let calculated_pixel_board_index_x: usize = (location.0 + cell.0 - pixel_board_coordinate.0 as u8) as usize;
-                        let calculated_pixel_board_index_y: usize = (location.1 + cell.1 - pixel_board_coordinate.1 as u8) as usize;
-                        random_pixel_board.set(calculated_pixel_board_index_x, calculated_pixel_board_index_y, self.pixel_board.get(cell.0 as usize, cell.1 as usize).unwrap());
+                        let original_pixel_board_index_x: usize = (cell.0 as usize + pixel_board_coordinate.0);
+                        let original_pixel_board_index_y: usize = (cell.1 as usize + pixel_board_coordinate.1);
+                        random_pixel_board.set(calculated_pixel_board_index_x, calculated_pixel_board_index_y, self.pixel_board.get(original_pixel_board_index_x, original_pixel_board_index_y).unwrap());
                     }
                     return random_pixel_board;
                 }

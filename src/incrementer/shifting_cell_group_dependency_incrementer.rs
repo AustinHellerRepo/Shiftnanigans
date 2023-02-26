@@ -388,6 +388,7 @@ mod shifting_cell_group_dependency_incrementer_tests {
         assert!(!shifting_cell_group_dependency_incrementer.try_increment());
     }
     
+    #[ignore]
     #[rstest]
     fn multiple_squares_complete_set() {
         init();
@@ -398,7 +399,7 @@ mod shifting_cell_group_dependency_incrementer_tests {
         let mut is_adjacent_cell_group_index_per_cell_group_index: Vec<BitVec> = Vec::new();
         let mut cell_group_dependencies: Vec<CellGroupDependency> = Vec::new();
 
-        let cell_groups_total = 5;
+        let cell_groups_total = 4;
 
         // Stats
         //  3

@@ -2,7 +2,6 @@ use crate::IndexedElement;
 
 pub mod shifting_cell_group_dependency_incrementer;
 pub mod round_robin_incrementer;
-pub mod square_breadth_first_search_incrementer;
 pub mod paired_square_breadth_first_search_incrementer;
 pub mod shifter_incrementer;
 pub mod binary_density_incrementer;

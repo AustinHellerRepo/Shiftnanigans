@@ -1503,7 +1503,7 @@ mod shifting_square_breadth_first_search_shifter_tests {
 
         for _ in 0..10 {
             assert!(shifter.try_forward());
-            assert!(shifter.try_increment());
+            assert!(shifter.try_increment());  // 0 0
             {
                 let indexed_element = shifter.get_indexed_element();
                 assert_eq!(0, indexed_element.index);
@@ -1520,11 +1520,26 @@ mod shifting_square_breadth_first_search_shifter_tests {
             assert!(shifter.try_backward());
             assert!(!shifter.try_increment());
             assert!(shifter.try_backward());
+            // burning past 1 0
+            assert!(shifter.try_increment());  // 0 1
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(0, indexed_element.index);
+                assert_eq!(&(0, 0), indexed_element.element.as_ref());
+            }
+            assert!(shifter.try_forward());
             assert!(shifter.try_increment());
-
-
-
-            return;
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(1, indexed_element.index);
+                assert_eq!(&(1, 1), indexed_element.element.as_ref());
+            }
+            assert!(!shifter.try_forward());
+            assert!(shifter.try_backward());
+            assert!(!shifter.try_increment());
+            assert!(shifter.try_backward());
+            assert!(!shifter.try_increment());
+            assert!(!shifter.try_backward());
         }
     }
 }
