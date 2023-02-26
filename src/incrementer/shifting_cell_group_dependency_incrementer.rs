@@ -379,10 +379,11 @@ mod shifting_cell_group_dependency_incrementer_tests {
         );
         let mut expected_get: Vec<IndexedElement<(u8, u8)>>;
         assert!(shifting_cell_group_dependency_incrementer.try_increment());
-        expected_get = vec![IndexedElement { index: 0, element: Rc::new((14, 140)) }, IndexedElement { index: 1, element: Rc::new((15, 150)) }];
+        // the first successful output will be based on the fact that the internal ShiftingSquareBreadthFirstSearchShifter will find (1, 0) before (0, 1)
+        expected_get = vec![IndexedElement { index: 0, element: Rc::new((15, 150)) }, IndexedElement { index: 1, element: Rc::new((14, 140)) }];
         assert_eq!(expected_get, shifting_cell_group_dependency_incrementer.get());
         assert!(shifting_cell_group_dependency_incrementer.try_increment());
-        expected_get = vec![IndexedElement { index: 0, element: Rc::new((15, 150)) }, IndexedElement { index: 1, element: Rc::new((14, 140)) }];
+        expected_get = vec![IndexedElement { index: 0, element: Rc::new((14, 140)) }, IndexedElement { index: 1, element: Rc::new((15, 150)) }];
         assert_eq!(expected_get, shifting_cell_group_dependency_incrementer.get());
         assert!(!shifting_cell_group_dependency_incrementer.try_increment());
     }
