@@ -263,7 +263,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                 let mut cells: Vec<(u8, u8)> = vec![(rightmost_x as u8, bottommost_y as u8)];
                 let mut adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
                 let cell_group_index = raw_cell_groups.len();
-                top_right_corner_wall_cell_group_index = Some(cell_group_index);
+                bottom_right_corner_wall_cell_group_index = Some(cell_group_index);
                 'clockwise_collecting: {
                     for x in (0..rightmost_x).rev() {
                         if pixel_board.exists(x, bottommost_y) {
@@ -1455,7 +1455,83 @@ mod pixel_board_randomizer_tests {
     }
 
     #[rstest]
-    fn corner_wall_with_wall_adjacent_one_each() {
+    fn top_left_corner_wall_with_wall_adjacent_one_each() {
+        for board_width in 4..=5 {
+            for wall_height in 3..=8 {
+                let mut wall_image_ids: Vec<String> = Vec::new();
+                let mut pixel_board: PixelBoard<ExamplePixel> = PixelBoard::new(board_width, wall_height);
+                for height_index in 0..(wall_height - 1) {
+                    let image_id = Uuid::new_v4().to_string();
+                    pixel_board.set(0, height_index, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+                        image_id: image_id.clone()
+                    }))));
+                    wall_image_ids.push(image_id);
+                }
+                let wall_adjacent_image_id = Uuid::new_v4().to_string();
+                pixel_board.set(1, 1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+                    image_id: wall_adjacent_image_id.clone()
+                }))));
+                let pixel_board_randomizer = PixelBoardRandomizer::new(pixel_board);
+                let mut appearances_totals: Vec<u32> = Vec::new();
+                for _ in 0..(wall_height - 2) {
+                    appearances_totals.push(0);
+                }
+                for _ in 0..10000 {
+                    let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
+                    assert!(!random_pixel_board.exists(1, 0));
+                    assert!(!random_pixel_board.exists(1, wall_height - 1));
+                    let mut wall_adjacents_total = 0;
+                    for height_index in 0..wall_height {
+                        if height_index != (wall_height - 1) {
+                            assert!(random_pixel_board.exists(0, height_index));
+                            {
+                                let wrapped_random_wall_pixel = random_pixel_board.get(0, height_index).unwrap();
+                                let borrowed_random_wall_pixel: &ExamplePixel = &wrapped_random_wall_pixel.borrow();
+                                if let ExamplePixel::Tile(random_wall_pixel) = borrowed_random_wall_pixel {
+                                    let wall_image_id = &wall_image_ids[height_index];
+                                    assert_eq!(wall_image_id, &random_wall_pixel.image_id);
+                                }
+                                else {
+                                    panic!("Unexpected ExamplePixel type");
+                                }
+                            }
+                        }
+                        else {
+                            assert!(!random_pixel_board.exists(0, height_index));
+                        }
+                        {
+                            let wrapped_wall_adjacent_pixel_option = random_pixel_board.get(1, height_index);
+                            if wrapped_wall_adjacent_pixel_option.is_some() {
+                                wall_adjacents_total += 1;
+                                appearances_totals[height_index - 1] += 1;
+                                let wrapped_wall_adjacent_pixel = wrapped_wall_adjacent_pixel_option.unwrap();
+                                let borrowed_wall_adjacent_pixel: &ExamplePixel = &wrapped_wall_adjacent_pixel.borrow();
+                                if let ExamplePixel::Tile(wall_adjacent_pixel) = borrowed_wall_adjacent_pixel {
+                                    assert_eq!(&wall_adjacent_image_id, &wall_adjacent_pixel.image_id);
+                                }
+                                else {
+                                    panic!("Unexpected ExamplePixel type");
+                                }
+                            }
+                        }
+                        
+                        for board_width_index in 0..(board_width - 2) {
+                            assert!(!random_pixel_board.exists(board_width_index + 2, height_index));
+                        }
+                    }
+                    assert_eq!(1, wall_adjacents_total);
+                }
+                println!("appearances_totals: {:?}", appearances_totals);
+                for appearances_total in appearances_totals.iter() {
+                    let expected_value = &(10000 / appearances_totals.len() as u32 - 1000 / appearances_totals.len() as u32);
+                    assert!(appearances_total > expected_value);
+                }
+            }
+        }
+    }
+
+    #[rstest]
+    fn left_corner_wall_with_wall_adjacent_one_each() {
         for board_width in 4..=5 {
             for wall_height in 3..=8 {
                 let mut wall_image_ids: Vec<String> = Vec::new();
@@ -1512,6 +1588,305 @@ mod pixel_board_randomizer_tests {
                         
                         for board_width_index in 0..(board_width - 2) {
                             assert!(!random_pixel_board.exists(board_width_index + 2, height_index));
+                        }
+                    }
+                    assert_eq!(1, wall_adjacents_total);
+                }
+                println!("appearances_totals: {:?}", appearances_totals);
+                for appearances_total in appearances_totals.iter() {
+                    let expected_value = &(10000 / appearances_totals.len() as u32 - 1000 / appearances_totals.len() as u32);
+                    assert!(appearances_total > expected_value);
+                }
+            }
+        }
+    }
+
+    #[rstest]
+    fn bottom_left_corner_wall_with_wall_adjacent_one_each() {
+        for board_width in 4..=5 {
+            for wall_height in 3..=8 {
+                let mut wall_image_ids: Vec<String> = Vec::new();
+                let mut pixel_board: PixelBoard<ExamplePixel> = PixelBoard::new(board_width, wall_height);
+                for height_index in 0..(wall_height - 1) {
+                    let image_id = Uuid::new_v4().to_string();
+                    pixel_board.set(0, height_index + 1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+                        image_id: image_id.clone()
+                    }))));
+                    wall_image_ids.push(image_id);
+                }
+                let wall_adjacent_image_id = Uuid::new_v4().to_string();
+                pixel_board.set(1, 1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+                    image_id: wall_adjacent_image_id.clone()
+                }))));
+                let pixel_board_randomizer = PixelBoardRandomizer::new(pixel_board);
+                let mut appearances_totals: Vec<u32> = Vec::new();
+                for _ in 0..(wall_height - 2) {
+                    appearances_totals.push(0);
+                }
+                for _ in 0..10000 {
+                    let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
+                    assert!(!random_pixel_board.exists(1, 0));
+                    assert!(!random_pixel_board.exists(1, wall_height - 1));
+                    let mut wall_adjacents_total = 0;
+                    for height_index in 0..wall_height {
+                        if height_index != 0 {
+                            assert!(random_pixel_board.exists(0, height_index));
+                            {
+                                let wrapped_random_wall_pixel = random_pixel_board.get(0, height_index).unwrap();
+                                let borrowed_random_wall_pixel: &ExamplePixel = &wrapped_random_wall_pixel.borrow();
+                                if let ExamplePixel::Tile(random_wall_pixel) = borrowed_random_wall_pixel {
+                                    let wall_image_id = &wall_image_ids[height_index - 1];
+                                    assert_eq!(wall_image_id, &random_wall_pixel.image_id);
+                                }
+                                else {
+                                    panic!("Unexpected ExamplePixel type");
+                                }
+                            }
+                        }
+                        else {
+                            assert!(!random_pixel_board.exists(0, height_index));
+                        }
+                        {
+                            let wrapped_wall_adjacent_pixel_option = random_pixel_board.get(1, height_index);
+                            if wrapped_wall_adjacent_pixel_option.is_some() {
+                                wall_adjacents_total += 1;
+                                appearances_totals[height_index - 1] += 1;
+                                let wrapped_wall_adjacent_pixel = wrapped_wall_adjacent_pixel_option.unwrap();
+                                let borrowed_wall_adjacent_pixel: &ExamplePixel = &wrapped_wall_adjacent_pixel.borrow();
+                                if let ExamplePixel::Tile(wall_adjacent_pixel) = borrowed_wall_adjacent_pixel {
+                                    assert_eq!(&wall_adjacent_image_id, &wall_adjacent_pixel.image_id);
+                                }
+                                else {
+                                    panic!("Unexpected ExamplePixel type");
+                                }
+                            }
+                        }
+                        
+                        for board_width_index in 0..(board_width - 2) {
+                            assert!(!random_pixel_board.exists(board_width_index + 2, height_index));
+                        }
+                    }
+                    assert_eq!(1, wall_adjacents_total);
+                }
+                println!("appearances_totals: {:?}", appearances_totals);
+                for appearances_total in appearances_totals.iter() {
+                    let expected_value = &(10000 / appearances_totals.len() as u32 - 1000 / appearances_totals.len() as u32);
+                    assert!(appearances_total > expected_value);
+                }
+            }
+        }
+    }
+
+    #[rstest]
+    fn top_right_corner_wall_with_wall_adjacent_one_each() {
+        for board_width in 4..=5 {
+            for wall_height in 3..=8 {
+                let mut wall_image_ids: Vec<String> = Vec::new();
+                let mut pixel_board: PixelBoard<ExamplePixel> = PixelBoard::new(board_width, wall_height);
+                for height_index in 0..(wall_height - 1) {
+                    let image_id = Uuid::new_v4().to_string();
+                    pixel_board.set(board_width - 1, height_index, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+                        image_id: image_id.clone()
+                    }))));
+                    wall_image_ids.push(image_id);
+                }
+                let wall_adjacent_image_id = Uuid::new_v4().to_string();
+                pixel_board.set(board_width - 2, 1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+                    image_id: wall_adjacent_image_id.clone()
+                }))));
+                let pixel_board_randomizer = PixelBoardRandomizer::new(pixel_board);
+                let mut appearances_totals: Vec<u32> = Vec::new();
+                for _ in 0..(wall_height - 2) {
+                    appearances_totals.push(0);
+                }
+                for _ in 0..10000 {
+                    let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
+                    assert!(!random_pixel_board.exists(board_width - 2, 0));
+                    assert!(!random_pixel_board.exists(board_width - 2, wall_height - 1));
+                    let mut wall_adjacents_total = 0;
+                    for height_index in 0..wall_height {
+                        if height_index != (wall_height - 1) {
+                            assert!(random_pixel_board.exists(board_width - 1, height_index));
+                            {
+                                let wrapped_random_wall_pixel = random_pixel_board.get(board_width - 1, height_index).unwrap();
+                                let borrowed_random_wall_pixel: &ExamplePixel = &wrapped_random_wall_pixel.borrow();
+                                if let ExamplePixel::Tile(random_wall_pixel) = borrowed_random_wall_pixel {
+                                    let wall_image_id = &wall_image_ids[height_index];
+                                    assert_eq!(wall_image_id, &random_wall_pixel.image_id);
+                                }
+                                else {
+                                    panic!("Unexpected ExamplePixel type");
+                                }
+                            }
+                        }
+                        else {
+                            assert!(!random_pixel_board.exists(board_width - 1, height_index));
+                        }
+                        {
+                            let wrapped_wall_adjacent_pixel_option = random_pixel_board.get(board_width - 2, height_index);
+                            if wrapped_wall_adjacent_pixel_option.is_some() {
+                                wall_adjacents_total += 1;
+                                appearances_totals[height_index - 1] += 1;
+                                let wrapped_wall_adjacent_pixel = wrapped_wall_adjacent_pixel_option.unwrap();
+                                let borrowed_wall_adjacent_pixel: &ExamplePixel = &wrapped_wall_adjacent_pixel.borrow();
+                                if let ExamplePixel::Tile(wall_adjacent_pixel) = borrowed_wall_adjacent_pixel {
+                                    assert_eq!(&wall_adjacent_image_id, &wall_adjacent_pixel.image_id);
+                                }
+                                else {
+                                    panic!("Unexpected ExamplePixel type");
+                                }
+                            }
+                        }
+                        
+                        for board_width_index in 0..(board_width - 2) {
+                            assert!(!random_pixel_board.exists(board_width_index, height_index));
+                        }
+                    }
+                    assert_eq!(1, wall_adjacents_total);
+                }
+                println!("appearances_totals: {:?}", appearances_totals);
+                for appearances_total in appearances_totals.iter() {
+                    let expected_value = &(10000 / appearances_totals.len() as u32 - 1000 / appearances_totals.len() as u32);
+                    assert!(appearances_total > expected_value);
+                }
+            }
+        }
+    }
+
+    #[rstest]
+    fn right_corner_wall_with_wall_adjacent_one_each() {
+        for board_width in 4..=5 {
+            for wall_height in 3..=8 {
+                let mut wall_image_ids: Vec<String> = Vec::new();
+                let mut pixel_board: PixelBoard<ExamplePixel> = PixelBoard::new(board_width, wall_height);
+                for height_index in 0..wall_height {
+                    let image_id = Uuid::new_v4().to_string();
+                    pixel_board.set(board_width - 1, height_index, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+                        image_id: image_id.clone()
+                    }))));
+                    wall_image_ids.push(image_id);
+                }
+                let wall_adjacent_image_id = Uuid::new_v4().to_string();
+                pixel_board.set(board_width - 2, 1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+                    image_id: wall_adjacent_image_id.clone()
+                }))));
+                let pixel_board_randomizer = PixelBoardRandomizer::new(pixel_board);
+                let mut appearances_totals: Vec<u32> = Vec::new();
+                for _ in 0..(wall_height - 2) {
+                    appearances_totals.push(0);
+                }
+                for _ in 0..10000 {
+                    let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
+                    assert!(!random_pixel_board.exists(board_width - 2, 0));
+                    assert!(!random_pixel_board.exists(board_width - 2, wall_height - 1));
+                    let mut wall_adjacents_total = 0;
+                    for height_index in 0..wall_height {
+                        assert!(random_pixel_board.exists(board_width - 1, height_index));
+                        {
+                            let wrapped_random_wall_pixel = random_pixel_board.get(board_width - 1, height_index).unwrap();
+                            let borrowed_random_wall_pixel: &ExamplePixel = &wrapped_random_wall_pixel.borrow();
+                            if let ExamplePixel::Tile(random_wall_pixel) = borrowed_random_wall_pixel {
+                                let wall_image_id = &wall_image_ids[height_index];
+                                assert_eq!(wall_image_id, &random_wall_pixel.image_id);
+                            }
+                            else {
+                                panic!("Unexpected ExamplePixel type");
+                            }
+                        }
+                        {
+                            let wrapped_wall_adjacent_pixel_option = random_pixel_board.get(board_width - 2, height_index);
+                            if wrapped_wall_adjacent_pixel_option.is_some() {
+                                wall_adjacents_total += 1;
+                                appearances_totals[height_index - 1] += 1;
+                                let wrapped_wall_adjacent_pixel = wrapped_wall_adjacent_pixel_option.unwrap();
+                                let borrowed_wall_adjacent_pixel: &ExamplePixel = &wrapped_wall_adjacent_pixel.borrow();
+                                if let ExamplePixel::Tile(wall_adjacent_pixel) = borrowed_wall_adjacent_pixel {
+                                    assert_eq!(&wall_adjacent_image_id, &wall_adjacent_pixel.image_id);
+                                }
+                                else {
+                                    panic!("Unexpected ExamplePixel type");
+                                }
+                            }
+                        }
+                        
+                        for board_width_index in 0..(board_width - 2) {
+                            assert!(!random_pixel_board.exists(board_width_index, height_index));
+                        }
+                    }
+                    assert_eq!(1, wall_adjacents_total);
+                }
+                println!("appearances_totals: {:?}", appearances_totals);
+                for appearances_total in appearances_totals.iter() {
+                    let expected_value = &(10000 / appearances_totals.len() as u32 - 1000 / appearances_totals.len() as u32);
+                    assert!(appearances_total > expected_value);
+                }
+            }
+        }
+    }
+
+    #[rstest]
+    fn bottom_right_corner_wall_with_wall_adjacent_one_each() {
+        for board_width in 4..=5 {
+            for wall_height in 3..=8 {
+                let mut wall_image_ids: Vec<String> = Vec::new();
+                let mut pixel_board: PixelBoard<ExamplePixel> = PixelBoard::new(board_width, wall_height);
+                for height_index in 0..(wall_height - 1) {
+                    let image_id = Uuid::new_v4().to_string();
+                    pixel_board.set(board_width - 1, height_index + 1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+                        image_id: image_id.clone()
+                    }))));
+                    wall_image_ids.push(image_id);
+                }
+                let wall_adjacent_image_id = Uuid::new_v4().to_string();
+                pixel_board.set(board_width - 2, 1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+                    image_id: wall_adjacent_image_id.clone()
+                }))));
+                let pixel_board_randomizer = PixelBoardRandomizer::new(pixel_board);
+                let mut appearances_totals: Vec<u32> = Vec::new();
+                for _ in 0..(wall_height - 2) {
+                    appearances_totals.push(0);
+                }
+                for _ in 0..10000 {
+                    let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
+                    assert!(!random_pixel_board.exists(board_width - 2, 0));
+                    assert!(!random_pixel_board.exists(board_width - 2, wall_height - 1));
+                    let mut wall_adjacents_total = 0;
+                    for height_index in 0..wall_height {
+                        if height_index != 0 {
+                            assert!(random_pixel_board.exists(board_width - 1, height_index));
+                            {
+                                let wrapped_random_wall_pixel = random_pixel_board.get(board_width - 1, height_index).unwrap();
+                                let borrowed_random_wall_pixel: &ExamplePixel = &wrapped_random_wall_pixel.borrow();
+                                if let ExamplePixel::Tile(random_wall_pixel) = borrowed_random_wall_pixel {
+                                    let wall_image_id = &wall_image_ids[height_index - 1];
+                                    assert_eq!(wall_image_id, &random_wall_pixel.image_id);
+                                }
+                                else {
+                                    panic!("Unexpected ExamplePixel type");
+                                }
+                            }
+                        }
+                        else {
+                            assert!(!random_pixel_board.exists(board_width - 1, height_index));
+                        }
+                        {
+                            let wrapped_wall_adjacent_pixel_option = random_pixel_board.get(board_width - 2, height_index);
+                            if wrapped_wall_adjacent_pixel_option.is_some() {
+                                wall_adjacents_total += 1;
+                                appearances_totals[height_index - 1] += 1;
+                                let wrapped_wall_adjacent_pixel = wrapped_wall_adjacent_pixel_option.unwrap();
+                                let borrowed_wall_adjacent_pixel: &ExamplePixel = &wrapped_wall_adjacent_pixel.borrow();
+                                if let ExamplePixel::Tile(wall_adjacent_pixel) = borrowed_wall_adjacent_pixel {
+                                    assert_eq!(&wall_adjacent_image_id, &wall_adjacent_pixel.image_id);
+                                }
+                                else {
+                                    panic!("Unexpected ExamplePixel type");
+                                }
+                            }
+                        }
+                        
+                        for board_width_index in 0..(board_width - 2) {
+                            assert!(!random_pixel_board.exists(board_width_index, height_index));
                         }
                     }
                     assert_eq!(1, wall_adjacents_total);
