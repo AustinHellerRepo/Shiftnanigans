@@ -1900,6 +1900,438 @@ mod pixel_board_randomizer_tests {
         }
     }
 
+    #[rstest]
+    fn top_left_corner_and_floater() {
+        init();
+
+        let corner_image_id = Uuid::new_v4().to_string();
+        let floater_image_id = Uuid::new_v4().to_string();
+        let corner_location = (0, 0);
+        let floater_location = (1, 1);
+        for board_width in 4..=10 {
+            for board_height in 4..=10 {
+                let open_area = (board_width - 2) * (board_height - 2);
+                let mut pixel_board = PixelBoard::new(board_width, board_height);
+                pixel_board.set(corner_location.0, corner_location.1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+                    image_id: corner_image_id.clone()
+                }))));
+                pixel_board.set(floater_location.0, floater_location.1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+                    image_id: floater_image_id.clone()
+                }))));
+                let mut pixel_board_randomizer = PixelBoardRandomizer::new(pixel_board);
+                let mut count_per_location: BTreeMap<(usize, usize), usize> = BTreeMap::new();
+                for x in 0..(board_width - 2) {
+                    for y in 0..(board_height - 2) {
+                        count_per_location.insert((x + 1, y + 1), 0);
+                    }
+                }
+                let iterations_total = 10000;
+                for _ in 0..iterations_total {
+                    let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
+                    let mut location_total = 0;
+                    let mut location_option: Option<(usize, usize)> = None;
+                    for x in 0..(board_width - 2) {
+                        for y in 0..(board_height - 2) {
+                            if random_pixel_board.exists(x + 1, y + 1) {
+                                location_option = Some((x + 1, y + 1));
+                                location_total += 1;
+                            }
+                        }
+                    }
+                    assert_eq!(1, location_total);
+                    if let Some(location) = location_option {
+                        count_per_location.insert(location, count_per_location[&location] + 1);
+                        let unwrapped_pixel = random_pixel_board.get(location.0, location.1).unwrap();
+                        let borrowed_pixel: &ExamplePixel = &unwrapped_pixel.borrow();
+                        match borrowed_pixel {
+                            ExamplePixel::Tile(tile) => {
+                                assert_eq!(floater_image_id, tile.image_id);
+                            },
+                            ExamplePixel::Element(_) => {
+                                panic!("unexpected element.");
+                            }
+                        }
+                    }
+                    for x in 0..board_width {
+                        for y in [0, board_height - 1] {
+                            let check_location = (x, y);
+                            if check_location == corner_location {
+                                assert!(random_pixel_board.exists(x, y));
+                                let unwrapped_pixel = random_pixel_board.get(x, y).unwrap();
+                                let borrowed_pixel: &ExamplePixel = &unwrapped_pixel.borrow();
+                                match borrowed_pixel {
+                                    ExamplePixel::Tile(tile) => {
+                                        assert_eq!(corner_image_id, tile.image_id);
+                                    },
+                                    ExamplePixel::Element(_) => {
+                                        panic!("unexpected element.");
+                                    }
+                                }
+                            }
+                            else {
+                                assert!(!random_pixel_board.exists(x, y));
+                            }
+                        }
+                    }
+                    for x in [0, board_width - 1] {
+                        for y in 0..board_height {
+                            let check_location = (x, y);
+                            if check_location == corner_location {
+                                assert!(random_pixel_board.exists(x, y));
+                                let unwrapped_pixel = random_pixel_board.get(x, y).unwrap();
+                                let borrowed_pixel: &ExamplePixel = &unwrapped_pixel.borrow();
+                                match borrowed_pixel {
+                                    ExamplePixel::Tile(tile) => {
+                                        assert_eq!(corner_image_id, tile.image_id);
+                                    },
+                                    ExamplePixel::Element(_) => {
+                                        panic!("unexpected element.");
+                                    }
+                                }
+                            }
+                            else {
+                                assert!(!random_pixel_board.exists(x, y));
+                            }
+                        }
+                    }
+                }
+                println!("count_per_location: {:?}", count_per_location);
+                for x in 0..(board_width - 2) {
+                    for y in 0..(board_height - 2) {
+                        let location = (x + 1, y + 1);
+                        let count = count_per_location[&location] as f32;
+                        let expected = iterations_total as f32 / open_area as f32;
+                        assert!((expected - count).abs() < (iterations_total as f32 / 10.0));
+                    }
+                }
+            }
+        }
+    }
+
+    #[rstest]
+    fn top_right_corner_and_floater() {
+        init();
+
+        let corner_image_id = Uuid::new_v4().to_string();
+        let floater_image_id = Uuid::new_v4().to_string();
+        let floater_location = (1, 1);
+        for board_width in 4..=10 {
+            for board_height in 4..=10 {
+                let corner_location = (board_width - 1, 0);
+                let open_area = (board_width - 2) * (board_height - 2);
+                let mut pixel_board = PixelBoard::new(board_width, board_height);
+                pixel_board.set(corner_location.0, corner_location.1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+                    image_id: corner_image_id.clone()
+                }))));
+                pixel_board.set(floater_location.0, floater_location.1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+                    image_id: floater_image_id.clone()
+                }))));
+                let mut pixel_board_randomizer = PixelBoardRandomizer::new(pixel_board);
+                let mut count_per_location: BTreeMap<(usize, usize), usize> = BTreeMap::new();
+                for x in 0..(board_width - 2) {
+                    for y in 0..(board_height - 2) {
+                        count_per_location.insert((x + 1, y + 1), 0);
+                    }
+                }
+                let iterations_total = 10000;
+                for _ in 0..iterations_total {
+                    let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
+                    let mut location_total = 0;
+                    let mut location_option: Option<(usize, usize)> = None;
+                    for x in 0..(board_width - 2) {
+                        for y in 0..(board_height - 2) {
+                            if random_pixel_board.exists(x + 1, y + 1) {
+                                location_option = Some((x + 1, y + 1));
+                                location_total += 1;
+                            }
+                        }
+                    }
+                    assert_eq!(1, location_total);
+                    if let Some(location) = location_option {
+                        count_per_location.insert(location, count_per_location[&location] + 1);
+                        let unwrapped_pixel = random_pixel_board.get(location.0, location.1).unwrap();
+                        let borrowed_pixel: &ExamplePixel = &unwrapped_pixel.borrow();
+                        match borrowed_pixel {
+                            ExamplePixel::Tile(tile) => {
+                                assert_eq!(floater_image_id, tile.image_id);
+                            },
+                            ExamplePixel::Element(_) => {
+                                panic!("unexpected element.");
+                            }
+                        }
+                    }
+                    for x in 0..board_width {
+                        for y in [0, board_height - 1] {
+                            let check_location = (x, y);
+                            if check_location == corner_location {
+                                assert!(random_pixel_board.exists(x, y));
+                                let unwrapped_pixel = random_pixel_board.get(x, y).unwrap();
+                                let borrowed_pixel: &ExamplePixel = &unwrapped_pixel.borrow();
+                                match borrowed_pixel {
+                                    ExamplePixel::Tile(tile) => {
+                                        assert_eq!(corner_image_id, tile.image_id);
+                                    },
+                                    ExamplePixel::Element(_) => {
+                                        panic!("unexpected element.");
+                                    }
+                                }
+                            }
+                            else {
+                                assert!(!random_pixel_board.exists(x, y));
+                            }
+                        }
+                    }
+                    for x in [0, board_width - 1] {
+                        for y in 0..board_height {
+                            let check_location = (x, y);
+                            if check_location == corner_location {
+                                assert!(random_pixel_board.exists(x, y));
+                                let unwrapped_pixel = random_pixel_board.get(x, y).unwrap();
+                                let borrowed_pixel: &ExamplePixel = &unwrapped_pixel.borrow();
+                                match borrowed_pixel {
+                                    ExamplePixel::Tile(tile) => {
+                                        assert_eq!(corner_image_id, tile.image_id);
+                                    },
+                                    ExamplePixel::Element(_) => {
+                                        panic!("unexpected element.");
+                                    }
+                                }
+                            }
+                            else {
+                                assert!(!random_pixel_board.exists(x, y));
+                            }
+                        }
+                    }
+                }
+                println!("count_per_location: {:?}", count_per_location);
+                for x in 0..(board_width - 2) {
+                    for y in 0..(board_height - 2) {
+                        let location = (x + 1, y + 1);
+                        let count = count_per_location[&location] as f32;
+                        let expected = iterations_total as f32 / open_area as f32;
+                        assert!((expected - count).abs() < (iterations_total as f32 / 10.0));
+                    }
+                }
+            }
+        }
+    }
+
+    #[rstest]
+    fn bottom_right_corner_and_floater() {
+        init();
+
+        let corner_image_id = Uuid::new_v4().to_string();
+        let floater_image_id = Uuid::new_v4().to_string();
+        let floater_location = (1, 1);
+        for board_width in 4..=10 {
+            for board_height in 4..=10 {
+                let corner_location = (board_width - 1, board_height - 1);
+                let open_area = (board_width - 2) * (board_height - 2);
+                let mut pixel_board = PixelBoard::new(board_width, board_height);
+                pixel_board.set(corner_location.0, corner_location.1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+                    image_id: corner_image_id.clone()
+                }))));
+                pixel_board.set(floater_location.0, floater_location.1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+                    image_id: floater_image_id.clone()
+                }))));
+                let mut pixel_board_randomizer = PixelBoardRandomizer::new(pixel_board);
+                let mut count_per_location: BTreeMap<(usize, usize), usize> = BTreeMap::new();
+                for x in 0..(board_width - 2) {
+                    for y in 0..(board_height - 2) {
+                        count_per_location.insert((x + 1, y + 1), 0);
+                    }
+                }
+                let iterations_total = 10000;
+                for _ in 0..iterations_total {
+                    let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
+                    let mut location_total = 0;
+                    let mut location_option: Option<(usize, usize)> = None;
+                    for x in 0..(board_width - 2) {
+                        for y in 0..(board_height - 2) {
+                            if random_pixel_board.exists(x + 1, y + 1) {
+                                location_option = Some((x + 1, y + 1));
+                                location_total += 1;
+                            }
+                        }
+                    }
+                    assert_eq!(1, location_total);
+                    if let Some(location) = location_option {
+                        count_per_location.insert(location, count_per_location[&location] + 1);
+                        let unwrapped_pixel = random_pixel_board.get(location.0, location.1).unwrap();
+                        let borrowed_pixel: &ExamplePixel = &unwrapped_pixel.borrow();
+                        match borrowed_pixel {
+                            ExamplePixel::Tile(tile) => {
+                                assert_eq!(floater_image_id, tile.image_id);
+                            },
+                            ExamplePixel::Element(_) => {
+                                panic!("unexpected element.");
+                            }
+                        }
+                    }
+                    for x in 0..board_width {
+                        for y in [0, board_height - 1] {
+                            let check_location = (x, y);
+                            if check_location == corner_location {
+                                assert!(random_pixel_board.exists(x, y));
+                                let unwrapped_pixel = random_pixel_board.get(x, y).unwrap();
+                                let borrowed_pixel: &ExamplePixel = &unwrapped_pixel.borrow();
+                                match borrowed_pixel {
+                                    ExamplePixel::Tile(tile) => {
+                                        assert_eq!(corner_image_id, tile.image_id);
+                                    },
+                                    ExamplePixel::Element(_) => {
+                                        panic!("unexpected element.");
+                                    }
+                                }
+                            }
+                            else {
+                                assert!(!random_pixel_board.exists(x, y));
+                            }
+                        }
+                    }
+                    for x in [0, board_width - 1] {
+                        for y in 0..board_height {
+                            let check_location = (x, y);
+                            if check_location == corner_location {
+                                assert!(random_pixel_board.exists(x, y));
+                                let unwrapped_pixel = random_pixel_board.get(x, y).unwrap();
+                                let borrowed_pixel: &ExamplePixel = &unwrapped_pixel.borrow();
+                                match borrowed_pixel {
+                                    ExamplePixel::Tile(tile) => {
+                                        assert_eq!(corner_image_id, tile.image_id);
+                                    },
+                                    ExamplePixel::Element(_) => {
+                                        panic!("unexpected element.");
+                                    }
+                                }
+                            }
+                            else {
+                                assert!(!random_pixel_board.exists(x, y));
+                            }
+                        }
+                    }
+                }
+                println!("count_per_location: {:?}", count_per_location);
+                for x in 0..(board_width - 2) {
+                    for y in 0..(board_height - 2) {
+                        let location = (x + 1, y + 1);
+                        let count = count_per_location[&location] as f32;
+                        let expected = iterations_total as f32 / open_area as f32;
+                        assert!((expected - count).abs() < (iterations_total as f32 / 10.0));
+                    }
+                }
+            }
+        }
+    }
+
+    #[rstest]
+    fn bottom_left_corner_and_floater() {
+        init();
+
+        let corner_image_id = Uuid::new_v4().to_string();
+        let floater_image_id = Uuid::new_v4().to_string();
+        let floater_location = (1, 1);
+        for board_width in 4..=10 {
+            for board_height in 4..=10 {
+                let corner_location = (0, board_height - 1);
+                let open_area = (board_width - 2) * (board_height - 2);
+                let mut pixel_board = PixelBoard::new(board_width, board_height);
+                pixel_board.set(corner_location.0, corner_location.1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+                    image_id: corner_image_id.clone()
+                }))));
+                pixel_board.set(floater_location.0, floater_location.1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+                    image_id: floater_image_id.clone()
+                }))));
+                let mut pixel_board_randomizer = PixelBoardRandomizer::new(pixel_board);
+                let mut count_per_location: BTreeMap<(usize, usize), usize> = BTreeMap::new();
+                for x in 0..(board_width - 2) {
+                    for y in 0..(board_height - 2) {
+                        count_per_location.insert((x + 1, y + 1), 0);
+                    }
+                }
+                let iterations_total = 10000;
+                for _ in 0..iterations_total {
+                    let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
+                    let mut location_total = 0;
+                    let mut location_option: Option<(usize, usize)> = None;
+                    for x in 0..(board_width - 2) {
+                        for y in 0..(board_height - 2) {
+                            if random_pixel_board.exists(x + 1, y + 1) {
+                                location_option = Some((x + 1, y + 1));
+                                location_total += 1;
+                            }
+                        }
+                    }
+                    assert_eq!(1, location_total);
+                    if let Some(location) = location_option {
+                        count_per_location.insert(location, count_per_location[&location] + 1);
+                        let unwrapped_pixel = random_pixel_board.get(location.0, location.1).unwrap();
+                        let borrowed_pixel: &ExamplePixel = &unwrapped_pixel.borrow();
+                        match borrowed_pixel {
+                            ExamplePixel::Tile(tile) => {
+                                assert_eq!(floater_image_id, tile.image_id);
+                            },
+                            ExamplePixel::Element(_) => {
+                                panic!("unexpected element.");
+                            }
+                        }
+                    }
+                    for x in 0..board_width {
+                        for y in [0, board_height - 1] {
+                            let check_location = (x, y);
+                            if check_location == corner_location {
+                                assert!(random_pixel_board.exists(x, y));
+                                let unwrapped_pixel = random_pixel_board.get(x, y).unwrap();
+                                let borrowed_pixel: &ExamplePixel = &unwrapped_pixel.borrow();
+                                match borrowed_pixel {
+                                    ExamplePixel::Tile(tile) => {
+                                        assert_eq!(corner_image_id, tile.image_id);
+                                    },
+                                    ExamplePixel::Element(_) => {
+                                        panic!("unexpected element.");
+                                    }
+                                }
+                            }
+                            else {
+                                assert!(!random_pixel_board.exists(x, y));
+                            }
+                        }
+                    }
+                    for x in [0, board_width - 1] {
+                        for y in 0..board_height {
+                            let check_location = (x, y);
+                            if check_location == corner_location {
+                                assert!(random_pixel_board.exists(x, y));
+                                let unwrapped_pixel = random_pixel_board.get(x, y).unwrap();
+                                let borrowed_pixel: &ExamplePixel = &unwrapped_pixel.borrow();
+                                match borrowed_pixel {
+                                    ExamplePixel::Tile(tile) => {
+                                        assert_eq!(corner_image_id, tile.image_id);
+                                    },
+                                    ExamplePixel::Element(_) => {
+                                        panic!("unexpected element.");
+                                    }
+                                }
+                            }
+                            else {
+                                assert!(!random_pixel_board.exists(x, y));
+                            }
+                        }
+                    }
+                }
+                println!("count_per_location: {:?}", count_per_location);
+                for x in 0..(board_width - 2) {
+                    for y in 0..(board_height - 2) {
+                        let location = (x + 1, y + 1);
+                        let count = count_per_location[&location] as f32;
+                        let expected = iterations_total as f32 / open_area as f32;
+                        assert!((expected - count).abs() < (iterations_total as f32 / 10.0));
+                    }
+                }
+            }
+        }
+    }
+
     // TODO try out map:
     //      x - -
     //      - x -
