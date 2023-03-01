@@ -166,6 +166,21 @@ impl SegmentPermutationShifter {
             }
         }
 
+        let mut is_looped = true;  // TODO remove is_looped logic completely or replace with loop iteration count
+        if is_starting_equal_to_ending {
+            // there is only one state
+            is_looped = true;
+        }
+        else if !is_swapping_permitted {
+            // the segments are already in the correct order
+            is_looped = true;
+        }
+        else if segments_length == 1 {
+            // the single segment is going to march through each position
+            // TODO determine if this should be generalized for multiple segments that start at their left-most position offset
+            is_looped = true;
+        }
+
         SegmentPermutationShifter {
             segments: segments,
             origin: origin,
@@ -190,7 +205,7 @@ impl SegmentPermutationShifter {
             ending_segment_index_per_shift_index: ending_segment_index_per_shift_index,
             ending_position_offset_per_shift_index: ending_position_offset_per_shift_index,
             is_starting: true,
-            is_looped: is_starting_equal_to_ending || !is_swapping_permitted,
+            is_looped: is_looped,
             is_starting_equal_to_ending: is_starting_equal_to_ending
         }
     }
@@ -362,6 +377,20 @@ impl Shifter for SegmentPermutationShifter {
                     }
                     return true;
                 }
+            }
+            // at this point the swapped segments are all in reverse order and need to loop once back at 0th shift
+            if shift_index == 0 {
+                // loop back to the first state
+                self.current_initial_position_offset_per_shift_index[0] = 0;
+                self.current_position_offset_per_shift_index[0] = Some(0);
+
+                if self.ending_position_offset_per_shift_index[0] == 0 {
+                    self.current_is_parent_ending.set(0, true);
+                }
+
+                self.is_looped = true;
+                debug!("try_increment: looping back to start");
+                return true;
             }
             return false;
         }
@@ -635,7 +664,7 @@ impl Shifter for SegmentPermutationShifter {
 
 #[cfg(test)]
 mod segment_permutation_shifter_tests {
-    use std::{time::{Duration, Instant}, cell::RefCell};
+    use std::{time::{Duration, Instant}, cell::RefCell, collections::BTreeMap};
 
     use super::*;
     use rstest::rstest;
@@ -1173,6 +1202,55 @@ mod segment_permutation_shifter_tests {
             }
         }
     }
+
+    #[rstest]
+    fn randomized_single_pixel_segment() {
+        for bounding_length in 2..=6 as usize {
+            let mut count_per_location: BTreeMap<(u8, u8), usize> = BTreeMap::new();
+            for offset in 0..bounding_length as u8 {
+                count_per_location.insert((20, 200 + offset), 0);
+            }
+            let iterations_total = 1000;
+            for _ in 0..iterations_total {
+                let mut segment_permutation_shifter = SegmentPermutationShifter::new(vec![Rc::new(Segment::new(1))], (20, 200), bounding_length, false, 1, true);
+                segment_permutation_shifter.randomize();
+                assert!(segment_permutation_shifter.try_forward());
+                assert!(segment_permutation_shifter.try_increment());
+                let previous_location;
+                {
+                    let indexed_element = segment_permutation_shifter.get_indexed_element();
+                    assert_eq!(0, indexed_element.index);
+                    let location: (u8, u8) = *indexed_element.element.as_ref();
+                    count_per_location.insert(location, count_per_location[&location] + 1);
+                    previous_location = location;
+                }
+                assert!(!segment_permutation_shifter.try_forward());
+                assert!(segment_permutation_shifter.try_backward());
+                for _ in 0..(bounding_length - 1) {
+                    assert!(segment_permutation_shifter.try_increment());
+                    {
+                        let indexed_element = segment_permutation_shifter.get_indexed_element();
+                        assert_eq!(0, indexed_element.index);
+                        let location: (u8, u8) = *indexed_element.element.as_ref();
+                        assert_ne!(previous_location, location);
+                    }
+                    assert!(!segment_permutation_shifter.try_forward());
+                    assert!(segment_permutation_shifter.try_backward());
+                }
+                assert!(!segment_permutation_shifter.try_increment());
+                assert!(!segment_permutation_shifter.try_backward());
+            }
+
+            println!("count_per_location: {:?}", count_per_location);
+            for offset in 0..bounding_length as u8 {
+                let location = (20, 200 + offset);
+                let count = count_per_location[&location] as f32;
+                let expected = iterations_total as f32 / bounding_length as f32;
+                assert!((count - expected).abs() < (iterations_total as f32 / 10.0));
+            }
+        }
+    }
+
     fn decrement_incrementer() {
         todo!();
     }

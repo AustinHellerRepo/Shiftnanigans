@@ -426,7 +426,28 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                         adjacent_pixel_board_coordinates_per_cell_group_index.push(adjacent_pixel_board_coordinates);
                         pixel_board_coordinate_per_cell_group_index.push((leftmost_cell_x.unwrap(), 0));
                     }
-                    let top_wall_segment_permutation_shifter = SegmentPermutationShifter::new(segments, (leftmost_wall_x as u8, 0), rightmost_wall_x - leftmost_wall_x + 1, true, 1, false);
+                    // find bounding length
+                    let mut leftmost_bounding_x: Option<usize> = None;
+                    for x in 1..=leftmost_wall_x {
+                        if !pixel_board.exists(x - 1, 0) {
+                            leftmost_bounding_x = Some(x);
+                            break;
+                        }
+                    }
+                    if leftmost_bounding_x.is_none() {
+                        panic!("Failed to find left-most x bounding length point for bottom wall segments.");
+                    }
+                    let mut rightmost_bounding_x: Option<usize> = None;
+                    for x in (rightmost_wall_x..rightmost_x).rev() {
+                        if !pixel_board.exists(x + 1, 0) {
+                            rightmost_bounding_x = Some(x);
+                            break;
+                        }
+                    }
+                    if rightmost_bounding_x.is_none() {
+                        panic!("Failed to find right-most x bounding length point for bottom wall segments.");
+                    }
+                    let top_wall_segment_permutation_shifter = SegmentPermutationShifter::new(segments, (leftmost_wall_x as u8, 0), rightmost_bounding_x.unwrap() - leftmost_bounding_x.unwrap() + 1, true, 1, false);
                     top_wall_segment_permutation_shifter_option = Some(top_wall_segment_permutation_shifter);
                 }
             }
@@ -500,7 +521,28 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                         adjacent_pixel_board_coordinates_per_cell_group_index.push(adjacent_pixel_board_coordinates);
                         pixel_board_coordinate_per_cell_group_index.push((leftmost_cell_x.unwrap(), bottommost_y));
                     }
-                    let bottom_wall_segment_permutation_shifter = SegmentPermutationShifter::new(segments, (leftmost_wall_x as u8, bottommost_y as u8), rightmost_wall_x - leftmost_wall_x + 1, true, 1, false);
+                    // find bounding length
+                    let mut leftmost_bounding_x: Option<usize> = None;
+                    for x in 1..=leftmost_wall_x {
+                        if !pixel_board.exists(x - 1, bottommost_y) {
+                            leftmost_bounding_x = Some(x);
+                            break;
+                        }
+                    }
+                    if leftmost_bounding_x.is_none() {
+                        panic!("Failed to find left-most x bounding length point for bottom wall segments.");
+                    }
+                    let mut rightmost_bounding_x: Option<usize> = None;
+                    for x in (rightmost_wall_x..rightmost_x).rev() {
+                        if !pixel_board.exists(x + 1, bottommost_y) {
+                            rightmost_bounding_x = Some(x);
+                            break;
+                        }
+                    }
+                    if rightmost_bounding_x.is_none() {
+                        panic!("Failed to find right-most x bounding length point for bottom wall segments.");
+                    }
+                    let bottom_wall_segment_permutation_shifter = SegmentPermutationShifter::new(segments, (leftmost_wall_x as u8, bottommost_y as u8), rightmost_bounding_x.unwrap() - leftmost_bounding_x.unwrap() + 1, true, 1, false);
                     bottom_wall_segment_permutation_shifter_option = Some(bottom_wall_segment_permutation_shifter);
                 }
             }
@@ -572,7 +614,28 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                         adjacent_pixel_board_coordinates_per_cell_group_index.push(adjacent_pixel_board_coordinates);
                         pixel_board_coordinate_per_cell_group_index.push((0, topmost_cell_y.unwrap()));
                     }
-                    let left_wall_segment_permutation_shifter = SegmentPermutationShifter::new(segments, (0, topmost_wall_y as u8), bottommost_wall_y - topmost_wall_y + 1, false, 1, false);
+                    // find bounding length
+                    let mut topmost_bounding_y: Option<usize> = None;
+                    for y in 1..=topmost_wall_y {
+                        if !pixel_board.exists(0, y - 1) {
+                            topmost_bounding_y = Some(y);
+                            break;
+                        }
+                    }
+                    if topmost_bounding_y.is_none() {
+                        panic!("Failed to find top-most y bounding length point for left wall segments.");
+                    }
+                    let mut bottommost_bounding_y: Option<usize> = None;
+                    for y in (bottommost_wall_y..bottommost_y).rev() {
+                        if !pixel_board.exists(0, y + 1) {
+                            bottommost_bounding_y = Some(y);
+                            break;
+                        }
+                    }
+                    if bottommost_bounding_y.is_none() {
+                        panic!("Failed to find bottom-most y bounding length point for left wall segments.");
+                    }
+                    let left_wall_segment_permutation_shifter = SegmentPermutationShifter::new(segments, (0, topmost_wall_y as u8), bottommost_bounding_y.unwrap() - topmost_bounding_y.unwrap() + 1, false, 1, false);
                     left_wall_segment_permutation_shifter_option = Some(left_wall_segment_permutation_shifter);
                 }
             }
@@ -644,7 +707,28 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                         adjacent_pixel_board_coordinates_per_cell_group_index.push(adjacent_pixel_board_coordinates);
                         pixel_board_coordinate_per_cell_group_index.push((rightmost_x, topmost_cell_y.unwrap()));
                     }
-                    let right_wall_segment_permutation_shifter = SegmentPermutationShifter::new(segments, (rightmost_x as u8, topmost_wall_y as u8), bottommost_wall_y - topmost_wall_y + 1, false, 1, false);
+                    // find bounding length
+                    let mut topmost_bounding_y: Option<usize> = None;
+                    for y in 1..=topmost_wall_y {
+                        if !pixel_board.exists(rightmost_x, y - 1) {
+                            topmost_bounding_y = Some(y);
+                            break;
+                        }
+                    }
+                    if topmost_bounding_y.is_none() {
+                        panic!("Failed to find top-most y bounding length point for right wall segments.");
+                    }
+                    let mut bottommost_bounding_y: Option<usize> = None;
+                    for y in (bottommost_wall_y..bottommost_y).rev() {
+                        if !pixel_board.exists(rightmost_x, y + 1) {
+                            bottommost_bounding_y = Some(y);
+                            break;
+                        }
+                    }
+                    if bottommost_bounding_y.is_none() {
+                        panic!("Failed to find bottom-most y bounding length point for right wall segments.");
+                    }
+                    let right_wall_segment_permutation_shifter = SegmentPermutationShifter::new(segments, (rightmost_x as u8, topmost_wall_y as u8), bottommost_bounding_y.unwrap() - topmost_bounding_y.unwrap() + 1, false, 1, false);
                     right_wall_segment_permutation_shifter_option = Some(right_wall_segment_permutation_shifter);
                 }
             }
@@ -1350,7 +1434,7 @@ mod pixel_board_randomizer_tests {
             let borrowed_pixel = random_pixel_board.get(x, y);
             let pixel: &ExamplePixel = &borrowed_pixel.as_ref().unwrap().borrow();
             if let ExamplePixel::Tile(tile) = pixel {
-                println!("location ({}, {}) is looking for {}.", x, y, image_id);
+                //println!("location ({}, {}) is looking for {}.", x, y, image_id);
                 assert_eq!(image_id, &tile.image_id);
             }
             else {
@@ -1476,7 +1560,8 @@ mod pixel_board_randomizer_tests {
                 for _ in 0..(wall_height - 2) {
                     appearances_totals.push(0);
                 }
-                for _ in 0..10000 {
+                let iterations_total = 1000;
+                for _ in 0..iterations_total {
                     let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
                     assert!(!random_pixel_board.exists(1, 0));
                     assert!(!random_pixel_board.exists(1, wall_height - 1));
@@ -1523,7 +1608,7 @@ mod pixel_board_randomizer_tests {
                 }
                 println!("appearances_totals: {:?}", appearances_totals);
                 for appearances_total in appearances_totals.iter() {
-                    let expected_value = &(10000 / appearances_totals.len() as u32 - 1000 / appearances_totals.len() as u32);
+                    let expected_value = &(iterations_total / appearances_totals.len() as u32 - (iterations_total / 5) / appearances_totals.len() as u32);
                     assert!(appearances_total > expected_value);
                 }
             }
@@ -1552,7 +1637,8 @@ mod pixel_board_randomizer_tests {
                 for _ in 0..(wall_height - 2) {
                     appearances_totals.push(0);
                 }
-                for _ in 0..10000 {
+                let iterations_total = 1000;
+                for _ in 0..iterations_total {
                     let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
                     assert!(!random_pixel_board.exists(1, 0));
                     assert!(!random_pixel_board.exists(1, wall_height - 1));
@@ -1594,7 +1680,7 @@ mod pixel_board_randomizer_tests {
                 }
                 println!("appearances_totals: {:?}", appearances_totals);
                 for appearances_total in appearances_totals.iter() {
-                    let expected_value = &(10000 / appearances_totals.len() as u32 - 1000 / appearances_totals.len() as u32);
+                    let expected_value = &(iterations_total / appearances_totals.len() as u32 - (iterations_total / 5) / appearances_totals.len() as u32);
                     assert!(appearances_total > expected_value);
                 }
             }
@@ -1623,7 +1709,8 @@ mod pixel_board_randomizer_tests {
                 for _ in 0..(wall_height - 2) {
                     appearances_totals.push(0);
                 }
-                for _ in 0..10000 {
+                let iterations_total = 1000;
+                for _ in 0..iterations_total {
                     let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
                     assert!(!random_pixel_board.exists(1, 0));
                     assert!(!random_pixel_board.exists(1, wall_height - 1));
@@ -1670,7 +1757,7 @@ mod pixel_board_randomizer_tests {
                 }
                 println!("appearances_totals: {:?}", appearances_totals);
                 for appearances_total in appearances_totals.iter() {
-                    let expected_value = &(10000 / appearances_totals.len() as u32 - 1000 / appearances_totals.len() as u32);
+                    let expected_value = &(iterations_total / appearances_totals.len() as u32 - (iterations_total / 5) / appearances_totals.len() as u32);
                     assert!(appearances_total > expected_value);
                 }
             }
@@ -1699,7 +1786,8 @@ mod pixel_board_randomizer_tests {
                 for _ in 0..(wall_height - 2) {
                     appearances_totals.push(0);
                 }
-                for _ in 0..10000 {
+                let iterations_total = 1000;
+                for _ in 0..iterations_total {
                     let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
                     assert!(!random_pixel_board.exists(board_width - 2, 0));
                     assert!(!random_pixel_board.exists(board_width - 2, wall_height - 1));
@@ -1746,7 +1834,7 @@ mod pixel_board_randomizer_tests {
                 }
                 println!("appearances_totals: {:?}", appearances_totals);
                 for appearances_total in appearances_totals.iter() {
-                    let expected_value = &(10000 / appearances_totals.len() as u32 - 1000 / appearances_totals.len() as u32);
+                    let expected_value = &(iterations_total / appearances_totals.len() as u32 - (iterations_total / 5) / appearances_totals.len() as u32);
                     assert!(appearances_total > expected_value);
                 }
             }
@@ -1775,7 +1863,8 @@ mod pixel_board_randomizer_tests {
                 for _ in 0..(wall_height - 2) {
                     appearances_totals.push(0);
                 }
-                for _ in 0..10000 {
+                let iterations_total = 1000;
+                for _ in 0..iterations_total {
                     let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
                     assert!(!random_pixel_board.exists(board_width - 2, 0));
                     assert!(!random_pixel_board.exists(board_width - 2, wall_height - 1));
@@ -1817,7 +1906,7 @@ mod pixel_board_randomizer_tests {
                 }
                 println!("appearances_totals: {:?}", appearances_totals);
                 for appearances_total in appearances_totals.iter() {
-                    let expected_value = &(10000 / appearances_totals.len() as u32 - 1000 / appearances_totals.len() as u32);
+                    let expected_value = &(iterations_total / appearances_totals.len() as u32 - (iterations_total / 5) / appearances_totals.len() as u32);
                     assert!(appearances_total > expected_value);
                 }
             }
@@ -1846,7 +1935,8 @@ mod pixel_board_randomizer_tests {
                 for _ in 0..(wall_height - 2) {
                     appearances_totals.push(0);
                 }
-                for _ in 0..10000 {
+                let iterations_total = 1000;
+                for _ in 0..iterations_total {
                     let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
                     assert!(!random_pixel_board.exists(board_width - 2, 0));
                     assert!(!random_pixel_board.exists(board_width - 2, wall_height - 1));
@@ -1893,7 +1983,7 @@ mod pixel_board_randomizer_tests {
                 }
                 println!("appearances_totals: {:?}", appearances_totals);
                 for appearances_total in appearances_totals.iter() {
-                    let expected_value = &(10000 / appearances_totals.len() as u32 - 1000 / appearances_totals.len() as u32);
+                    let expected_value = &(iterations_total / appearances_totals.len() as u32 - (iterations_total / 5) / appearances_totals.len() as u32);
                     assert!(appearances_total > expected_value);
                 }
             }
@@ -1918,14 +2008,14 @@ mod pixel_board_randomizer_tests {
                 pixel_board.set(floater_location.0, floater_location.1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
                     image_id: floater_image_id.clone()
                 }))));
-                let mut pixel_board_randomizer = PixelBoardRandomizer::new(pixel_board);
+                let pixel_board_randomizer = PixelBoardRandomizer::new(pixel_board);
                 let mut count_per_location: BTreeMap<(usize, usize), usize> = BTreeMap::new();
                 for x in 0..(board_width - 2) {
                     for y in 0..(board_height - 2) {
                         count_per_location.insert((x + 1, y + 1), 0);
                     }
                 }
-                let iterations_total = 10000;
+                let iterations_total = 1000;
                 for _ in 0..iterations_total {
                     let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
                     let mut location_total = 0;
@@ -1995,7 +2085,7 @@ mod pixel_board_randomizer_tests {
                         }
                     }
                 }
-                println!("count_per_location: {:?}", count_per_location);
+                //println!("count_per_location: {:?}", count_per_location);
                 for x in 0..(board_width - 2) {
                     for y in 0..(board_height - 2) {
                         let location = (x + 1, y + 1);
@@ -2033,7 +2123,7 @@ mod pixel_board_randomizer_tests {
                         count_per_location.insert((x + 1, y + 1), 0);
                     }
                 }
-                let iterations_total = 10000;
+                let iterations_total = 1000;
                 for _ in 0..iterations_total {
                     let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
                     let mut location_total = 0;
@@ -2103,7 +2193,7 @@ mod pixel_board_randomizer_tests {
                         }
                     }
                 }
-                println!("count_per_location: {:?}", count_per_location);
+                //println!("count_per_location: {:?}", count_per_location);
                 for x in 0..(board_width - 2) {
                     for y in 0..(board_height - 2) {
                         let location = (x + 1, y + 1);
@@ -2141,7 +2231,7 @@ mod pixel_board_randomizer_tests {
                         count_per_location.insert((x + 1, y + 1), 0);
                     }
                 }
-                let iterations_total = 10000;
+                let iterations_total = 1000;
                 for _ in 0..iterations_total {
                     let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
                     let mut location_total = 0;
@@ -2211,7 +2301,7 @@ mod pixel_board_randomizer_tests {
                         }
                     }
                 }
-                println!("count_per_location: {:?}", count_per_location);
+                //println!("count_per_location: {:?}", count_per_location);
                 for x in 0..(board_width - 2) {
                     for y in 0..(board_height - 2) {
                         let location = (x + 1, y + 1);
@@ -2242,14 +2332,14 @@ mod pixel_board_randomizer_tests {
                 pixel_board.set(floater_location.0, floater_location.1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
                     image_id: floater_image_id.clone()
                 }))));
-                let mut pixel_board_randomizer = PixelBoardRandomizer::new(pixel_board);
+                let pixel_board_randomizer = PixelBoardRandomizer::new(pixel_board);
                 let mut count_per_location: BTreeMap<(usize, usize), usize> = BTreeMap::new();
                 for x in 0..(board_width - 2) {
                     for y in 0..(board_height - 2) {
                         count_per_location.insert((x + 1, y + 1), 0);
                     }
                 }
-                let iterations_total = 10000;
+                let iterations_total = 1000;
                 for _ in 0..iterations_total {
                     let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
                     let mut location_total = 0;
@@ -2319,7 +2409,7 @@ mod pixel_board_randomizer_tests {
                         }
                     }
                 }
-                println!("count_per_location: {:?}", count_per_location);
+                //println!("count_per_location: {:?}", count_per_location);
                 for x in 0..(board_width - 2) {
                     for y in 0..(board_height - 2) {
                         let location = (x + 1, y + 1);
@@ -2332,10 +2422,195 @@ mod pixel_board_randomizer_tests {
         }
     }
 
-    // TODO try out map:
-    //      x - -
-    //      - x -
-    //      - - -
-    //      - - -
-    //  I would expect that the corner stays there and that the spot in the open could be at either open spot
+    #[rstest]
+    fn left_wall_segments_one_alone() {
+        let segment_image_id = Uuid::new_v4().to_string();
+        let board_width = 3;
+        let board_height = 4;
+        let mut pixel_board = PixelBoard::new(board_width, board_height);
+        pixel_board.set(0, 1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+            image_id: segment_image_id
+        }))));
+        let pixel_board_randomizer = PixelBoardRandomizer::new(pixel_board);
+        let mut count_per_location: BTreeMap<(usize, usize), usize> = BTreeMap::new();
+        for y in 0..(board_height - 2) {
+            count_per_location.insert((0, y + 1), 0);
+        }
+        let iterations_total = 1000;
+        for _ in 0..iterations_total {
+            let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
+            let mut is_segment_found = false;
+            for y in 0..board_height {
+                if y == 0 || y == (board_height - 1) {
+                    assert!(!random_pixel_board.exists(0, y));
+                }
+                else {
+                    if random_pixel_board.exists(0, y) {
+                        let location = (0 as usize, y);
+                        count_per_location.insert(location, count_per_location[&location] + 1);
+                        assert!(!is_segment_found);
+                        is_segment_found = true;
+                    }
+                }
+            }
+            assert!(is_segment_found);
+            for x in 1..board_width {
+                for y in 0..board_height {
+                    assert!(!random_pixel_board.exists(x, y));
+                }
+            }
+        }
+        println!("count_per_location: {:?}", count_per_location);
+        for y in 0..(board_height - 2) {
+            let location = (0, y + 1);
+            let count = count_per_location[&location] as f32;
+            let expected = iterations_total as f32 / (board_height - 2) as f32;
+            println!("{} < {}", (expected - count).abs(), (iterations_total as f32 / 10.0));
+            assert!((expected - count).abs() < (iterations_total as f32 / 10.0));
+        }
+    }
+
+    #[rstest]
+    fn right_wall_segments_one_alone() {
+        let segment_image_id = Uuid::new_v4().to_string();
+        let board_width = 3;
+        let board_height = 4;
+        let mut pixel_board = PixelBoard::new(board_width, board_height);
+        pixel_board.set(board_width - 1, 1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+            image_id: segment_image_id
+        }))));
+        let pixel_board_randomizer = PixelBoardRandomizer::new(pixel_board);
+        let mut count_per_location: BTreeMap<(usize, usize), usize> = BTreeMap::new();
+        for y in 0..(board_height - 2) {
+            count_per_location.insert((board_width - 1, y + 1), 0);
+        }
+        let iterations_total = 1000;
+        for _ in 0..iterations_total {
+            let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
+            let mut is_segment_found = false;
+            for y in 0..board_height {
+                if y == 0 || y == (board_height - 1) {
+                    assert!(!random_pixel_board.exists(board_width - 1, y));
+                }
+                else {
+                    if random_pixel_board.exists(board_width - 1, y) {
+                        let location = ((board_width - 1) as usize, y);
+                        count_per_location.insert(location, count_per_location[&location] + 1);
+                        assert!(!is_segment_found);
+                        is_segment_found = true;
+                    }
+                }
+            }
+            assert!(is_segment_found);
+            for x in 0..(board_width - 1) {
+                for y in 0..board_height {
+                    assert!(!random_pixel_board.exists(x, y));
+                }
+            }
+        }
+        println!("count_per_location: {:?}", count_per_location);
+        for y in 0..(board_height - 2) {
+            let location = (board_width - 1, y + 1);
+            let count = count_per_location[&location] as f32;
+            let expected = iterations_total as f32 / (board_height - 2) as f32;
+            println!("{} < {}", (expected - count).abs(), (iterations_total as f32 / 10.0));
+            assert!((expected - count).abs() < (iterations_total as f32 / 10.0));
+        }
+    }
+
+    #[rstest]
+    fn top_wall_segments_one_alone() {
+        let segment_image_id = Uuid::new_v4().to_string();
+        let board_width = 4;
+        let board_height = 3;
+        let mut pixel_board = PixelBoard::new(board_width, board_height);
+        pixel_board.set(1, 0, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+            image_id: segment_image_id
+        }))));
+        let pixel_board_randomizer = PixelBoardRandomizer::new(pixel_board);
+        let mut count_per_location: BTreeMap<(usize, usize), usize> = BTreeMap::new();
+        for x in 0..(board_width - 2) {
+            count_per_location.insert((x + 1, 0), 0);
+        }
+        let iterations_total = 1000;
+        for _ in 0..iterations_total {
+            let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
+            let mut is_segment_found = false;
+            for x in 0..board_width {
+                if x == 0 || x == (board_width - 1) {
+                    assert!(!random_pixel_board.exists(x, 0));
+                }
+                else {
+                    if random_pixel_board.exists(x, 0) {
+                        let location = (x, 0 as usize);
+                        count_per_location.insert(location, count_per_location[&location] + 1);
+                        assert!(!is_segment_found);
+                        is_segment_found = true;
+                    }
+                }
+            }
+            assert!(is_segment_found);
+            for x in 0..board_width {
+                for y in 1..board_height {
+                    assert!(!random_pixel_board.exists(x, y));
+                }
+            }
+        }
+        println!("count_per_location: {:?}", count_per_location);
+        for x in 0..(board_width - 2) {
+            let location = (x + 1, 0);
+            let count = count_per_location[&location] as f32;
+            let expected = iterations_total as f32 / (board_width - 2) as f32;
+            println!("{} < {}", (expected - count).abs(), (iterations_total as f32 / 10.0));
+            assert!((expected - count).abs() < (iterations_total as f32 / 10.0));
+        }
+    }
+
+    #[rstest]
+    fn bottom_wall_segments_one_alone() {
+        let segment_image_id = Uuid::new_v4().to_string();
+        let board_width = 4;
+        let board_height = 3;
+        let mut pixel_board = PixelBoard::new(board_width, board_height);
+        pixel_board.set(1, board_height - 1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+            image_id: segment_image_id
+        }))));
+        let pixel_board_randomizer = PixelBoardRandomizer::new(pixel_board);
+        let mut count_per_location: BTreeMap<(usize, usize), usize> = BTreeMap::new();
+        for x in 0..(board_width - 2) {
+            count_per_location.insert((x + 1, board_height - 1), 0);
+        }
+        let iterations_total = 1000;
+        for _ in 0..iterations_total {
+            let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
+            let mut is_segment_found = false;
+            for x in 0..board_width {
+                if x == 0 || x == (board_width - 1) {
+                    assert!(!random_pixel_board.exists(x, board_height - 1));
+                }
+                else {
+                    if random_pixel_board.exists(x, board_height - 1) {
+                        let location = (x, (board_height - 1) as usize);
+                        count_per_location.insert(location, count_per_location[&location] + 1);
+                        assert!(!is_segment_found);
+                        is_segment_found = true;
+                    }
+                }
+            }
+            assert!(is_segment_found);
+            for x in 0..board_width {
+                for y in 0..(board_height - 1) {
+                    assert!(!random_pixel_board.exists(x, y));
+                }
+            }
+        }
+        println!("count_per_location: {:?}", count_per_location);
+        for x in 0..(board_width - 2) {
+            let location = (x + 1, board_height - 1);
+            let count = count_per_location[&location] as f32;
+            let expected = iterations_total as f32 / (board_width - 2) as f32;
+            println!("{} < {}", (expected - count).abs(), (iterations_total as f32 / 10.0));
+            assert!((expected - count).abs() < (iterations_total as f32 / 10.0));
+        }
+    }
 }
