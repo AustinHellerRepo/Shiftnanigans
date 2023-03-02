@@ -1218,6 +1218,20 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                                                 check_for_cycle_at_isolated_graph_index = Some(other_indexed_element_isolated_graph_index.unwrap());
                                             }
                                         }
+                                        else {
+                                            {
+                                                let previous_observations_total = observations_total_per_located_cell_group_collection_per_isolated_graph[other_indexed_element_isolated_graph_index.unwrap()][&other_located_cell_group];
+                                                let next_observations_total = previous_observations_total + 1;
+                                                if next_observations_total == fully_connected_length {
+                                                    if !is_cell_group_index_fully_connected_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()][other_located_cell_group.0] {
+                                                        is_cell_group_index_fully_connected_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()].set(other_located_cell_group.0, true);
+                                                        first_fully_connected_located_cell_groups_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()].push(other_located_cell_group);
+                                                        check_for_cycle_at_isolated_graph_index = Some(current_indexed_element_isolated_graph_index.unwrap());
+                                                    }
+                                                }
+                                                observations_total_per_located_cell_group_collection_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()].insert(other_located_cell_group, next_observations_total);
+                                            }
+                                        }
                                     }
                                 }
                                 else {
@@ -1233,8 +1247,21 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                                                 check_for_cycle_at_isolated_graph_index = Some(current_indexed_element_isolated_graph_index.unwrap());
                                             }
                                         }
-
-                                        // TODO if any new fully connected located cell groups are appended, check for cycle
+                                        else {
+                                            // TODO if any new fully connected located cell groups are appended, check for cycle
+                                            {
+                                                let previous_observations_total = observations_total_per_located_cell_group_collection_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()][&current_located_cell_group];
+                                                let next_observations_total = previous_observations_total + 1;
+                                                if next_observations_total == fully_connected_length {
+                                                    if !is_cell_group_index_fully_connected_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()][current_located_cell_group.0] {
+                                                        is_cell_group_index_fully_connected_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()].set(current_located_cell_group.0, true);
+                                                        first_fully_connected_located_cell_groups_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()].push(current_located_cell_group);
+                                                        check_for_cycle_at_isolated_graph_index = Some(current_indexed_element_isolated_graph_index.unwrap());
+                                                    }
+                                                }
+                                                observations_total_per_located_cell_group_collection_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()].insert(current_located_cell_group, next_observations_total);
+                                            }
+                                        }
                                     }
                                     else {
 
@@ -2609,6 +2636,98 @@ mod pixel_board_randomizer_tests {
             let location = (x + 1, board_height - 1);
             let count = count_per_location[&location] as f32;
             let expected = iterations_total as f32 / (board_width - 2) as f32;
+            println!("{} < {}", (expected - count).abs(), (iterations_total as f32 / 10.0));
+            assert!((expected - count).abs() < (iterations_total as f32 / 10.0));
+        }
+    }
+
+    #[rstest]
+    fn left_wall_segments_one_top_and_bottom_corner_walls() {
+        let top_corner_wall_image_id = Uuid::new_v4().to_string();
+        let bottom_corner_wall_image_id = Uuid::new_v4().to_string();
+        let segment_image_id = Uuid::new_v4().to_string();
+        let board_width = 3;
+        let board_height = 6;
+        let mut pixel_board = PixelBoard::new(board_width, board_height);
+        pixel_board.set(0, 0, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+            image_id: top_corner_wall_image_id.clone()
+        }))));
+        pixel_board.set(0, board_height - 1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+            image_id: bottom_corner_wall_image_id.clone()
+        }))));
+        pixel_board.set(0, 2, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+            image_id: segment_image_id.clone()
+        }))));
+        let pixel_board_randomizer = PixelBoardRandomizer::new(pixel_board);
+        let mut count_per_location: BTreeMap<(usize, usize), usize> = BTreeMap::new();
+        for y in 0..(board_height - 4) {
+            count_per_location.insert((0, y + 2), 0);
+        }
+        let iterations_total = 1000;
+        for _ in 0..iterations_total {
+            let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
+            let mut is_segment_found = false;
+            for y in 0..board_height {
+                if y == 0 {
+                    assert!(random_pixel_board.exists(0, y));
+                    let unwrapped_pixel = random_pixel_board.get(0, y).unwrap();
+                    let borrowed_pixel: &ExamplePixel = &unwrapped_pixel.borrow();
+                    match borrowed_pixel {
+                        ExamplePixel::Tile(tile) => {
+                            assert_eq!(top_corner_wall_image_id, tile.image_id);
+                        },
+                        ExamplePixel::Element(_) => {
+                            panic!("Unexpected pixel type.");
+                        }
+                    }
+                }
+                else if y == 1 || y == (board_height - 2) {
+                    assert!(!random_pixel_board.exists(0, y));
+                }
+                else if y == (board_height - 1) {
+                    assert!(random_pixel_board.exists(0, y));
+                    let unwrapped_pixel = random_pixel_board.get(0, y).unwrap();
+                    let borrowed_pixel: &ExamplePixel = &unwrapped_pixel.borrow();
+                    match borrowed_pixel {
+                        ExamplePixel::Tile(tile) => {
+                            assert_eq!(bottom_corner_wall_image_id, tile.image_id);
+                        },
+                        ExamplePixel::Element(_) => {
+                            panic!("Unexpected pixel type.");
+                        }
+                    }
+                }
+                else {
+                    if random_pixel_board.exists(0, y) {
+                        let location = (0 as usize, y);
+                        count_per_location.insert(location, count_per_location[&location] + 1);
+                        assert!(!is_segment_found);
+                        is_segment_found = true;
+                        let unwrapped_pixel = random_pixel_board.get(0, y).unwrap();
+                        let borrowed_pixel: &ExamplePixel = &unwrapped_pixel.borrow();
+                        match borrowed_pixel {
+                            ExamplePixel::Tile(tile) => {
+                                assert_eq!(segment_image_id, tile.image_id);
+                            },
+                            ExamplePixel::Element(_) => {
+                                panic!("Unexpected pixel type.");
+                            }
+                        }
+                    }
+                }
+            }
+            assert!(is_segment_found);
+            for x in 1..board_width {
+                for y in 0..board_height {
+                    assert!(!random_pixel_board.exists(x, y));
+                }
+            }
+        }
+        println!("count_per_location: {:?}", count_per_location);
+        for y in 0..(board_height - 4) {
+            let location = (0, y + 2);
+            let count = count_per_location[&location] as f32;
+            let expected = iterations_total as f32 / (board_height - 4) as f32;
             println!("{} < {}", (expected - count).abs(), (iterations_total as f32 / 10.0));
             assert!((expected - count).abs() < (iterations_total as f32 / 10.0));
         }

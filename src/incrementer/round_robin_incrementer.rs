@@ -68,8 +68,8 @@ impl<T> Incrementer for RoundRobinIncrementer<T> {
         let indexed_elements = self.incrementers[incrementer_index].borrow().get();
         let mut offset_indexed_elements: Vec<crate::IndexedElement<T>> = Vec::new();
         for indexed_element in indexed_elements {
-            let offset_indexed_element: crate::IndexedElement<T> = crate::IndexedElement::new(indexed_element.element, indexed_element.index + self.current_indexed_element_index_offset);
-            offset_indexed_elements.push(offset_indexed_element);
+            //let offset_indexed_element: crate::IndexedElement<T> = crate::IndexedElement::new(indexed_element.element, indexed_element.index + self.current_indexed_element_index_offset);
+            offset_indexed_elements.push(indexed_element);
         }
         return offset_indexed_elements;
     }
