@@ -160,3 +160,29 @@ impl<T: PartialEq> Shifter for HyperGraphClicheShifter<T> {
         todo!();
     }
 }
+
+#[cfg(test)]
+mod hyper_graph_cliche_shifter_tests {
+    use std::{time::{Duration, Instant}, cell::RefCell, collections::BTreeMap};
+
+    use super::*;
+    use rstest::rstest;
+
+    fn init() {
+        std::env::set_var("RUST_LOG", "trace");
+        //pretty_env_logger::try_init();
+    }
+
+    #[rstest]
+    fn zero_hyper_graph_nodes() {
+        init();
+
+        let stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec<Vec<Rc<StatefulHyperGraphNode<(u8, u8)>>>> = Vec::new();
+
+        let mut shifter = HyperGraphClicheShifter::new(stateful_hyper_graph_nodes_per_hyper_graph_node_index);
+        for _ in 0..10 {
+            assert!(!shifter.try_forward());
+            assert!(!shifter.try_backward());
+        }
+    }
+}
