@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{rc::Rc, cell::RefCell};
 
 use crate::IndexedElement;
 
@@ -7,33 +7,50 @@ use super::{Shifter, index_shifter::IndexShifter};
 #[derive(PartialEq)]
 pub struct StatefulHyperGraphNode<T: PartialEq> {
     state: Rc<T>,
-    neighbor_stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec<Vec<Rc<StatefulHyperGraphNode<T>>>>
+    neighbor_stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec<Vec<Rc<RefCell<StatefulHyperGraphNode<T>>>>>
+}
+
+impl<T: PartialEq> StatefulHyperGraphNode<T> {
+    pub fn new(state: Rc<T>) -> Self {
+        StatefulHyperGraphNode {
+            state: state,
+            neighbor_stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec::new()
+        }
+    }
+
+    pub fn add_neighbor(&mut self, hyper_graph_node_index: usize, stateful_hyper_graph_node: Rc<RefCell<StatefulHyperGraphNode<T>>>) {
+        while self.neighbor_stateful_hyper_graph_nodes_per_hyper_graph_node_index.len() <= hyper_graph_node_index {
+            self.neighbor_stateful_hyper_graph_nodes_per_hyper_graph_node_index.push(Vec::new());
+        }
+        self.neighbor_stateful_hyper_graph_nodes_per_hyper_graph_node_index[hyper_graph_node_index].push(stateful_hyper_graph_node);
+    }
 }
 
 pub struct HyperGraphClicheShifter<T: PartialEq> {
-    stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec<Vec<Rc<StatefulHyperGraphNode<T>>>>,
+    stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec<Vec<Rc<RefCell<StatefulHyperGraphNode<T>>>>>,
     hyper_graph_nodes_length: usize,
     current_hyper_graph_node_index: Option<usize>,
-    current_stateful_hyper_graph_node_per_hyper_graph_node_index: Vec<Rc<StatefulHyperGraphNode<T>>>,
-    current_stateful_hyper_graph_node_index_per_hyper_graph_node_index: Vec<usize>,
+    current_stateful_hyper_graph_node_per_hyper_graph_node_index: Vec<Rc<RefCell<StatefulHyperGraphNode<T>>>>,
+    current_stateful_hyper_graph_node_index_per_hyper_graph_node_index: Vec<Option<usize>>,
     possible_states: Vec<Rc<T>>
 }
 
 impl<T: PartialEq> HyperGraphClicheShifter<T> {
-    pub fn new(stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec<Vec<Rc<StatefulHyperGraphNode<T>>>>) -> Self {
+    pub fn new(stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec<Vec<Rc<RefCell<StatefulHyperGraphNode<T>>>>>) -> Self {
         let hyper_graph_nodes_length = stateful_hyper_graph_nodes_per_hyper_graph_node_index.len();
         let mut possible_states: Vec<Rc<T>> = Vec::new();
         for hyper_graph_node_index in 0..stateful_hyper_graph_nodes_per_hyper_graph_node_index.len() {
-            for stateful_hyper_graph_node in stateful_hyper_graph_nodes_per_hyper_graph_node_index[hyper_graph_node_index].iter() {
+            for wrapped_stateful_hyper_graph_node in stateful_hyper_graph_nodes_per_hyper_graph_node_index[hyper_graph_node_index].iter() {
+                let borrowed_stateful_hyper_graph_node = wrapped_stateful_hyper_graph_node.borrow();
                 let mut is_state_in_possible_states = false;
                 for possible_state in possible_states.iter() {
-                    if possible_state == &stateful_hyper_graph_node.state {
+                    if possible_state == &borrowed_stateful_hyper_graph_node.state {
                         is_state_in_possible_states = true;
                         break;
                     }
                 }
                 if !is_state_in_possible_states {
-                    possible_states.push(stateful_hyper_graph_node.state.clone());
+                    possible_states.push(borrowed_stateful_hyper_graph_node.state.clone());
                 }
             }
         }
@@ -64,15 +81,21 @@ impl<T: PartialEq> Shifter for HyperGraphClicheShifter<T> {
             if next_hyper_graph_node_index == self.hyper_graph_nodes_length {
                 return false;
             }
+            self.current_stateful_hyper_graph_node_index_per_hyper_graph_node_index.push(None);
             return true;
         }
         else {
             self.current_hyper_graph_node_index = Some(0);
+            self.current_stateful_hyper_graph_node_index_per_hyper_graph_node_index.push(None);
             return true;
         }
     }
     fn try_backward(&mut self) -> bool {
         if let Some(current_hyper_graph_node_index) = self.current_hyper_graph_node_index {
+            if current_hyper_graph_node_index != self.hyper_graph_nodes_length {
+                self.current_stateful_hyper_graph_node_index_per_hyper_graph_node_index.pop();
+                self.current_stateful_hyper_graph_node_per_hyper_graph_node_index.pop();
+            }
             if current_hyper_graph_node_index == 0 {
                 self.current_hyper_graph_node_index = None;
                 return false;
@@ -88,17 +111,16 @@ impl<T: PartialEq> Shifter for HyperGraphClicheShifter<T> {
         // search the previous stateful_hyper_graph_node's neighbors for the next neighbor that is also a neighbor of all each previous stateful_hyper_graph_node
         if let Some(current_hyper_graph_node_index) = self.current_hyper_graph_node_index {
             let initial_stateful_hyper_graph_node_index;
-            if current_hyper_graph_node_index != self.current_stateful_hyper_graph_node_per_hyper_graph_node_index.len() {
-                // the first stateful_hyper_graph_node needs to be found
-                initial_stateful_hyper_graph_node_index = 0;
+            if let Some(current_stateful_hyper_graph_node_index) = self.current_stateful_hyper_graph_node_index_per_hyper_graph_node_index[current_hyper_graph_node_index] {
+                initial_stateful_hyper_graph_node_index = current_stateful_hyper_graph_node_index + 1;
             }
             else {
-                // the next stateful_hyper_graph_node needs to be found
-                initial_stateful_hyper_graph_node_index = self.current_stateful_hyper_graph_node_index_per_hyper_graph_node_index[current_hyper_graph_node_index] + 1;
+                initial_stateful_hyper_graph_node_index = 0;
             }
 
             for current_stateful_hyper_graph_node_index in initial_stateful_hyper_graph_node_index..self.stateful_hyper_graph_nodes_per_hyper_graph_node_index[current_hyper_graph_node_index].len() {
-                let current_stateful_hyper_graph_node = &self.stateful_hyper_graph_nodes_per_hyper_graph_node_index[current_hyper_graph_node_index][current_stateful_hyper_graph_node_index];
+                let wrapped_current_stateful_hyper_graph_node = &self.stateful_hyper_graph_nodes_per_hyper_graph_node_index[current_hyper_graph_node_index][current_stateful_hyper_graph_node_index];
+                let borrowed_current_stateful_hyper_graph_node: &StatefulHyperGraphNode<T> = &wrapped_current_stateful_hyper_graph_node.borrow();
                 // TODO check to see that the previous stateful_hyper_graph_nodes permit the state of this hyper_graph_node
                 let mut is_current_stateful_hyper_graph_node_valid = true;
 
@@ -107,8 +129,10 @@ impl<T: PartialEq> Shifter for HyperGraphClicheShifter<T> {
                     previous_hyper_graph_node_index -= 1;
                     // loop over the stateful_hyper_graph_node neighbors, searching for the current stateful_hyper_graph_node state
                     let mut previous_neighbor_stateful_hyper_graph_node_exists_with_same_state = false;
-                    for previous_neighbor_stateful_hyper_graph_node in self.current_stateful_hyper_graph_node_per_hyper_graph_node_index[previous_hyper_graph_node_index].neighbor_stateful_hyper_graph_nodes_per_hyper_graph_node_index[current_hyper_graph_node_index].iter() {
-                        if previous_neighbor_stateful_hyper_graph_node.state == current_stateful_hyper_graph_node.state {
+                    let borrowed_previous_hyper_graph_node: &StatefulHyperGraphNode<T> = &self.current_stateful_hyper_graph_node_per_hyper_graph_node_index[previous_hyper_graph_node_index].borrow();
+                    for wrapped_previous_neighbor_stateful_hyper_graph_node in borrowed_previous_hyper_graph_node.neighbor_stateful_hyper_graph_nodes_per_hyper_graph_node_index[current_hyper_graph_node_index].iter() {
+                        let borrowed_previous_neighbor_stateful_hyper_graph_node: &StatefulHyperGraphNode<T> = &wrapped_previous_neighbor_stateful_hyper_graph_node.borrow();
+                        if borrowed_previous_neighbor_stateful_hyper_graph_node.state == borrowed_current_stateful_hyper_graph_node.state {
                             previous_neighbor_stateful_hyper_graph_node_exists_with_same_state = true;
                             break;
                         }
@@ -120,8 +144,8 @@ impl<T: PartialEq> Shifter for HyperGraphClicheShifter<T> {
                 }
 
                 if is_current_stateful_hyper_graph_node_valid {
-                    self.current_stateful_hyper_graph_node_per_hyper_graph_node_index.push(current_stateful_hyper_graph_node.clone());
-                    self.current_stateful_hyper_graph_node_index_per_hyper_graph_node_index.push(current_stateful_hyper_graph_node_index);
+                    self.current_stateful_hyper_graph_node_per_hyper_graph_node_index.push(wrapped_current_stateful_hyper_graph_node.clone());
+                    self.current_stateful_hyper_graph_node_index_per_hyper_graph_node_index[current_hyper_graph_node_index] = Some(current_stateful_hyper_graph_node_index);
                     return true;
                 }
             }
@@ -134,7 +158,8 @@ impl<T: PartialEq> Shifter for HyperGraphClicheShifter<T> {
     }
     fn get_indexed_element(&self) -> IndexedElement<Self::T> {
         if let Some(current_hyper_graph_node_index) = self.current_hyper_graph_node_index {
-            return IndexedElement::new(self.current_stateful_hyper_graph_node_per_hyper_graph_node_index[current_hyper_graph_node_index].state.clone(), current_hyper_graph_node_index);
+            let borrowed_stateful_hyper_graph_node = self.current_stateful_hyper_graph_node_per_hyper_graph_node_index[current_hyper_graph_node_index].borrow();
+            return IndexedElement::new(borrowed_stateful_hyper_graph_node.state.clone(), current_hyper_graph_node_index);
         }
         panic!("Unexpected attempt to get indexed element without moving forward and incrementing.");
     }
@@ -143,7 +168,8 @@ impl<T: PartialEq> Shifter for HyperGraphClicheShifter<T> {
     }
     fn get_element_index_and_state_index(&self) -> (usize, usize) {
         if let Some(current_hyper_graph_node_index) = self.current_hyper_graph_node_index {
-            let state = &self.current_stateful_hyper_graph_node_per_hyper_graph_node_index[current_hyper_graph_node_index].state;
+            let borrowed_stateful_hyper_graph_node = self.current_stateful_hyper_graph_node_per_hyper_graph_node_index[current_hyper_graph_node_index].borrow();
+            let state = &borrowed_stateful_hyper_graph_node.state;
             for (possible_state_index, possible_state) in self.possible_states.iter().enumerate() {
                 if possible_state == state {
                     return (current_hyper_graph_node_index, possible_state_index);
@@ -177,11 +203,37 @@ mod hyper_graph_cliche_shifter_tests {
     fn zero_hyper_graph_nodes() {
         init();
 
-        let stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec<Vec<Rc<StatefulHyperGraphNode<(u8, u8)>>>> = Vec::new();
+        let stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec<Vec<Rc<RefCell<StatefulHyperGraphNode<(u8, u8)>>>>> = Vec::new();
 
         let mut shifter = HyperGraphClicheShifter::new(stateful_hyper_graph_nodes_per_hyper_graph_node_index);
         for _ in 0..10 {
             assert!(!shifter.try_forward());
+            assert!(!shifter.try_backward());
+        }
+    }
+
+    #[rstest]
+    fn one_hyper_graph_node_with_one_state() {
+        init();
+
+        let stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec<Vec<Rc<RefCell<StatefulHyperGraphNode<(u8, u8)>>>>> = vec![
+            vec![
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((10 as u8, 100 as u8)))))
+            ]
+        ];
+
+        let mut shifter: HyperGraphClicheShifter<(u8, u8)> = HyperGraphClicheShifter::new(stateful_hyper_graph_nodes_per_hyper_graph_node_index);
+        for _ in 0..10 {
+            assert!(shifter.try_forward());
+            assert!(shifter.try_increment());
+            {
+                let indexed_element = shifter.get_indexed_element();
+                assert_eq!(0, indexed_element.index);
+                assert_eq!(&(10 as u8, 100 as u8), indexed_element.element.as_ref());
+            }
+            assert!(!shifter.try_forward());
+            assert!(shifter.try_backward());
+            assert!(!shifter.try_increment());
             assert!(!shifter.try_backward());
         }
     }
