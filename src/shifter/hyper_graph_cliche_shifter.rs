@@ -6,7 +6,7 @@ use super::{Shifter, index_shifter::IndexShifter};
 
 #[derive(PartialEq)]
 pub struct StatefulHyperGraphNode<T: PartialEq> {
-    state: Rc<T>,
+    pub state: Rc<T>,
     neighbor_stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec<Vec<Rc<RefCell<StatefulHyperGraphNode<T>>>>>
 }
 

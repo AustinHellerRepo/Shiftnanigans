@@ -1,7 +1,7 @@
 use std::{rc::Rc, cell::RefCell, collections::{BTreeSet, BTreeMap}};
 use bitvec::vec::BitVec;
 use itertools::Itertools;
-use crate::{CellGroup, incrementer::{round_robin_incrementer::RoundRobinIncrementer, Incrementer, shifting_cell_group_dependency_incrementer::{self, CellGroupDependency, ShiftingCellGroupDependencyIncrementer}}, shifter::{Shifter, segment_permutation_shifter::{Segment, SegmentPermutationShifter}, index_shifter::IndexShifter, combined_shifter::CombinedShifter, shifting_square_breadth_first_search_shifter::ShiftingSquareBreadthFirstSearchShifter}};
+use crate::{CellGroup, incrementer::{round_robin_incrementer::RoundRobinIncrementer, Incrementer, shifting_cell_group_dependency_incrementer::{self, CellGroupDependency, ShiftingCellGroupDependencyIncrementer}, shifter_incrementer::ShifterIncrementer}, shifter::{Shifter, segment_permutation_shifter::{Segment, SegmentPermutationShifter}, index_shifter::IndexShifter, combined_shifter::CombinedShifter, shifting_square_breadth_first_search_shifter::ShiftingSquareBreadthFirstSearchShifter, hyper_graph_cliche_shifter::{StatefulHyperGraphNode, HyperGraphClicheShifter}}};
 use super::{PixelBoard, Pixel};
 
 // TODO construct an undirected graph, search the graph starting with one of the newest edges, doing a depth-first search starting with the newest edge, only permitting the next node to be a cell group not yet traveled to and a location not yet traveled to.
@@ -1125,13 +1125,20 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
         // prepare to find the cycle as the RoundRobinIncrementer is iterated over
         // the idea is that we round-robin across all shifters, building up graphs of connected locations until we find that the next pair to be connected already exist in the same graph, then we check for a cycle
         
+        // TODO remove these variables as they are no longer used
         // this contains how many times this cell group at this location has been found at this location within the graph at the current index of the vector
         let mut observations_total_per_located_cell_group_collection_per_isolated_graph: Vec<BTreeMap<(usize, (u8, u8)), usize>> = Vec::new();
         let mut first_fully_connected_located_cell_groups_per_isolated_graph: Vec<Vec<(usize, (u8, u8))>> = Vec::new();
         let mut is_cell_group_index_fully_connected_per_isolated_graph: Vec<BitVec> = Vec::new();
-        let mut is_incrementer_completed: bool = false;
         let fully_connected_length = self.cell_groups.len() - 1;
 
+        // contains all of the states discovered thus far
+        let mut stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec<Vec<Rc<RefCell<StatefulHyperGraphNode<(u8, u8)>>>>> = Vec::new();
+        for _ in 0..self.cell_groups.len() {
+            stateful_hyper_graph_nodes_per_hyper_graph_node_index.push(Vec::new());
+        }
+
+        let mut is_incrementer_completed: bool = false;
         while !is_incrementer_completed {
             // TODO get the next set of locations
             is_incrementer_completed = !round_robin_incrementer.try_increment();
@@ -1159,6 +1166,39 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                     for (current_indexed_element_index, current_indexed_element) in locations.iter().enumerate() {
                         for (other_indexed_element_index, other_indexed_element) in locations.iter().enumerate() {
                             if current_indexed_element_index < other_indexed_element_index {
+                                let mut current_stateful_hyper_graph_node_option: Option<Rc<RefCell<StatefulHyperGraphNode<(u8, u8)>>>> = None;
+                                for stateful_hyper_graph_node in stateful_hyper_graph_nodes_per_hyper_graph_node_index[current_indexed_element.index].iter() {
+                                    if stateful_hyper_graph_node.borrow().state == current_indexed_element.element {
+                                        current_stateful_hyper_graph_node_option = Some(stateful_hyper_graph_node.clone());
+                                        break;
+                                    }
+                                }
+                                if current_stateful_hyper_graph_node_option.is_none() {
+                                    let current_stateful_hyper_graph_node = Rc::new(RefCell::new(StatefulHyperGraphNode::new(current_indexed_element.element.clone())));
+                                    stateful_hyper_graph_nodes_per_hyper_graph_node_index[current_indexed_element.index].push(current_stateful_hyper_graph_node.clone());
+                                    current_stateful_hyper_graph_node_option = Some(current_stateful_hyper_graph_node);
+                                }
+                                let mut other_stateful_hyper_graph_node_option: Option<Rc<RefCell<StatefulHyperGraphNode<(u8, u8)>>>> = None;
+                                for stateful_hyper_graph_node in stateful_hyper_graph_nodes_per_hyper_graph_node_index[other_indexed_element.index].iter() {
+                                    if stateful_hyper_graph_node.borrow().state == other_indexed_element.element {
+                                        other_stateful_hyper_graph_node_option = Some(stateful_hyper_graph_node.clone());
+                                        break;
+                                    }
+                                }
+                                if other_stateful_hyper_graph_node_option.is_none() {
+                                    let other_stateful_hyper_graph_node = Rc::new(RefCell::new(StatefulHyperGraphNode::new(other_indexed_element.element.clone())));
+                                    stateful_hyper_graph_nodes_per_hyper_graph_node_index[other_indexed_element.index].push(other_stateful_hyper_graph_node.clone());
+                                    other_stateful_hyper_graph_node_option = Some(other_stateful_hyper_graph_node);
+                                }
+                                
+                                // set each as neighbors to each other
+                                let current_stateful_hyper_graph_node = current_stateful_hyper_graph_node_option.unwrap();
+                                let other_stateful_hyper_graph_node = other_stateful_hyper_graph_node_option.unwrap();
+                                current_stateful_hyper_graph_node.borrow_mut().add_neighbor(other_indexed_element.index, other_stateful_hyper_graph_node.clone());
+                                other_stateful_hyper_graph_node.borrow_mut().add_neighbor(current_indexed_element.index, current_stateful_hyper_graph_node);
+                            }
+
+                            if false {  // TODO remove since this logic does not work and was replaced with the HyperGraphClicheShifter
                                 // TODO determine if indexed location exists in previous data structures
                                 let mut current_indexed_element_isolated_graph_index: Option<usize> = None;
                                 let mut other_indexed_element_isolated_graph_index: Option<usize> = None;
@@ -1363,6 +1403,27 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                                 }
                             }
                         }
+                    }
+
+                    // look for cliches given the stateful hyper graph nodes of the latest set of provided location pairs
+                    let hyper_graph_cliche_shifter = Rc::new(RefCell::new(HyperGraphClicheShifter::new(stateful_hyper_graph_nodes_per_hyper_graph_node_index.clone())));
+                    let mut shifter_incrementer = ShifterIncrementer::new(hyper_graph_cliche_shifter);
+                    if shifter_incrementer.try_increment() {
+                        // found cliche
+                        let cliche = shifter_incrementer.get();
+                        let mut random_pixel_board: PixelBoard<TPixel> = PixelBoard::new(self.pixel_board.get_width(), self.pixel_board.get_height());
+                        for indexed_element in cliche {
+                            let location = *indexed_element.element.as_ref();
+                            for cell in self.cell_groups[indexed_element.index].cells.iter() {
+                                let calculated_pixel_board_index_x: usize = (location.0 + cell.0) as usize;
+                                let calculated_pixel_board_index_y: usize = (location.1 + cell.1) as usize;
+                                let pixel_board_coordinate = self.pixel_board_coordinate_per_cell_group_index[indexed_element.index];
+                                let original_pixel_board_index_x: usize = (cell.0 as usize + pixel_board_coordinate.0);
+                                let original_pixel_board_index_y: usize = (cell.1 as usize + pixel_board_coordinate.1);
+                                random_pixel_board.set(calculated_pixel_board_index_x, calculated_pixel_board_index_y, self.pixel_board.get(original_pixel_board_index_x, original_pixel_board_index_y).unwrap());
+                            }
+                        }
+                        return random_pixel_board;
                     }
                 }
             }
@@ -2642,7 +2703,7 @@ mod pixel_board_randomizer_tests {
     }
 
     #[rstest]
-    fn left_wall_segments_one_top_and_bottom_corner_walls() {
+    fn left_wall_segments_one_top_left_and_bottom_left_corner_walls() {
         let top_corner_wall_image_id = Uuid::new_v4().to_string();
         let bottom_corner_wall_image_id = Uuid::new_v4().to_string();
         let segment_image_id = Uuid::new_v4().to_string();
@@ -2728,6 +2789,282 @@ mod pixel_board_randomizer_tests {
             let location = (0, y + 2);
             let count = count_per_location[&location] as f32;
             let expected = iterations_total as f32 / (board_height - 4) as f32;
+            println!("{} < {}", (expected - count).abs(), (iterations_total as f32 / 10.0));
+            assert!((expected - count).abs() < (iterations_total as f32 / 10.0));
+        }
+    }
+
+    #[rstest]
+    fn right_wall_segments_one_top_right_and_bottom_right_corner_walls() {
+        let top_corner_wall_image_id = Uuid::new_v4().to_string();
+        let bottom_corner_wall_image_id = Uuid::new_v4().to_string();
+        let segment_image_id = Uuid::new_v4().to_string();
+        let board_width = 3;
+        let board_height = 6;
+        let mut pixel_board = PixelBoard::new(board_width, board_height);
+        pixel_board.set(board_width - 1, 0, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+            image_id: top_corner_wall_image_id.clone()
+        }))));
+        pixel_board.set(board_width - 1, board_height - 1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+            image_id: bottom_corner_wall_image_id.clone()
+        }))));
+        pixel_board.set(board_width - 1, 2, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+            image_id: segment_image_id.clone()
+        }))));
+        let pixel_board_randomizer = PixelBoardRandomizer::new(pixel_board);
+        let mut count_per_location: BTreeMap<(usize, usize), usize> = BTreeMap::new();
+        for y in 0..(board_height - 4) {
+            count_per_location.insert((board_width - 1, y + 2), 0);
+        }
+        let iterations_total = 1000;
+        for _ in 0..iterations_total {
+            let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
+            let mut is_segment_found = false;
+            for y in 0..board_height {
+                if y == 0 {
+                    assert!(random_pixel_board.exists(board_width - 1, y));
+                    let unwrapped_pixel = random_pixel_board.get(board_width - 1, y).unwrap();
+                    let borrowed_pixel: &ExamplePixel = &unwrapped_pixel.borrow();
+                    match borrowed_pixel {
+                        ExamplePixel::Tile(tile) => {
+                            assert_eq!(top_corner_wall_image_id, tile.image_id);
+                        },
+                        ExamplePixel::Element(_) => {
+                            panic!("Unexpected pixel type.");
+                        }
+                    }
+                }
+                else if y == 1 || y == (board_height - 2) {
+                    assert!(!random_pixel_board.exists(board_width - 1, y));
+                }
+                else if y == (board_height - 1) {
+                    assert!(random_pixel_board.exists(board_width - 1, y));
+                    let unwrapped_pixel = random_pixel_board.get(board_width - 1, y).unwrap();
+                    let borrowed_pixel: &ExamplePixel = &unwrapped_pixel.borrow();
+                    match borrowed_pixel {
+                        ExamplePixel::Tile(tile) => {
+                            assert_eq!(bottom_corner_wall_image_id, tile.image_id);
+                        },
+                        ExamplePixel::Element(_) => {
+                            panic!("Unexpected pixel type.");
+                        }
+                    }
+                }
+                else {
+                    if random_pixel_board.exists(board_width - 1, y) {
+                        let location = ((board_width - 1) as usize, y);
+                        count_per_location.insert(location, count_per_location[&location] + 1);
+                        assert!(!is_segment_found);
+                        is_segment_found = true;
+                        let unwrapped_pixel = random_pixel_board.get(board_width - 1, y).unwrap();
+                        let borrowed_pixel: &ExamplePixel = &unwrapped_pixel.borrow();
+                        match borrowed_pixel {
+                            ExamplePixel::Tile(tile) => {
+                                assert_eq!(segment_image_id, tile.image_id);
+                            },
+                            ExamplePixel::Element(_) => {
+                                panic!("Unexpected pixel type.");
+                            }
+                        }
+                    }
+                }
+            }
+            assert!(is_segment_found);
+            for x in 0..(board_width - 1) {
+                for y in 0..board_height {
+                    assert!(!random_pixel_board.exists(x, y));
+                }
+            }
+        }
+        println!("count_per_location: {:?}", count_per_location);
+        for y in 0..(board_height - 4) {
+            let location = (board_width - 1, y + 2);
+            let count = count_per_location[&location] as f32;
+            let expected = iterations_total as f32 / (board_height - 4) as f32;
+            println!("{} < {}", (expected - count).abs(), (iterations_total as f32 / 10.0));
+            assert!((expected - count).abs() < (iterations_total as f32 / 10.0));
+        }
+    }
+
+    #[rstest]
+    fn top_wall_segments_one_top_left_and_top_right_corner_walls() {
+        let top_corner_wall_image_id = Uuid::new_v4().to_string();
+        let right_corner_wall_image_id = Uuid::new_v4().to_string();
+        let segment_image_id = Uuid::new_v4().to_string();
+        let board_width = 6;
+        let board_height = 3;
+        let mut pixel_board = PixelBoard::new(board_width, board_height);
+        pixel_board.set(0, 0, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+            image_id: top_corner_wall_image_id.clone()
+        }))));
+        pixel_board.set(board_width - 1, 0, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+            image_id: right_corner_wall_image_id.clone()
+        }))));
+        pixel_board.set(2, 0, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+            image_id: segment_image_id.clone()
+        }))));
+        let pixel_board_randomizer = PixelBoardRandomizer::new(pixel_board);
+        let mut count_per_location: BTreeMap<(usize, usize), usize> = BTreeMap::new();
+        for x in 0..(board_width - 4) {
+            count_per_location.insert((x + 2, 0), 0);
+        }
+        let iterations_total = 1000;
+        for _ in 0..iterations_total {
+            let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
+            let mut is_segment_found = false;
+            for x in 0..board_width {
+                if x == 0 {
+                    assert!(random_pixel_board.exists(x, 0));
+                    let unwrapped_pixel = random_pixel_board.get(x, 0).unwrap();
+                    let borrowed_pixel: &ExamplePixel = &unwrapped_pixel.borrow();
+                    match borrowed_pixel {
+                        ExamplePixel::Tile(tile) => {
+                            assert_eq!(top_corner_wall_image_id, tile.image_id);
+                        },
+                        ExamplePixel::Element(_) => {
+                            panic!("Unexpected pixel type.");
+                        }
+                    }
+                }
+                else if x == 1 || x == (board_width - 2) {
+                    assert!(!random_pixel_board.exists(x, 0));
+                }
+                else if x == (board_width - 1) {
+                    assert!(random_pixel_board.exists(x, 0));
+                    let unwrapped_pixel = random_pixel_board.get(x, 0).unwrap();
+                    let borrowed_pixel: &ExamplePixel = &unwrapped_pixel.borrow();
+                    match borrowed_pixel {
+                        ExamplePixel::Tile(tile) => {
+                            assert_eq!(right_corner_wall_image_id, tile.image_id);
+                        },
+                        ExamplePixel::Element(_) => {
+                            panic!("Unexpected pixel type.");
+                        }
+                    }
+                }
+                else {
+                    if random_pixel_board.exists(x, 0) {
+                        let location = (x, 0 as usize);
+                        count_per_location.insert(location, count_per_location[&location] + 1);
+                        assert!(!is_segment_found);
+                        is_segment_found = true;
+                        let unwrapped_pixel = random_pixel_board.get(x, 0).unwrap();
+                        let borrowed_pixel: &ExamplePixel = &unwrapped_pixel.borrow();
+                        match borrowed_pixel {
+                            ExamplePixel::Tile(tile) => {
+                                assert_eq!(segment_image_id, tile.image_id);
+                            },
+                            ExamplePixel::Element(_) => {
+                                panic!("Unexpected pixel type.");
+                            }
+                        }
+                    }
+                }
+            }
+            assert!(is_segment_found);
+            for y in 1..board_height {
+                for x in 0..board_width {
+                    assert!(!random_pixel_board.exists(x, y));
+                }
+            }
+        }
+        println!("count_per_location: {:?}", count_per_location);
+        for x in 0..(board_width - 4) {
+            let location = (x + 2, 0);
+            let count = count_per_location[&location] as f32;
+            let expected = iterations_total as f32 / (board_width - 4) as f32;
+            println!("{} < {}", (expected - count).abs(), (iterations_total as f32 / 10.0));
+            assert!((expected - count).abs() < (iterations_total as f32 / 10.0));
+        }
+    }
+
+    #[rstest]
+    fn bottom_wall_segments_one_bottom_left_and_bottom_right_corner_walls() {
+        let top_corner_wall_image_id = Uuid::new_v4().to_string();
+        let right_corner_wall_image_id = Uuid::new_v4().to_string();
+        let segment_image_id = Uuid::new_v4().to_string();
+        let board_width = 6;
+        let board_height = 3;
+        let mut pixel_board = PixelBoard::new(board_width, board_height);
+        pixel_board.set(0, board_height - 1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+            image_id: top_corner_wall_image_id.clone()
+        }))));
+        pixel_board.set(board_width - 1, board_height - 1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+            image_id: right_corner_wall_image_id.clone()
+        }))));
+        pixel_board.set(2, board_height - 1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+            image_id: segment_image_id.clone()
+        }))));
+        let pixel_board_randomizer = PixelBoardRandomizer::new(pixel_board);
+        let mut count_per_location: BTreeMap<(usize, usize), usize> = BTreeMap::new();
+        for x in 0..(board_width - 4) {
+            count_per_location.insert((x + 2, board_height - 1), 0);
+        }
+        let iterations_total = 1000;
+        for _ in 0..iterations_total {
+            let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
+            let mut is_segment_found = false;
+            for x in 0..board_width {
+                if x == 0 {
+                    assert!(random_pixel_board.exists(x, board_height - 1));
+                    let unwrapped_pixel = random_pixel_board.get(x, board_height - 1).unwrap();
+                    let borrowed_pixel: &ExamplePixel = &unwrapped_pixel.borrow();
+                    match borrowed_pixel {
+                        ExamplePixel::Tile(tile) => {
+                            assert_eq!(top_corner_wall_image_id, tile.image_id);
+                        },
+                        ExamplePixel::Element(_) => {
+                            panic!("Unexpected pixel type.");
+                        }
+                    }
+                }
+                else if x == 1 || x == (board_width - 2) {
+                    assert!(!random_pixel_board.exists(x, board_height - 1));
+                }
+                else if x == (board_width - 1) {
+                    assert!(random_pixel_board.exists(x, board_height - 1));
+                    let unwrapped_pixel = random_pixel_board.get(x, board_height - 1).unwrap();
+                    let borrowed_pixel: &ExamplePixel = &unwrapped_pixel.borrow();
+                    match borrowed_pixel {
+                        ExamplePixel::Tile(tile) => {
+                            assert_eq!(right_corner_wall_image_id, tile.image_id);
+                        },
+                        ExamplePixel::Element(_) => {
+                            panic!("Unexpected pixel type.");
+                        }
+                    }
+                }
+                else {
+                    if random_pixel_board.exists(x, board_height - 1) {
+                        let location = (x, (board_height - 1) as usize);
+                        count_per_location.insert(location, count_per_location[&location] + 1);
+                        assert!(!is_segment_found);
+                        is_segment_found = true;
+                        let unwrapped_pixel = random_pixel_board.get(x, board_height - 1).unwrap();
+                        let borrowed_pixel: &ExamplePixel = &unwrapped_pixel.borrow();
+                        match borrowed_pixel {
+                            ExamplePixel::Tile(tile) => {
+                                assert_eq!(segment_image_id, tile.image_id);
+                            },
+                            ExamplePixel::Element(_) => {
+                                panic!("Unexpected pixel type.");
+                            }
+                        }
+                    }
+                }
+            }
+            assert!(is_segment_found);
+            for y in 0..(board_height - 1) {
+                for x in 0..board_width {
+                    assert!(!random_pixel_board.exists(x, y));
+                }
+            }
+        }
+        println!("count_per_location: {:?}", count_per_location);
+        for x in 0..(board_width - 4) {
+            let location = (x + 2, board_height - 1);
+            let count = count_per_location[&location] as f32;
+            let expected = iterations_total as f32 / (board_width - 4) as f32;
             println!("{} < {}", (expected - count).abs(), (iterations_total as f32 / 10.0));
             assert!((expected - count).abs() < (iterations_total as f32 / 10.0));
         }

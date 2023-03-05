@@ -2,6 +2,7 @@ use std::{rc::Rc, cell::RefCell};
 use crate::{shifter::Shifter, IndexedElement};
 use super::Incrementer;
 
+// Purpose: with each iteration, evaluates a complete shifted state of the underlying shifter
 pub struct ShifterIncrementer<T> {
     shifter: Rc<RefCell<dyn Shifter<T = T>>>,
     is_started: bool,
@@ -33,16 +34,27 @@ impl<T> Incrementer for ShifterIncrementer<T> {
         let mut borrowed_shifter = self.shifter.borrow_mut();
         if !self.is_started {
             self.is_started = true;
-            for _ in 0..self.shifter_length {
-                if !borrowed_shifter.try_forward() {
-                    self.is_completed = true;
-                    return false;
+            let mut is_forward_required = true;
+            while self.current_indexed_elements.len() != self.shifter_length {
+                if is_forward_required && !borrowed_shifter.try_forward() {
+                    panic!("Unexpectedly failed to move forward when not at the end.");
+                    //self.is_completed = true;
+                    //return false;
                 }
-                if !borrowed_shifter.try_increment() {
-                    panic!("Unexpectedly failed to increment shifter after moving forward to shift.");
+                if borrowed_shifter.try_increment() {
+                    let indexed_element = borrowed_shifter.get_indexed_element();
+                    self.current_indexed_elements.push(indexed_element);
+                    is_forward_required = true;
                 }
-                let indexed_element = borrowed_shifter.get_indexed_element();
-                self.current_indexed_elements.push(indexed_element);
+                else {
+                    self.current_indexed_elements.pop();
+                    if !borrowed_shifter.try_backward() {
+                        // failed to find any valid initial set of states
+                        self.is_completed = true;
+                        return false;
+                    }
+                    is_forward_required = false;
+                }
             }
             return self.current_indexed_elements.len() != 0;
         }
@@ -89,7 +101,7 @@ impl<T> Incrementer for ShifterIncrementer<T> {
 mod shifter_incrementer_tests {
     use std::{time::{Duration, Instant}, cell::RefCell, collections::BTreeSet};
 
-    use crate::shifter::segment_permutation_shifter::{SegmentPermutationShifter, Segment};
+    use crate::shifter::{segment_permutation_shifter::{SegmentPermutationShifter, Segment}, hyper_graph_cliche_shifter::{HyperGraphClicheShifter, StatefulHyperGraphNode}};
 
     use super::*;
     use bitvec::{bits, vec::BitVec};
@@ -145,5 +157,103 @@ mod shifter_incrementer_tests {
             assert_eq!(&(13, 100), indexed_elements[1].element.as_ref());
         }
         assert!(!shifter_incrementer.try_increment());
+    }
+
+    #[rstest]
+    fn complex_hyper_graph_cliche_shifter_with_zero_valid_cliches() {
+        init();
+
+        let stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec<Vec<Rc<RefCell<StatefulHyperGraphNode<(u8, u8)>>>>> = vec![
+            vec![
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((10 as u8, 100 as u8))))),
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((12 as u8, 100 as u8)))))
+            ],
+            vec![
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 200 as u8))))),
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 202 as u8)))))
+            ],
+            vec![
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((30 as u8, 40 as u8))))),
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((31 as u8, 41 as u8)))))
+            ]
+        ];
+
+        let neighbor_hyper_graph_node_index_and_hyper_graph_node_state_tuples: Vec<((usize, usize), (usize, usize))> = vec![
+            ((0, 0), (1, 0)),
+            ((0, 0), (2, 0)),
+            ((2, 0), (1, 1)),
+            ((2, 0), (0, 1)),
+            ((1, 1), (2, 1)),
+            ((0, 1), (1, 0)),
+            ((1, 0), (2, 1))
+        ];
+
+        for ((from_hyper_graph_node_index, from_hyper_graph_node_state_index), (to_hyper_graph_node_index, to_hyper_graph_node_state_index)) in neighbor_hyper_graph_node_index_and_hyper_graph_node_state_tuples {
+            {
+                let to_stateful_hyper_graph_node = stateful_hyper_graph_nodes_per_hyper_graph_node_index[to_hyper_graph_node_index][to_hyper_graph_node_state_index].clone();
+                stateful_hyper_graph_nodes_per_hyper_graph_node_index[from_hyper_graph_node_index][from_hyper_graph_node_state_index].borrow_mut().add_neighbor(to_hyper_graph_node_index, to_stateful_hyper_graph_node);
+            }
+            {
+                let from_stateful_hyper_graph_node = stateful_hyper_graph_nodes_per_hyper_graph_node_index[from_hyper_graph_node_index][from_hyper_graph_node_state_index].clone();
+                stateful_hyper_graph_nodes_per_hyper_graph_node_index[to_hyper_graph_node_index][to_hyper_graph_node_state_index].borrow_mut().add_neighbor(from_hyper_graph_node_index, from_stateful_hyper_graph_node);
+            }
+        }
+
+        let shifter: Rc<RefCell<HyperGraphClicheShifter<(u8, u8)>>> = Rc::new(RefCell::new(HyperGraphClicheShifter::new(stateful_hyper_graph_nodes_per_hyper_graph_node_index)));
+        let mut incrementer = ShifterIncrementer::new(shifter);
+        assert!(!incrementer.try_increment());
+    }
+
+    #[rstest]
+    fn complex_hyper_graph_cliche_shifter_with_one_valid_cliche() {
+        init();
+
+        let stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec<Vec<Rc<RefCell<StatefulHyperGraphNode<(u8, u8)>>>>> = vec![
+            vec![
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((10 as u8, 100 as u8))))),
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((12 as u8, 100 as u8))))),
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((14 as u8, 100 as u8)))))
+            ],
+            vec![
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 200 as u8))))),
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 202 as u8)))))
+            ],
+            vec![
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((30 as u8, 40 as u8)))))
+            ]
+        ];
+
+        let neighbor_hyper_graph_node_index_and_hyper_graph_node_state_tuples: Vec<((usize, usize), (usize, usize))> = vec![
+            ((0, 1), (1, 0)),
+            ((0, 2), (1, 1)),
+            ((1, 1), (2, 0)),
+            ((0, 2), (2, 0))
+        ];
+
+        for ((from_hyper_graph_node_index, from_hyper_graph_node_state_index), (to_hyper_graph_node_index, to_hyper_graph_node_state_index)) in neighbor_hyper_graph_node_index_and_hyper_graph_node_state_tuples {
+            {
+                let to_stateful_hyper_graph_node = stateful_hyper_graph_nodes_per_hyper_graph_node_index[to_hyper_graph_node_index][to_hyper_graph_node_state_index].clone();
+                stateful_hyper_graph_nodes_per_hyper_graph_node_index[from_hyper_graph_node_index][from_hyper_graph_node_state_index].borrow_mut().add_neighbor(to_hyper_graph_node_index, to_stateful_hyper_graph_node);
+            }
+            {
+                let from_stateful_hyper_graph_node = stateful_hyper_graph_nodes_per_hyper_graph_node_index[from_hyper_graph_node_index][from_hyper_graph_node_state_index].clone();
+                stateful_hyper_graph_nodes_per_hyper_graph_node_index[to_hyper_graph_node_index][to_hyper_graph_node_state_index].borrow_mut().add_neighbor(from_hyper_graph_node_index, from_stateful_hyper_graph_node);
+            }
+        }
+
+        let shifter: Rc<RefCell<HyperGraphClicheShifter<(u8, u8)>>> = Rc::new(RefCell::new(HyperGraphClicheShifter::new(stateful_hyper_graph_nodes_per_hyper_graph_node_index)));
+        let mut incrementer = ShifterIncrementer::new(shifter);
+        assert!(incrementer.try_increment());
+        {
+            let indexed_elements = incrementer.get();
+            assert_eq!(3, indexed_elements.len());
+            assert_eq!(0, indexed_elements[0].index);
+            assert_eq!(&(14 as u8, 100 as u8), indexed_elements[0].element.as_ref());
+            assert_eq!(1, indexed_elements[1].index);
+            assert_eq!(&(20 as u8, 202 as u8), indexed_elements[1].element.as_ref());
+            assert_eq!(2, indexed_elements[2].index);
+            assert_eq!(&(30 as u8, 40 as u8), indexed_elements[2].element.as_ref());
+        }
+        assert!(!incrementer.try_increment());
     }
 }
