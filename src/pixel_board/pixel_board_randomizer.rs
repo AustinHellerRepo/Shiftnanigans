@@ -1113,7 +1113,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
 
                 // create the shifting cell group dependency incrementers
                 for cell_group_dependency in cell_group_dependencies {
-                    let shifting_cell_group_dependency_incrementer = ShiftingCellGroupDependencyIncrementer::new(self.cell_groups.clone(), vec![cell_group_dependency], self.detection_offsets_per_cell_group_index_per_cell_group_index.clone(), self.is_adjacent_cell_group_index_per_cell_group_index.clone());
+                    let shifting_cell_group_dependency_incrementer = ShiftingCellGroupDependencyIncrementer::new(self.cell_groups.clone(), vec![cell_group_dependency], Some(self.detection_offsets_per_cell_group_index_per_cell_group_index.clone()), Some(self.is_adjacent_cell_group_index_per_cell_group_index.clone()));
                     incrementers.push(Rc::new(RefCell::new(shifting_cell_group_dependency_incrementer)));
                 }
             }

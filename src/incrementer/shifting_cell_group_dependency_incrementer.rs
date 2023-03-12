@@ -29,8 +29,8 @@ impl CellGroupDependency {
 pub struct ShiftingCellGroupDependencyIncrementer {
     cell_groups: Rc<Vec<CellGroup>>,
     cell_group_dependencies: Vec<CellGroupDependency>,
-    detection_offsets_per_cell_group_index_per_cell_group_index: Rc<Vec<Vec<Vec<(i16, i16)>>>>,
-    is_adjacent_cell_group_index_per_cell_group_index: Rc<Vec<BitVec>>,
+    detection_offsets_per_cell_group_index_per_cell_group_index: Option<Rc<Vec<Vec<Vec<(i16, i16)>>>>>,
+    is_adjacent_cell_group_index_per_cell_group_index: Option<Rc<Vec<BitVec>>>,
     current_cell_group_dependency_index: Option<usize>,
     current_locations: Vec<IndexedElement<(u8, u8)>>,
     current_element_index_and_adjusted_element_index_and_state_index_tuples: Vec<(usize, usize, usize)>,
@@ -42,7 +42,7 @@ pub struct ShiftingCellGroupDependencyIncrementer {
 }
 
 impl ShiftingCellGroupDependencyIncrementer {
-    pub fn new(cell_groups: Rc<Vec<CellGroup>>, cell_group_dependencies: Vec<CellGroupDependency>, detection_offsets_per_cell_group_index_per_cell_group_index: Rc<Vec<Vec<Vec<(i16, i16)>>>>, is_adjacent_cell_group_index_per_cell_group_index: Rc<Vec<BitVec>>) -> Self {
+    pub fn new(cell_groups: Rc<Vec<CellGroup>>, cell_group_dependencies: Vec<CellGroupDependency>, detection_offsets_per_cell_group_index_per_cell_group_index: Option<Rc<Vec<Vec<Vec<(i16, i16)>>>>>, is_adjacent_cell_group_index_per_cell_group_index: Option<Rc<Vec<BitVec>>>) -> Self {
         ShiftingCellGroupDependencyIncrementer {
             cell_groups: cell_groups,
             cell_group_dependencies: cell_group_dependencies,
@@ -176,7 +176,7 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
                                     second_state_index = other_element_index_and_adjusted_element_index_and_state_index_tuple.2;
                                 }
                                 bitvec_index = ((second_state_index * self.current_states_total + first_state_index) * self.current_elements_total + second_element_index) * self.current_elements_total + first_element_index;
-                                //println!("ShiftingCellGroupDependency: try_increment: bitvec_index: {bitvec_index}");
+                                println!("ShiftingCellGroupDependency: try_increment: bitvec_index: {bitvec_index}");
                             }
 
                             if !self.current_is_checked[bitvec_index] {
@@ -189,16 +189,25 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
                                     let other_cell_group = &self.cell_groups[other_element_index_and_adjusted_element_index_and_state_index_tuple.1];
                                     let current_cell_group = &self.cell_groups[current_element_index_and_adjusted_element_index_and_state_index_tuple.1];
 
-                                    let is_adjacency_expected: bool = self.is_adjacent_cell_group_index_per_cell_group_index[current_element_index_and_adjusted_element_index_and_state_index_tuple.1][other_element_index_and_adjusted_element_index_and_state_index_tuple.1] || self.is_adjacent_cell_group_index_per_cell_group_index[other_element_index_and_adjusted_element_index_and_state_index_tuple.1][current_element_index_and_adjusted_element_index_and_state_index_tuple.1];
-                                    debug!("is_adjacency_expected: {is_adjacency_expected} for cell group {} and {}.", other_element_index_and_adjusted_element_index_and_state_index_tuple.1, current_element_index_and_adjusted_element_index_and_state_index_tuple.1);
+                                    let is_adjacency_expected_option: Option<bool>;
+                                    if let Some(is_adjacent_cell_group_index_per_cell_group_index) = &self.is_adjacent_cell_group_index_per_cell_group_index {
+                                        is_adjacency_expected_option = Some(is_adjacent_cell_group_index_per_cell_group_index[current_element_index_and_adjusted_element_index_and_state_index_tuple.1][other_element_index_and_adjusted_element_index_and_state_index_tuple.1] || is_adjacent_cell_group_index_per_cell_group_index[other_element_index_and_adjusted_element_index_and_state_index_tuple.1][current_element_index_and_adjusted_element_index_and_state_index_tuple.1]);
+                                        debug!("is_adjacency_expected: {:?} for cell group {} and {}.", is_adjacency_expected_option, other_element_index_and_adjusted_element_index_and_state_index_tuple.1, current_element_index_and_adjusted_element_index_and_state_index_tuple.1);
+                                    }
+                                    else {
+                                        is_adjacency_expected_option = None;
+                                        debug!("adjacency is not considered");
+                                    }
                                     let mut is_adjacent: bool = false;
 
                                     let mut detection_locations: BTreeSet<(u8, u8)> = BTreeSet::new();
-                                    for detection_offset in self.detection_offsets_per_cell_group_index_per_cell_group_index[current_element_index_and_adjusted_element_index_and_state_index_tuple.1][other_element_index_and_adjusted_element_index_and_state_index_tuple.1].iter() {
-                                        let detection_location_i16 = (detection_offset.0 + current_index_element_location.0 as i16, detection_offset.1 + current_index_element_location.1 as i16);
-                                        if detection_location_i16.0 >= 0 && detection_location_i16.0 < 256 && detection_location_i16.1 >= 0 && detection_location_i16.1 < 256 {
-                                            let detection_location = (detection_location_i16.0 as u8, detection_location_i16.1 as u8);
-                                            detection_locations.insert(detection_location);
+                                    if let Some(detection_offsets_per_cell_group_index_per_cell_group_index) = &self.detection_offsets_per_cell_group_index_per_cell_group_index {
+                                        for detection_offset in detection_offsets_per_cell_group_index_per_cell_group_index[current_element_index_and_adjusted_element_index_and_state_index_tuple.1][other_element_index_and_adjusted_element_index_and_state_index_tuple.1].iter() {
+                                            let detection_location_i16 = (detection_offset.0 + current_index_element_location.0 as i16, detection_offset.1 + current_index_element_location.1 as i16);
+                                            if detection_location_i16.0 >= 0 && detection_location_i16.0 < 256 && detection_location_i16.1 >= 0 && detection_location_i16.1 < 256 {
+                                                let detection_location = (detection_location_i16.0 as u8, detection_location_i16.1 as u8);
+                                                detection_locations.insert(detection_location);
+                                            }
                                         }
                                     }
 
@@ -227,13 +236,15 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
                                         }
                                     }
 
-                                    if is_adjacency_expected && !is_adjacent {
-                                        debug!("adjacency expected and found");
-                                        is_current_pair_valid = false;
-                                    }
-                                    else if !is_adjacency_expected && is_adjacent {
-                                        debug!("adjacency not expected and yet found");
-                                        is_current_pair_valid = false;
+                                    if let Some(is_adjacency_expected) = is_adjacency_expected_option {
+                                        if is_adjacency_expected && !is_adjacent {
+                                            debug!("adjacency expected and found");
+                                            is_current_pair_valid = false;
+                                        }
+                                        else if !is_adjacency_expected && is_adjacent {
+                                            debug!("adjacency not expected and yet found");
+                                            is_current_pair_valid = false;
+                                        }
                                     }
                                 }
 
@@ -335,8 +346,8 @@ mod shifting_cell_group_dependency_incrementer_tests {
         let mut shifting_cell_group_dependency_incrementer = ShiftingCellGroupDependencyIncrementer::new(
             cell_groups,
             cell_group_dependencies,
-            Rc::new(Vec::new()),
-            Rc::new(Vec::new())
+            None,
+            None
         );
         for _ in 0..10 {
             assert!(!shifting_cell_group_dependency_incrementer.try_increment());
@@ -377,20 +388,11 @@ mod shifting_cell_group_dependency_incrementer_tests {
         let mut shifting_cell_group_dependency_incrementer = ShiftingCellGroupDependencyIncrementer::new(
             cell_groups,
             cell_group_dependencies,
-            Rc::new(vec![
-                vec![
-                    Vec::new(),
-                    Vec::new()
-                ],
-                vec![
-                    Vec::new(),
-                    Vec::new()
-                ]
-            ]),
-            Rc::new(vec![
+            None,
+            Some(Rc::new(vec![
                 BitVec::repeat(false, 2),
                 BitVec::repeat(false, 2)
-            ])
+            ]))
         );
         let mut expected_get: Vec<IndexedElement<(u8, u8)>>;
         assert!(shifting_cell_group_dependency_incrementer.try_increment());
@@ -410,8 +412,6 @@ mod shifting_cell_group_dependency_incrementer_tests {
 
         time_graph::enable_data_collection(true);
 
-        let mut detection_offsets_per_cell_group_index_per_cell_group_index: Vec<Vec<Vec<(i16, i16)>>> = Vec::new();
-        let mut is_adjacent_cell_group_index_per_cell_group_index: Vec<BitVec> = Vec::new();
         let mut cell_group_dependencies: Vec<CellGroupDependency> = Vec::new();
 
         let cell_groups_total = 4;
@@ -475,28 +475,6 @@ mod shifting_cell_group_dependency_incrementer_tests {
         }
         let cell_groups: Rc<Vec<CellGroup>> = Rc::new(cell_groups);
 
-        // construct detection offsets
-        {
-            for _ in 0..cell_groups_total {
-                let mut detection_offsets_per_cell_group_index: Vec<Vec<(i16, i16)>> = Vec::new();
-                for _ in 0..cell_groups_total {
-                    detection_offsets_per_cell_group_index.push(Vec::new());
-                }
-                detection_offsets_per_cell_group_index_per_cell_group_index.push(detection_offsets_per_cell_group_index);
-            }
-        }
-
-        // construct adjacency bitvec
-        {
-            for _ in 0..cell_groups_total {
-                let mut is_adjacent_cell_group_index: BitVec = BitVec::new();
-                for _ in 0..cell_groups_total {
-                    is_adjacent_cell_group_index.push(false);
-                }
-                is_adjacent_cell_group_index_per_cell_group_index.push(is_adjacent_cell_group_index);
-            }
-        }
-
         {
             // construct index incrementer for looping over locations per cell group
 
@@ -527,16 +505,11 @@ mod shifting_cell_group_dependency_incrementer_tests {
             });
         }
 
-        let mut is_adjacent_cell_group_index_per_cell_group_index: Vec<BitVec> = Vec::new();
-        for _ in 0..cell_groups_total {
-            is_adjacent_cell_group_index_per_cell_group_index.push(BitVec::repeat(false, cell_groups_total));
-        }
-
         let shifting_cell_group_dependency_incrementer = ShiftingCellGroupDependencyIncrementer::new(
             cell_groups.clone(),
             cell_group_dependencies,
-            Rc::new(detection_offsets_per_cell_group_index_per_cell_group_index),
-            Rc::new(is_adjacent_cell_group_index_per_cell_group_index)
+            None,
+            None
         );
 
         let validating_start_time = Instant::now();
@@ -624,11 +597,9 @@ mod shifting_cell_group_dependency_incrementer_tests {
 
         time_graph::enable_data_collection(true);
 
-        let mut detection_offsets_per_cell_group_index_per_cell_group_index: Vec<Vec<Vec<(i16, i16)>>> = Vec::new();
-        let mut is_adjacent_cell_group_index_per_cell_group_index: Vec<BitVec> = Vec::new();
         let mut cell_group_dependencies: Vec<CellGroupDependency> = Vec::new();
 
-        let cell_groups_total = 5;
+        let cell_groups_total = 2;
 
         // Stats
         //  3
@@ -679,28 +650,6 @@ mod shifting_cell_group_dependency_incrementer_tests {
         }
         let cell_groups: Rc<Vec<CellGroup>> = Rc::new(cell_groups);
 
-        // construct detection offsets
-        {
-            for _ in 0..cell_groups_total {
-                let mut detection_offsets_per_cell_group_index: Vec<Vec<(i16, i16)>> = Vec::new();
-                for _ in 0..cell_groups_total {
-                    detection_offsets_per_cell_group_index.push(Vec::new());
-                }
-                detection_offsets_per_cell_group_index_per_cell_group_index.push(detection_offsets_per_cell_group_index);
-            }
-        }
-
-        // construct adjacency bitvec
-        {
-            for _ in 0..cell_groups_total {
-                let mut is_adjacent_cell_group_index: BitVec = BitVec::new();
-                for _ in 0..cell_groups_total {
-                    is_adjacent_cell_group_index.push(false);
-                }
-                is_adjacent_cell_group_index_per_cell_group_index.push(is_adjacent_cell_group_index);
-            }
-        }
-
         {
             // construct index incrementer for looping over locations per cell group
 
@@ -731,16 +680,11 @@ mod shifting_cell_group_dependency_incrementer_tests {
             });
         }
 
-        let mut is_adjacent_cell_group_index_per_cell_group_index: Vec<BitVec> = Vec::new();
-        for _ in 0..cell_groups_total {
-            is_adjacent_cell_group_index_per_cell_group_index.push(BitVec::repeat(false, cell_groups_total));
-        }
-
         let mut shifting_cell_group_dependency_incrementer = ShiftingCellGroupDependencyIncrementer::new(
             cell_groups.clone(),
             cell_group_dependencies,
-            Rc::new(detection_offsets_per_cell_group_index_per_cell_group_index),
-            Rc::new(is_adjacent_cell_group_index_per_cell_group_index)
+            None,
+            None
         );
 
         shifting_cell_group_dependency_incrementer.randomize();
