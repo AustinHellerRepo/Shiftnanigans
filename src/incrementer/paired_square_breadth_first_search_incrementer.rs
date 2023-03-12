@@ -229,6 +229,16 @@ impl<T> Incrementer for PairedSquareBreadthFirstSearchIncrementer<T> {
         self.is_completed = false;
     }
     fn get(&self) -> Vec<IndexedElement<Self::T>> {
+        return self.current_indexed_elements_per_incrementer_index[0]
+            .iter()
+            .cloned()
+            .chain(
+                self.current_indexed_elements_per_incrementer_index[1]
+                .iter()
+                .cloned()
+            )
+            .collect();
+
         let mut combined_indexed_elements: Vec<IndexedElement<T>> = Vec::new();
         for indexed_element in self.current_indexed_elements_per_incrementer_index[0].iter() {
             let mapped_indexed_element = IndexedElement::new(indexed_element.element.clone(), indexed_element.index);
