@@ -5,6 +5,7 @@ use super::Incrementer;
 // Purpose: with each iteration, evaluates a complete shifted state of the underlying shifter
 pub struct ShifterIncrementer<T> {
     shifter: Rc<RefCell<dyn Shifter<T = T>>>,
+    index_offset: usize,
     is_started: bool,
     is_completed: bool,
     current_indexed_elements: Vec<IndexedElement<T>>,
@@ -12,10 +13,11 @@ pub struct ShifterIncrementer<T> {
 }
 
 impl<T> ShifterIncrementer<T> {
-    pub fn new(shifter: Rc<RefCell<dyn Shifter<T = T>>>) -> Self {
+    pub fn new(shifter: Rc<RefCell<dyn Shifter<T = T>>>, index_offset: usize) -> Self {
         let shifter_length = shifter.borrow().get_length();
         ShifterIncrementer {
             shifter: shifter,
+            index_offset: index_offset,
             is_started: shifter_length == 0,
             is_completed: shifter_length == 0,
             current_indexed_elements: Vec::new(),
@@ -83,7 +85,10 @@ impl<T> Incrementer for ShifterIncrementer<T> {
         return true;
     }
     fn get(&self) -> Vec<IndexedElement<Self::T>> {
-        return self.current_indexed_elements.clone();
+        return self.current_indexed_elements
+            .iter()
+            .map(|indexed_element| { IndexedElement::new(indexed_element.element.clone(), indexed_element.index + self.index_offset) })
+            .collect();
     }
     fn reset(&mut self) {
         self.shifter.borrow_mut().reset();
@@ -117,17 +122,20 @@ mod shifter_incrementer_tests {
     fn two_segment_permutation_shifters() {
         init();
 
-        let mut shifter_incrementer = ShifterIncrementer::new(Rc::new(RefCell::new(SegmentPermutationShifter::new(
-            vec![
-                Rc::new(Segment::new(1)),
-                Rc::new(Segment::new(1))
-            ],
-            (10, 100),
-            4,
-            true,
-            1,
-            false
-        ))));
+        let mut shifter_incrementer = ShifterIncrementer::new(
+            Rc::new(RefCell::new(SegmentPermutationShifter::new(
+                vec![
+                    Rc::new(Segment::new(1)),
+                    Rc::new(Segment::new(1))
+                ],
+                (10, 100),
+                4,
+                true,
+                1,
+                false
+            ))),
+            0
+        );
 
         assert!(shifter_incrementer.try_increment());
         {
@@ -200,7 +208,7 @@ mod shifter_incrementer_tests {
         }
 
         let shifter: Rc<RefCell<HyperGraphClicheShifter<(u8, u8)>>> = Rc::new(RefCell::new(HyperGraphClicheShifter::new(stateful_hyper_graph_nodes_per_hyper_graph_node_index)));
-        let mut incrementer = ShifterIncrementer::new(shifter);
+        let mut incrementer = ShifterIncrementer::new(shifter, 0);
         assert!(!incrementer.try_increment());
     }
 
@@ -242,7 +250,7 @@ mod shifter_incrementer_tests {
         }
 
         let shifter: Rc<RefCell<HyperGraphClicheShifter<(u8, u8)>>> = Rc::new(RefCell::new(HyperGraphClicheShifter::new(stateful_hyper_graph_nodes_per_hyper_graph_node_index)));
-        let mut incrementer = ShifterIncrementer::new(shifter);
+        let mut incrementer = ShifterIncrementer::new(shifter, 0);
         assert!(incrementer.try_increment());
         {
             let indexed_elements = incrementer.get();

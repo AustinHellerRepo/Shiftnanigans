@@ -447,7 +447,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                     if rightmost_bounding_x.is_none() {
                         panic!("Failed to find right-most x bounding length point for bottom wall segments.");
                     }
-                    let top_wall_segment_permutation_shifter = SegmentPermutationShifter::new(segments, (leftmost_wall_x as u8, 0), rightmost_bounding_x.unwrap() - leftmost_bounding_x.unwrap() + 1, true, 1, false);
+                    let top_wall_segment_permutation_shifter = SegmentPermutationShifter::new(segments, (leftmost_bounding_x.unwrap() as u8, 0), rightmost_bounding_x.unwrap() - leftmost_bounding_x.unwrap() + 1, true, 1, false);
                     top_wall_segment_permutation_shifter_option = Some(top_wall_segment_permutation_shifter);
                 }
             }
@@ -542,7 +542,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                     if rightmost_bounding_x.is_none() {
                         panic!("Failed to find right-most x bounding length point for bottom wall segments.");
                     }
-                    let bottom_wall_segment_permutation_shifter = SegmentPermutationShifter::new(segments, (leftmost_wall_x as u8, bottommost_y as u8), rightmost_bounding_x.unwrap() - leftmost_bounding_x.unwrap() + 1, true, 1, false);
+                    let bottom_wall_segment_permutation_shifter = SegmentPermutationShifter::new(segments, (leftmost_bounding_x.unwrap() as u8, bottommost_y as u8), rightmost_bounding_x.unwrap() - leftmost_bounding_x.unwrap() + 1, true, 1, false);
                     bottom_wall_segment_permutation_shifter_option = Some(bottom_wall_segment_permutation_shifter);
                 }
             }
@@ -635,7 +635,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                     if bottommost_bounding_y.is_none() {
                         panic!("Failed to find bottom-most y bounding length point for left wall segments.");
                     }
-                    let left_wall_segment_permutation_shifter = SegmentPermutationShifter::new(segments, (0, topmost_wall_y as u8), bottommost_bounding_y.unwrap() - topmost_bounding_y.unwrap() + 1, false, 1, false);
+                    let left_wall_segment_permutation_shifter = SegmentPermutationShifter::new(segments, (0, topmost_bounding_y.unwrap() as u8), bottommost_bounding_y.unwrap() - topmost_bounding_y.unwrap() + 1, false, 1, false);
                     left_wall_segment_permutation_shifter_option = Some(left_wall_segment_permutation_shifter);
                 }
             }
@@ -728,7 +728,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                     if bottommost_bounding_y.is_none() {
                         panic!("Failed to find bottom-most y bounding length point for right wall segments.");
                     }
-                    let right_wall_segment_permutation_shifter = SegmentPermutationShifter::new(segments, (rightmost_x as u8, topmost_wall_y as u8), bottommost_bounding_y.unwrap() - topmost_bounding_y.unwrap() + 1, false, 1, false);
+                    let right_wall_segment_permutation_shifter = SegmentPermutationShifter::new(segments, (rightmost_x as u8, topmost_bounding_y.unwrap() as u8), bottommost_bounding_y.unwrap() - topmost_bounding_y.unwrap() + 1, false, 1, false);
                     right_wall_segment_permutation_shifter_option = Some(right_wall_segment_permutation_shifter);
                 }
             }
@@ -1143,7 +1143,9 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
             // TODO get the next set of locations
             is_incrementer_completed = !round_robin_incrementer.try_increment();
             if !is_incrementer_completed {
+                debug!("round robin incremented");
                 let locations = round_robin_incrementer.get();
+                debug!("found locations: {locations:?}");
                 if locations.len() == 1 {
                     if self.cell_groups.len() != 1 {
                         panic!("Unexpected location count of 1 while having more than one cell group.");
@@ -1194,6 +1196,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                                 // set each as neighbors to each other
                                 let current_stateful_hyper_graph_node = current_stateful_hyper_graph_node_option.unwrap();
                                 let other_stateful_hyper_graph_node = other_stateful_hyper_graph_node_option.unwrap();
+                                debug!("connecting {} cell group at {:?} to {} cell group at {:?}", other_indexed_element.index, other_stateful_hyper_graph_node.borrow().state, current_indexed_element.index, current_stateful_hyper_graph_node.borrow().state);
                                 current_stateful_hyper_graph_node.borrow_mut().add_neighbor(other_indexed_element.index, other_stateful_hyper_graph_node.clone());
                                 other_stateful_hyper_graph_node.borrow_mut().add_neighbor(current_indexed_element.index, current_stateful_hyper_graph_node);
                             }
@@ -1407,9 +1410,10 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
 
                     // look for cliches given the stateful hyper graph nodes of the latest set of provided location pairs
                     let hyper_graph_cliche_shifter = Rc::new(RefCell::new(HyperGraphClicheShifter::new(stateful_hyper_graph_nodes_per_hyper_graph_node_index.clone())));
-                    let mut shifter_incrementer = ShifterIncrementer::new(hyper_graph_cliche_shifter);
+                    let mut shifter_incrementer = ShifterIncrementer::new(hyper_graph_cliche_shifter, 0);
                     if shifter_incrementer.try_increment() {
                         // found cliche
+                        debug!("cliche found");
                         let cliche = shifter_incrementer.get();
                         let mut random_pixel_board: PixelBoard<TPixel> = PixelBoard::new(self.pixel_board.get_width(), self.pixel_board.get_height());
                         for indexed_element in cliche {
@@ -1425,7 +1429,13 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                         }
                         return random_pixel_board;
                     }
+                    else {
+                        debug!("cliche not found");
+                    }
                 }
+            }
+            else {
+                debug!("round robin done incrementing");
             }
         }
 
@@ -3067,6 +3077,232 @@ mod pixel_board_randomizer_tests {
             let expected = iterations_total as f32 / (board_width - 4) as f32;
             println!("{} < {}", (expected - count).abs(), (iterations_total as f32 / 10.0));
             assert!((expected - count).abs() < (iterations_total as f32 / 10.0));
+        }
+    }
+
+    #[rstest]
+    fn two_wall_segments_at_edge_cases_top_and_bottom() {
+        init();
+
+        let top_wall_segment_image_id = Uuid::new_v4().to_string();
+        let bottom_wall_segment_image_id = Uuid::new_v4().to_string();
+        let board_width = 4;
+        let board_height = 4;
+        let board_x_mid = board_width / 2;
+        let board_y_mid = board_height / 2;
+        println!("board ({board_width}, {board_height}) crossing at ({board_x_mid}, {board_y_mid}).");
+        let mut pixel_board = PixelBoard::new(board_width, board_height);
+        pixel_board.set(board_x_mid, 0, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+            image_id: top_wall_segment_image_id.clone()
+        }))));
+        pixel_board.set(board_x_mid, board_height - 1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+            image_id: bottom_wall_segment_image_id.clone()
+        }))));
+        let pixel_board_randomizer = PixelBoardRandomizer::new(pixel_board);
+        for _ in 0..10 {
+            let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
+            let mut top_total = 0;
+            let mut bottom_total = 0;
+            for y in 0..board_height {
+                for x in 0..board_width {
+                    if y == 0 || y == (board_height - 1) {
+                        if x == 0 || x == (board_width - 1) {
+                            assert!(!random_pixel_board.exists(x, y));
+                        }
+                        else {
+                            if random_pixel_board.exists(x, y) {
+                                if y == 0 {
+                                    top_total += 1;
+                                    let wrapped_pixel = random_pixel_board.get(x, y).unwrap();
+                                    let borrowed_pixel: &ExamplePixel = &wrapped_pixel.borrow();
+                                    match (borrowed_pixel) {
+                                        ExamplePixel::Tile(tile) => {
+                                            assert_eq!(top_wall_segment_image_id, tile.image_id);
+                                        },
+                                        ExamplePixel::Element(_) => {
+                                            panic!("Unexpected pixel type.");
+                                        }
+                                    }
+                                }
+                                else if y == (board_height - 1) {
+                                    bottom_total += 1;
+                                    let wrapped_pixel = random_pixel_board.get(x, y).unwrap();
+                                    let borrowed_pixel: &ExamplePixel = &wrapped_pixel.borrow();
+                                    match (borrowed_pixel) {
+                                        ExamplePixel::Tile(tile) => {
+                                            assert_eq!(bottom_wall_segment_image_id, tile.image_id);
+                                        },
+                                        ExamplePixel::Element(_) => {
+                                            panic!("Unexpected pixel type.");
+                                        }
+                                    }
+                                }
+                                else {
+                                    panic!("Unexpected scenario.");
+                                }
+                            }
+                        }
+                    }
+                    else {
+                        assert!(!random_pixel_board.exists(x, y));
+                    }
+                }
+            }
+        }
+    }
+
+    #[rstest]
+    fn two_wall_segments_at_edge_cases_left_and_right() {
+        init();
+
+        let left_wall_segment_image_id = Uuid::new_v4().to_string();
+        let right_wall_segment_image_id = Uuid::new_v4().to_string();
+        let board_width = 4;
+        let board_height = 4;
+        let board_x_mid = board_width / 2;
+        let board_y_mid = board_height / 2;
+        println!("board ({board_width}, {board_height}) crossing at ({board_x_mid}, {board_y_mid}).");
+        let mut pixel_board = PixelBoard::new(board_width, board_height);
+        pixel_board.set(0, board_y_mid, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+            image_id: left_wall_segment_image_id.clone()
+        }))));
+        pixel_board.set(board_width - 1, board_y_mid, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+            image_id: right_wall_segment_image_id.clone()
+        }))));
+        let pixel_board_randomizer = PixelBoardRandomizer::new(pixel_board);
+        for _ in 0..10 {
+            let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
+            let mut left_total = 0;
+            let mut right_total = 0;
+            for y in 0..board_height {
+                for x in 0..board_width {
+                    if x == 0 || x == (board_width - 1) {
+                        if y == 0 || y == (board_height - 1) {
+                            assert!(!random_pixel_board.exists(x, y));
+                        }
+                        else {
+                            if random_pixel_board.exists(x, y) {
+                                if x == 0 {
+                                    left_total += 1;
+                                    let wrapped_pixel = random_pixel_board.get(x, y).unwrap();
+                                    let borrowed_pixel: &ExamplePixel = &wrapped_pixel.borrow();
+                                    match (borrowed_pixel) {
+                                        ExamplePixel::Tile(tile) => {
+                                            assert_eq!(left_wall_segment_image_id, tile.image_id);
+                                        },
+                                        ExamplePixel::Element(_) => {
+                                            panic!("Unexpected pixel type.");
+                                        }
+                                    }
+                                }
+                                else if x == (board_width - 1) {
+                                    right_total += 1;
+                                    let wrapped_pixel = random_pixel_board.get(x, y).unwrap();
+                                    let borrowed_pixel: &ExamplePixel = &wrapped_pixel.borrow();
+                                    match (borrowed_pixel) {
+                                        ExamplePixel::Tile(tile) => {
+                                            assert_eq!(right_wall_segment_image_id, tile.image_id);
+                                        },
+                                        ExamplePixel::Element(_) => {
+                                            panic!("Unexpected pixel type.");
+                                        }
+                                    }
+                                }
+                                else {
+                                    panic!("Unexpected scenario.");
+                                }
+                            }
+                        }
+                    }
+                    else {
+                        assert!(!random_pixel_board.exists(x, y));
+                    }
+                }
+            }
+        }
+    }
+
+    #[rstest]
+    fn largest_plus_sign_and_single_wall_segments() {
+        init();
+
+        // TODO remove once issue is resolved
+        fastrand::seed(1);
+
+        let top_wall_segment_image_id = Uuid::new_v4().to_string();
+        let bottom_wall_segment_image_id = Uuid::new_v4().to_string();
+        let left_wall_segment_image_id = Uuid::new_v4().to_string();
+        let right_wall_segment_image_id = Uuid::new_v4().to_string();
+        let floater_wall_segment_image_id = Uuid::new_v4().to_string();
+        let board_width = 4;
+        let board_height = 4;
+        let board_x_mid = board_width / 2;
+        let board_y_mid = board_height / 2;
+        println!("board ({board_width}, {board_height}) crossing at ({board_x_mid}, {board_y_mid}).");
+        let mut pixel_board = PixelBoard::new(board_width, board_height);
+        pixel_board.set(board_x_mid, 0, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+            image_id: top_wall_segment_image_id.clone()
+        }))));
+        pixel_board.set(board_width - 1, board_y_mid, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+            image_id: right_wall_segment_image_id.clone()
+        }))));
+        pixel_board.set(board_x_mid, board_height - 1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+            image_id: bottom_wall_segment_image_id.clone()
+        }))));
+        pixel_board.set(0, board_y_mid, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+            image_id: left_wall_segment_image_id.clone()
+        }))));
+        for x in 1..(board_width - 1) {
+            pixel_board.set(x, board_y_mid, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+                image_id: floater_wall_segment_image_id.clone()
+            }))));
+        }
+        for y in 1..(board_height - 1) {
+            if y != board_y_mid {
+                pixel_board.set(board_x_mid, y, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+                    image_id: floater_wall_segment_image_id.clone()
+                }))));
+            }
+        }
+        let pixel_board_randomizer = PixelBoardRandomizer::new(pixel_board);
+        // TODO get randomized pixel board and check for single possible location multiple times
+        for _ in 0..10 {
+            let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
+            for y in 0..board_height {
+                for x in 0..board_width {
+                    if x == board_x_mid || y == board_y_mid {
+                        assert!(random_pixel_board.exists(x, y));
+                        let wrapped_pixel = random_pixel_board.get(x, y).unwrap();
+                        let borrowed_pixel: &ExamplePixel = &wrapped_pixel.borrow();
+                        match (borrowed_pixel) {
+                            ExamplePixel::Tile(tile) => {
+                                if y == 0 {
+                                    assert_eq!(top_wall_segment_image_id, tile.image_id);
+                                }
+                                else if y == (board_height - 1) {
+                                    assert_eq!(bottom_wall_segment_image_id, tile.image_id);
+                                }
+                                else if x == 0 {
+                                    assert_eq!(left_wall_segment_image_id, tile.image_id);
+                                }
+                                else if x == (board_width - 1) {
+                                    assert_eq!(right_wall_segment_image_id, tile.image_id);
+                                }
+                                else {
+                                    assert_eq!(floater_wall_segment_image_id, tile.image_id);
+                                }
+                            },
+                            ExamplePixel::Element(_) => {
+                                panic!("Unexpected pixel type.");
+                            }
+                        }
+                    }
+                    else {
+                        println!("checking ({x}, {y})");
+                        assert!(!random_pixel_board.exists(x, y));
+                    }
+                }
+            }
         }
     }
 }

@@ -5,7 +5,6 @@ pub struct RoundRobinIncrementer<T> {
     incrementers: Vec<Rc<RefCell<dyn Incrementer<T = T>>>>,
     current_available_indexes: Vec<usize>,
     current_available_indexes_index: Option<usize>,
-    current_indexed_element_index_offset: usize,
     is_completed: bool
 }
 
@@ -22,7 +21,6 @@ impl<T> RoundRobinIncrementer<T> {
             incrementers: incrementers,
             current_available_indexes: current_available_indexes,
             current_available_indexes_index: None,
-            current_indexed_element_index_offset: 0,
             is_completed: is_completed
         }
     }
@@ -35,24 +33,24 @@ impl<T> Incrementer for RoundRobinIncrementer<T> {
         if self.is_completed {
             return false;
         }
-        if self.current_available_indexes_index.is_none() {
-            self.current_available_indexes_index = Some(0);
-        }
-        else
-        {
-            self.current_available_indexes_index = Some(self.current_available_indexes_index.unwrap() + 1);
-            if self.current_available_indexes_index.unwrap() == self.current_available_indexes.len() {
+        if let Some(mut current_available_indexes_index) = self.current_available_indexes_index {
+            current_available_indexes_index += 1;
+            if current_available_indexes_index == self.current_available_indexes.len() {
                 self.current_available_indexes_index = Some(0);
-                self.current_indexed_element_index_offset = 0;
             }
             else {
-                self.current_indexed_element_index_offset += self.incrementers[self.current_available_indexes[self.current_available_indexes_index.unwrap() - 1]].borrow().get().len();
+                self.current_available_indexes_index = Some(current_available_indexes_index);
             }
+        }
+        else {
+            self.current_available_indexes_index = Some(0);
         }
         let mut incrementer_index: usize = self.current_available_indexes[self.current_available_indexes_index.unwrap()];
         while !self.incrementers[incrementer_index].borrow_mut().try_increment() {
+            debug!("removing incrementer {incrementer_index}");
             self.current_available_indexes.remove(self.current_available_indexes_index.unwrap());
             if self.current_available_indexes.len() == 0 {
+                debug!("removed all incrementers");
                 self.is_completed = true;
                 return false;
             }
@@ -111,28 +109,34 @@ mod round_robin_incrementer_tests {
     #[rstest]
     fn two_shifter_incrementers() {
         let mut round_robin_incrementer = RoundRobinIncrementer::new(vec![
-            Rc::new(RefCell::new(ShifterIncrementer::new(Rc::new(RefCell::new(SegmentPermutationShifter::new(
-                vec![
-                    Rc::new(Segment::new(1)),
-                    Rc::new(Segment::new(1))
-                ],
-                (10, 100),
-                4,
-                true,
-                1,
-                false
-            )))))),
-            Rc::new(RefCell::new(ShifterIncrementer::new(Rc::new(RefCell::new(SegmentPermutationShifter::new(
-                vec![
-                    Rc::new(Segment::new(1)),
-                    Rc::new(Segment::new(1))
-                ],
-                (20, 200),
-                4,
-                false,
-                1,
-                false
-            ))))))
+            Rc::new(RefCell::new(ShifterIncrementer::new(
+                Rc::new(RefCell::new(SegmentPermutationShifter::new(
+                    vec![
+                        Rc::new(Segment::new(1)),
+                        Rc::new(Segment::new(1))
+                    ],
+                    (10, 100),
+                    4,
+                    true,
+                    1,
+                    false
+                ))),
+                0
+            ))),
+            Rc::new(RefCell::new(ShifterIncrementer::new(
+                Rc::new(RefCell::new(SegmentPermutationShifter::new(
+                    vec![
+                        Rc::new(Segment::new(1)),
+                        Rc::new(Segment::new(1))
+                    ],
+                    (20, 200),
+                    4,
+                    false,
+                    1,
+                    false
+                ))),
+                2
+            )))
         ]);
 
         assert!(round_robin_incrementer.try_increment());

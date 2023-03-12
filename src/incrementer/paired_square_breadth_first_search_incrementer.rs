@@ -270,28 +270,34 @@ mod paired_square_breadth_first_search_incrementer_tests {
 
         let mut paired_incrementer = PairedSquareBreadthFirstSearchIncrementer::new(
             (
-                Rc::new(RefCell::new(ShifterIncrementer::new(Rc::new(RefCell::new(SegmentPermutationShifter::new(
-                    vec![
-                        Rc::new(Segment::new(1)),
-                        Rc::new(Segment::new(1))
-                    ],
-                    (10, 100),
-                    4,
-                    true,
-                    1,
-                    false
-                )))))),
-                Rc::new(RefCell::new(ShifterIncrementer::new(Rc::new(RefCell::new(SegmentPermutationShifter::new(
-                    vec![
-                        Rc::new(Segment::new(1)),
-                        Rc::new(Segment::new(1))
-                    ],
-                    (20, 200),
-                    4,
-                    false,
-                    1,
-                    false
-                ))))))
+                Rc::new(RefCell::new(ShifterIncrementer::new(
+                    Rc::new(RefCell::new(SegmentPermutationShifter::new(
+                        vec![
+                            Rc::new(Segment::new(1)),
+                            Rc::new(Segment::new(1))
+                        ],
+                        (10, 100),
+                        4,
+                        true,
+                        1,
+                        false
+                    ))),
+                    0
+                ))),
+                Rc::new(RefCell::new(ShifterIncrementer::new(
+                    Rc::new(RefCell::new(SegmentPermutationShifter::new(
+                        vec![
+                            Rc::new(Segment::new(1)),
+                            Rc::new(Segment::new(1))
+                        ],
+                        (20, 200),
+                        4,
+                        false,
+                        1,
+                        false
+                    ))),
+                    2
+                )))
             )
         );
 
