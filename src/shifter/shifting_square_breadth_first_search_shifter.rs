@@ -320,7 +320,7 @@ impl<T> Shifter for ShiftingSquareBreadthFirstSearchShifter<T> {
 mod shifting_square_breadth_first_search_shifter_tests {
     use std::{time::{Duration, Instant}, cell::RefCell};
 
-    use crate::shifter::{segment_permutation_shifter::{SegmentPermutationShifter, Segment}, index_shifter::IndexShifter};
+    use crate::{shifter::{segment_permutation_shifter::{SegmentPermutationShifter, Segment}, index_shifter::IndexShifter}, incrementer::{shifter_incrementer::ShifterIncrementer, Incrementer}};
 
     use super::*;
     use rstest::rstest;
@@ -1540,6 +1540,106 @@ mod shifting_square_breadth_first_search_shifter_tests {
             assert!(shifter.try_backward());
             assert!(!shifter.try_increment());
             assert!(!shifter.try_backward());
+        }
+    }
+
+    #[rstest]
+    fn one_randomized_segment_permutation_shifter_iterating_completely() {
+        // the randomized segment permutation shifter requires a loop event
+        fastrand::seed(11);
+        let mut segment_permutation_shifter = SegmentPermutationShifter::new(
+            vec![
+                Rc::new(Segment::new(1)),
+                Rc::new(Segment::new(1))
+            ],
+            (10, 100),
+            5,
+            true,
+            1,
+            false
+        );
+        segment_permutation_shifter.randomize();
+        // verify that the SegmentPermutationShifter is in the expected random state
+        assert!(segment_permutation_shifter.try_forward());
+        assert!(segment_permutation_shifter.try_increment());
+        {
+            let indexed_element = segment_permutation_shifter.get_indexed_element();
+            assert_eq!(0, indexed_element.index);
+            assert_eq!(&(10, 100), indexed_element.element.as_ref());
+        }
+        assert!(segment_permutation_shifter.try_forward());
+        assert!(segment_permutation_shifter.try_increment());
+        {
+            let indexed_element = segment_permutation_shifter.get_indexed_element();
+            assert_eq!(1, indexed_element.index);
+            assert_eq!(&(13, 100), indexed_element.element.as_ref());
+        }
+        segment_permutation_shifter.reset();
+        // iterate over the ShiftingSquareBreadthFirstSearchShifter
+        let shifter = ShiftingSquareBreadthFirstSearchShifter::new(
+            vec![
+                Rc::new(RefCell::new(segment_permutation_shifter))
+            ],
+            true
+        );
+        let mut incrementer = ShifterIncrementer::new(Rc::new(RefCell::new(shifter)), 0);
+        for _ in 0..10 {
+            assert!(incrementer.try_increment());
+            {
+                let indexed_elements = incrementer.get();
+                assert_eq!(2, indexed_elements.len());
+                assert_eq!(0, indexed_elements[0].index);
+                assert_eq!(&(10, 100), indexed_elements[0].element.as_ref());
+                assert_eq!(1, indexed_elements[1].index);
+                assert_eq!(&(13, 100), indexed_elements[1].element.as_ref());
+            }
+            assert!(incrementer.try_increment());
+            {
+                let indexed_elements = incrementer.get();
+                assert_eq!(2, indexed_elements.len());
+                assert_eq!(0, indexed_elements[0].index);
+                assert_eq!(&(11, 100), indexed_elements[0].element.as_ref());
+                assert_eq!(1, indexed_elements[1].index);
+                assert_eq!(&(13, 100), indexed_elements[1].element.as_ref());
+            }
+            assert!(incrementer.try_increment());
+            {
+                let indexed_elements = incrementer.get();
+                assert_eq!(2, indexed_elements.len());
+                assert_eq!(0, indexed_elements[0].index);
+                assert_eq!(&(10, 100), indexed_elements[0].element.as_ref());
+                assert_eq!(1, indexed_elements[1].index);
+                assert_eq!(&(14, 100), indexed_elements[1].element.as_ref());
+            }
+            assert!(incrementer.try_increment());
+            {
+                let indexed_elements = incrementer.get();
+                assert_eq!(2, indexed_elements.len());
+                assert_eq!(0, indexed_elements[0].index);
+                assert_eq!(&(11, 100), indexed_elements[0].element.as_ref());
+                assert_eq!(1, indexed_elements[1].index);
+                assert_eq!(&(14, 100), indexed_elements[1].element.as_ref());
+            }
+            assert!(incrementer.try_increment());
+            {
+                let indexed_elements = incrementer.get();
+                assert_eq!(2, indexed_elements.len());
+                assert_eq!(0, indexed_elements[0].index);
+                assert_eq!(&(12, 100), indexed_elements[0].element.as_ref());
+                assert_eq!(1, indexed_elements[1].index);
+                assert_eq!(&(14, 100), indexed_elements[1].element.as_ref());
+            }
+            assert!(incrementer.try_increment());
+            {
+                let indexed_elements = incrementer.get();
+                assert_eq!(2, indexed_elements.len());
+                assert_eq!(0, indexed_elements[0].index);
+                assert_eq!(&(10, 100), indexed_elements[0].element.as_ref());
+                assert_eq!(1, indexed_elements[1].index);
+                assert_eq!(&(12, 100), indexed_elements[1].element.as_ref());
+            }
+            assert!(!incrementer.try_increment());
+            incrementer.reset();
         }
     }
 }
