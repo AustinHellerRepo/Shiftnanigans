@@ -24,3 +24,10 @@ gomez = { version = "0.3.1" }
 rusymbols = { version = "0.1.2" }
 fastrand = { version = "1.8.0" }
 itertools = { version = "0.10.5" }
+
+[dev-dependencies]
+criterion = { version = "0.4.0" }
+
+[[bench]]
+name = "main"
+harness = false

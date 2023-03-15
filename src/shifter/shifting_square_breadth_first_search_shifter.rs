@@ -1544,7 +1544,7 @@ mod shifting_square_breadth_first_search_shifter_tests {
     }
 
     #[rstest]
-    fn one_randomized_segment_permutation_shifter_iterating_completely() {
+    fn one_specific_randomized_segment_permutation_shifter_iterating_completely() {
         // the randomized segment permutation shifter requires a loop event
         fastrand::seed(11);
         let mut segment_permutation_shifter = SegmentPermutationShifter::new(
@@ -1642,4 +1642,42 @@ mod shifting_square_breadth_first_search_shifter_tests {
             incrementer.reset();
         }
     }
+
+    #[rstest]
+    fn one_randomly_chosen_randomized_segment_permutation_shifter_iterating_completely() {
+        // the randomized segment permutation shifter requires a loop event
+        for _ in 0..20 {
+            let mut segment_permutation_shifter = SegmentPermutationShifter::new(
+                vec![
+                    Rc::new(Segment::new(1)),
+                    Rc::new(Segment::new(1))
+                ],
+                (10, 100),
+                5,
+                true,
+                1,
+                false
+            );
+            segment_permutation_shifter.randomize();
+            // iterate over the ShiftingSquareBreadthFirstSearchShifter
+            let shifter = ShiftingSquareBreadthFirstSearchShifter::new(
+                vec![
+                    Rc::new(RefCell::new(segment_permutation_shifter))
+                ],
+                true
+            );
+            let mut incrementer = ShifterIncrementer::new(Rc::new(RefCell::new(shifter)), 0);
+            for _ in 0..10 {
+                assert!(incrementer.try_increment());
+                assert!(incrementer.try_increment());
+                assert!(incrementer.try_increment());
+                assert!(incrementer.try_increment());
+                assert!(incrementer.try_increment());
+                assert!(incrementer.try_increment());
+                assert!(!incrementer.try_increment());
+                incrementer.reset();
+            }
+        }
+    }
+
 }

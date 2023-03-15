@@ -1658,7 +1658,7 @@ mod pixel_board_randomizer_tests {
                 for _ in 0..(wall_height - 2) {
                     appearances_totals.push(0);
                 }
-                let iterations_total = 1000;
+                let iterations_total = 10000;
                 for _ in 0..iterations_total {
                     let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
                     assert!(!random_pixel_board.exists(1, 0));
@@ -1735,7 +1735,7 @@ mod pixel_board_randomizer_tests {
                 for _ in 0..(wall_height - 2) {
                     appearances_totals.push(0);
                 }
-                let iterations_total = 1000;
+                let iterations_total = 10000;
                 for _ in 0..iterations_total {
                     let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
                     assert!(!random_pixel_board.exists(1, 0));
@@ -1807,7 +1807,7 @@ mod pixel_board_randomizer_tests {
                 for _ in 0..(wall_height - 2) {
                     appearances_totals.push(0);
                 }
-                let iterations_total = 1000;
+                let iterations_total = 10000;
                 for _ in 0..iterations_total {
                     let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
                     assert!(!random_pixel_board.exists(1, 0));
@@ -1884,7 +1884,7 @@ mod pixel_board_randomizer_tests {
                 for _ in 0..(wall_height - 2) {
                     appearances_totals.push(0);
                 }
-                let iterations_total = 1000;
+                let iterations_total = 10000;
                 for _ in 0..iterations_total {
                     let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
                     assert!(!random_pixel_board.exists(board_width - 2, 0));
@@ -1961,7 +1961,7 @@ mod pixel_board_randomizer_tests {
                 for _ in 0..(wall_height - 2) {
                     appearances_totals.push(0);
                 }
-                let iterations_total = 1000;
+                let iterations_total = 10000;
                 for _ in 0..iterations_total {
                     let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
                     assert!(!random_pixel_board.exists(board_width - 2, 0));
@@ -2033,7 +2033,7 @@ mod pixel_board_randomizer_tests {
                 for _ in 0..(wall_height - 2) {
                     appearances_totals.push(0);
                 }
-                let iterations_total = 1000;
+                let iterations_total = 10000;
                 for _ in 0..iterations_total {
                     let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
                     assert!(!random_pixel_board.exists(board_width - 2, 0));
@@ -3223,19 +3223,98 @@ mod pixel_board_randomizer_tests {
     }
 
     #[rstest]
-    fn largest_plus_sign_and_single_wall_segments() {
+    fn small_plus_sign_and_single_wall_segments() {
         init();
-
-        // TODO remove once issue is resolved
-        fastrand::seed(1);
 
         let top_wall_segment_image_id = Uuid::new_v4().to_string();
         let bottom_wall_segment_image_id = Uuid::new_v4().to_string();
         let left_wall_segment_image_id = Uuid::new_v4().to_string();
         let right_wall_segment_image_id = Uuid::new_v4().to_string();
         let floater_wall_segment_image_id = Uuid::new_v4().to_string();
-        let board_width = 4;
-        let board_height = 4;
+        let board_width = 5;
+        let board_height = 5;
+        let board_x_mid = board_width / 2;
+        let board_y_mid = board_height / 2;
+        println!("board ({board_width}, {board_height}) crossing at ({board_x_mid}, {board_y_mid}).");
+        let mut pixel_board = PixelBoard::new(board_width, board_height);
+        pixel_board.set(board_x_mid, 0, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+            image_id: top_wall_segment_image_id.clone()
+        }))));
+        pixel_board.set(board_width - 1, board_y_mid, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+            image_id: right_wall_segment_image_id.clone()
+        }))));
+        pixel_board.set(board_x_mid, board_height - 1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+            image_id: bottom_wall_segment_image_id.clone()
+        }))));
+        pixel_board.set(0, board_y_mid, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+            image_id: left_wall_segment_image_id.clone()
+        }))));
+        for x in 1..(board_width - 1) {
+            pixel_board.set(x, board_y_mid, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+                image_id: floater_wall_segment_image_id.clone()
+            }))));
+        }
+        for y in 1..(board_height - 1) {
+            if y != board_y_mid {
+                pixel_board.set(board_x_mid, y, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
+                    image_id: floater_wall_segment_image_id.clone()
+                }))));
+            }
+        }
+        let pixel_board_randomizer = PixelBoardRandomizer::new(pixel_board);
+        // TODO get randomized pixel board and check for single possible location multiple times
+        for _ in 0..10 {
+            let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
+            for y in 0..board_height {
+                for x in 0..board_width {
+                    if x == board_x_mid || y == board_y_mid {
+                        assert!(random_pixel_board.exists(x, y));
+                        let wrapped_pixel = random_pixel_board.get(x, y).unwrap();
+                        let borrowed_pixel: &ExamplePixel = &wrapped_pixel.borrow();
+                        match (borrowed_pixel) {
+                            ExamplePixel::Tile(tile) => {
+                                if y == 0 {
+                                    assert_eq!(top_wall_segment_image_id, tile.image_id);
+                                }
+                                else if y == (board_height - 1) {
+                                    assert_eq!(bottom_wall_segment_image_id, tile.image_id);
+                                }
+                                else if x == 0 {
+                                    assert_eq!(left_wall_segment_image_id, tile.image_id);
+                                }
+                                else if x == (board_width - 1) {
+                                    assert_eq!(right_wall_segment_image_id, tile.image_id);
+                                }
+                                else {
+                                    assert_eq!(floater_wall_segment_image_id, tile.image_id);
+                                }
+                            },
+                            ExamplePixel::Element(_) => {
+                                panic!("Unexpected pixel type.");
+                            }
+                        }
+                    }
+                    else {
+                        println!("checking ({x}, {y})");
+                        assert!(!random_pixel_board.exists(x, y));
+                    }
+                }
+            }
+        }
+    }
+
+    #[ignore]
+    #[rstest]
+    fn largest_plus_sign_and_single_wall_segments() {
+        init();
+
+        let top_wall_segment_image_id = Uuid::new_v4().to_string();
+        let bottom_wall_segment_image_id = Uuid::new_v4().to_string();
+        let left_wall_segment_image_id = Uuid::new_v4().to_string();
+        let right_wall_segment_image_id = Uuid::new_v4().to_string();
+        let floater_wall_segment_image_id = Uuid::new_v4().to_string();
+        let board_width = 255;
+        let board_height = 255;
         let board_x_mid = board_width / 2;
         let board_y_mid = board_height / 2;
         println!("board ({board_width}, {board_height}) crossing at ({board_x_mid}, {board_y_mid}).");
