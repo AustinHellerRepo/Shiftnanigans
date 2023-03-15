@@ -966,6 +966,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
             is_adjacent_cell_group_index_per_cell_group_index: Rc::new(is_adjacent_cell_group_index_per_cell_group_index)
         }
     }
+    #[time_graph::instrument]
     pub fn get_random_pixel_board(&self) -> PixelBoard<TPixel> {
         let mut round_robin_incrementer: RoundRobinIncrementer<(u8, u8)>;
 
@@ -1125,19 +1126,13 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
         // prepare to find the cycle as the RoundRobinIncrementer is iterated over
         // the idea is that we round-robin across all shifters, building up graphs of connected locations until we find that the next pair to be connected already exist in the same graph, then we check for a cycle
         
-        // TODO remove these variables as they are no longer used
-        // this contains how many times this cell group at this location has been found at this location within the graph at the current index of the vector
-        let mut observations_total_per_located_cell_group_collection_per_isolated_graph: Vec<BTreeMap<(usize, (u8, u8)), usize>> = Vec::new();
-        let mut first_fully_connected_located_cell_groups_per_isolated_graph: Vec<Vec<(usize, (u8, u8))>> = Vec::new();
-        let mut is_cell_group_index_fully_connected_per_isolated_graph: Vec<BitVec> = Vec::new();
-        let fully_connected_length = self.cell_groups.len() - 1;
-
         // contains all of the states discovered thus far
         let mut stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec<Vec<Rc<RefCell<StatefulHyperGraphNode<(u8, u8)>>>>> = Vec::new();
         for _ in 0..self.cell_groups.len() {
             stateful_hyper_graph_nodes_per_hyper_graph_node_index.push(Vec::new());
         }
 
+        let mut incrementer_iterations_total = 0;
         let mut is_incrementer_completed: bool = false;
         while !is_incrementer_completed {
             // TODO get the next set of locations
@@ -1200,238 +1195,37 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                                 current_stateful_hyper_graph_node.borrow_mut().add_neighbor(other_indexed_element.index, other_stateful_hyper_graph_node.clone());
                                 other_stateful_hyper_graph_node.borrow_mut().add_neighbor(current_indexed_element.index, current_stateful_hyper_graph_node);
                             }
-
-                            if false {  // TODO remove since this logic does not work and was replaced with the HyperGraphClicheShifter
-                                // TODO determine if indexed location exists in previous data structures
-                                let mut current_indexed_element_isolated_graph_index: Option<usize> = None;
-                                let mut other_indexed_element_isolated_graph_index: Option<usize> = None;
-                                let current_located_cell_group: (usize, (u8, u8)) = (current_indexed_element.index, (current_indexed_element.element.0, current_indexed_element.element.1));
-                                let other_located_cell_group: (usize, (u8, u8)) = (other_indexed_element.index, (other_indexed_element.element.0, other_indexed_element.element.1));
-                                for (isolated_graph_index, observations_total_per_located_cell_group_collection) in observations_total_per_located_cell_group_collection_per_isolated_graph.iter().enumerate() {
-                                    if observations_total_per_located_cell_group_collection.contains_key(&current_located_cell_group) {
-                                        current_indexed_element_isolated_graph_index = Some(isolated_graph_index);
-                                        if other_indexed_element_isolated_graph_index.is_some() {
-                                            break;
-                                        }
-                                    }
-                                    if observations_total_per_located_cell_group_collection.contains_key(&other_located_cell_group) {
-                                        other_indexed_element_isolated_graph_index = Some(isolated_graph_index);
-                                        if current_indexed_element_isolated_graph_index.is_some() {
-                                            break;
-                                        }
-                                    }
-                                }
-
-                                let mut check_for_cycle_at_isolated_graph_index: Option<usize> = None;
-
-                                if current_indexed_element_isolated_graph_index.is_none() {
-                                    if other_indexed_element_isolated_graph_index.is_none() {
-                                        // if both are none, then this collection is isolated, create a new BTreeSet
-                                        let mut located_cell_group_collection: BTreeMap<(usize, (u8, u8)), usize> = BTreeMap::new();
-                                        located_cell_group_collection.insert(current_located_cell_group, 1);
-                                        located_cell_group_collection.insert(other_located_cell_group, 1);
-                                        observations_total_per_located_cell_group_collection_per_isolated_graph.push(located_cell_group_collection);
-                                        first_fully_connected_located_cell_groups_per_isolated_graph.push(Vec::new());
-                                        is_cell_group_index_fully_connected_per_isolated_graph.push(BitVec::repeat(false, self.cell_groups.len()));
-
-                                        // add the located cell groups if they are now fully connected
-                                        if fully_connected_length == 1 {
-                                            let isolated_graph_index = observations_total_per_located_cell_group_collection_per_isolated_graph.len() - 1;
-                                            if !is_cell_group_index_fully_connected_per_isolated_graph[isolated_graph_index][current_located_cell_group.0] {
-                                                is_cell_group_index_fully_connected_per_isolated_graph[isolated_graph_index].set(current_located_cell_group.0, true);
-                                                first_fully_connected_located_cell_groups_per_isolated_graph[isolated_graph_index].push(current_located_cell_group);
-                                                check_for_cycle_at_isolated_graph_index = Some(isolated_graph_index);
-                                            }
-                                            if !is_cell_group_index_fully_connected_per_isolated_graph[isolated_graph_index][other_located_cell_group.0] {
-                                                is_cell_group_index_fully_connected_per_isolated_graph[isolated_graph_index].set(other_located_cell_group.0, true);
-                                                first_fully_connected_located_cell_groups_per_isolated_graph[isolated_graph_index].push(other_located_cell_group);
-                                                check_for_cycle_at_isolated_graph_index = Some(isolated_graph_index);
-                                            }
-                                        }
-                                    }
-                                    else {
-                                        // the current located cell group extends the existing collection that contains the other located cell group
-                                        observations_total_per_located_cell_group_collection_per_isolated_graph[other_indexed_element_isolated_graph_index.unwrap()].insert(current_located_cell_group, 1);
-
-                                        // add the current located cell group if it is now fully connected
-                                        if fully_connected_length == 1 {
-                                            if !is_cell_group_index_fully_connected_per_isolated_graph[other_indexed_element_isolated_graph_index.unwrap()][current_located_cell_group.0] {
-                                                is_cell_group_index_fully_connected_per_isolated_graph[other_indexed_element_isolated_graph_index.unwrap()].set(current_located_cell_group.0, true);
-                                                first_fully_connected_located_cell_groups_per_isolated_graph[other_indexed_element_isolated_graph_index.unwrap()].push(current_located_cell_group);
-                                                check_for_cycle_at_isolated_graph_index = Some(other_indexed_element_isolated_graph_index.unwrap());
-                                            }
-                                        }
-                                        else {
-                                            {
-                                                let previous_observations_total = observations_total_per_located_cell_group_collection_per_isolated_graph[other_indexed_element_isolated_graph_index.unwrap()][&other_located_cell_group];
-                                                let next_observations_total = previous_observations_total + 1;
-                                                if next_observations_total == fully_connected_length {
-                                                    if !is_cell_group_index_fully_connected_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()][other_located_cell_group.0] {
-                                                        is_cell_group_index_fully_connected_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()].set(other_located_cell_group.0, true);
-                                                        first_fully_connected_located_cell_groups_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()].push(other_located_cell_group);
-                                                        check_for_cycle_at_isolated_graph_index = Some(current_indexed_element_isolated_graph_index.unwrap());
-                                                    }
-                                                }
-                                                observations_total_per_located_cell_group_collection_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()].insert(other_located_cell_group, next_observations_total);
-                                            }
-                                        }
-                                    }
-                                }
-                                else {
-                                    if other_indexed_element_isolated_graph_index.is_none() {
-                                        // the other located cell group extends the existing collection that contains the current located cell group
-                                        observations_total_per_located_cell_group_collection_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()].insert(other_located_cell_group, 1);
-
-                                        // TODO add the other located cell group if it is now fully connected
-                                        if fully_connected_length == 1 {
-                                            if !is_cell_group_index_fully_connected_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()][other_located_cell_group.0] {
-                                                is_cell_group_index_fully_connected_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()].set(other_located_cell_group.0, true);
-                                                first_fully_connected_located_cell_groups_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()].push(other_located_cell_group);
-                                                check_for_cycle_at_isolated_graph_index = Some(current_indexed_element_isolated_graph_index.unwrap());
-                                            }
-                                        }
-                                        else {
-                                            // TODO if any new fully connected located cell groups are appended, check for cycle
-                                            {
-                                                let previous_observations_total = observations_total_per_located_cell_group_collection_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()][&current_located_cell_group];
-                                                let next_observations_total = previous_observations_total + 1;
-                                                if next_observations_total == fully_connected_length {
-                                                    if !is_cell_group_index_fully_connected_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()][current_located_cell_group.0] {
-                                                        is_cell_group_index_fully_connected_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()].set(current_located_cell_group.0, true);
-                                                        first_fully_connected_located_cell_groups_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()].push(current_located_cell_group);
-                                                        check_for_cycle_at_isolated_graph_index = Some(current_indexed_element_isolated_graph_index.unwrap());
-                                                    }
-                                                }
-                                                observations_total_per_located_cell_group_collection_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()].insert(current_located_cell_group, next_observations_total);
-                                            }
-                                        }
-                                    }
-                                    else {
-
-                                        // they both exist in either the same or different collection
-                                        if current_indexed_element_isolated_graph_index != other_indexed_element_isolated_graph_index {
-                                            // they exist in different collections, so they must now be combined
-                                            let first_cell_group_collection_index: usize;
-                                            let second_cell_group_collection_index: usize;
-                                            if current_indexed_element_isolated_graph_index < other_indexed_element_isolated_graph_index {
-                                                first_cell_group_collection_index = current_indexed_element_isolated_graph_index.unwrap();
-                                                second_cell_group_collection_index = other_indexed_element_isolated_graph_index.unwrap();
-                                            }
-                                            else {
-                                                first_cell_group_collection_index = other_indexed_element_isolated_graph_index.unwrap();
-                                                second_cell_group_collection_index = current_indexed_element_isolated_graph_index.unwrap();
-                                            }
-                                            let second_observations_total_per_cell_group_collection = observations_total_per_located_cell_group_collection_per_isolated_graph.remove(second_cell_group_collection_index);
-                                            for (located_cell_group_collection, observations_total) in second_observations_total_per_cell_group_collection.into_iter() {
-                                                let next_observations_total;
-                                                if observations_total_per_located_cell_group_collection_per_isolated_graph[first_cell_group_collection_index].contains_key(&located_cell_group_collection) {
-                                                    let previous_observations_total = observations_total_per_located_cell_group_collection_per_isolated_graph[first_cell_group_collection_index][&located_cell_group_collection];
-                                                    next_observations_total = previous_observations_total + observations_total;
-                                                    if next_observations_total == fully_connected_length {
-                                                        if !is_cell_group_index_fully_connected_per_isolated_graph[first_cell_group_collection_index][located_cell_group_collection.0] {
-                                                            is_cell_group_index_fully_connected_per_isolated_graph[first_cell_group_collection_index].set(located_cell_group_collection.0, true);
-                                                            first_fully_connected_located_cell_groups_per_isolated_graph[first_cell_group_collection_index].push(located_cell_group_collection);
-                                                            check_for_cycle_at_isolated_graph_index = Some(first_cell_group_collection_index);
-                                                        }
-                                                    }
-                                                }
-                                                else {
-                                                    next_observations_total = observations_total;
-                                                }
-                                                observations_total_per_located_cell_group_collection_per_isolated_graph[first_cell_group_collection_index].insert(located_cell_group_collection, next_observations_total);
-                                            }
-
-                                            // merge the located cell groups if they were previously fully connected
-                                            // if any new fully connected located cell groups are appended, check for cycle
-                                            let is_cell_group_index_fully_connected = is_cell_group_index_fully_connected_per_isolated_graph.remove(second_cell_group_collection_index);
-                                            let first_fully_connected_located_cell_groups = first_fully_connected_located_cell_groups_per_isolated_graph.remove(second_cell_group_collection_index);
-                                            for located_cell_group in first_fully_connected_located_cell_groups {
-                                                if !is_cell_group_index_fully_connected_per_isolated_graph[first_cell_group_collection_index][located_cell_group.0] {
-                                                    is_cell_group_index_fully_connected_per_isolated_graph[first_cell_group_collection_index].set(located_cell_group.0, true);
-                                                    first_fully_connected_located_cell_groups_per_isolated_graph[first_cell_group_collection_index].push(located_cell_group);
-                                                    check_for_cycle_at_isolated_graph_index = Some(first_cell_group_collection_index);
-                                                }
-                                            }
-                                        }
-                                        else {
-                                            // they exist in the same located cell group collect and now form a cycle, test to see if this is the cycle that creates a full loop
-                                            // TODO ensure that each located cell group of the cycle (for each distinct cell group) forms a cliche with each other, as a statement that they all permit each other's location
-                                            {
-                                                let previous_observations_total = observations_total_per_located_cell_group_collection_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()][&current_located_cell_group];
-                                                let next_observations_total = previous_observations_total + 1;
-                                                if next_observations_total == fully_connected_length {
-                                                    if !is_cell_group_index_fully_connected_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()][current_located_cell_group.0] {
-                                                        is_cell_group_index_fully_connected_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()].set(current_located_cell_group.0, true);
-                                                        first_fully_connected_located_cell_groups_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()].push(current_located_cell_group);
-                                                        check_for_cycle_at_isolated_graph_index = Some(current_indexed_element_isolated_graph_index.unwrap());
-                                                    }
-                                                }
-                                                observations_total_per_located_cell_group_collection_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()].insert(current_located_cell_group, next_observations_total);
-                                            }
-
-                                            {
-                                                let previous_observations_total = observations_total_per_located_cell_group_collection_per_isolated_graph[other_indexed_element_isolated_graph_index.unwrap()][&other_located_cell_group];
-                                                let next_observations_total = previous_observations_total + 1;
-                                                if next_observations_total == fully_connected_length {
-                                                    if !is_cell_group_index_fully_connected_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()][other_located_cell_group.0] {
-                                                        is_cell_group_index_fully_connected_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()].set(other_located_cell_group.0, true);
-                                                        first_fully_connected_located_cell_groups_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()].push(other_located_cell_group);
-                                                        check_for_cycle_at_isolated_graph_index = Some(current_indexed_element_isolated_graph_index.unwrap());
-                                                    }
-                                                }
-                                                observations_total_per_located_cell_group_collection_per_isolated_graph[current_indexed_element_isolated_graph_index.unwrap()].insert(other_located_cell_group, next_observations_total);
-                                            }
-                                        }
-                                    }
-                                }
-
-                                if check_for_cycle_at_isolated_graph_index.is_some() {
-                                    if first_fully_connected_located_cell_groups_per_isolated_graph[check_for_cycle_at_isolated_graph_index.unwrap()].len() == self.cell_groups.len() {
-                                        // the number of connected located cell groups contains all of the valid located cell groups
-                                        // construct and return the randomized PixelBoard instance
-
-                                        let mut random_pixel_board: PixelBoard<TPixel> = PixelBoard::new(self.pixel_board.get_width(), self.pixel_board.get_height());
-                                        for (cell_group_index, location) in first_fully_connected_located_cell_groups_per_isolated_graph.remove(check_for_cycle_at_isolated_graph_index.unwrap()).into_iter() {
-                                            for cell in self.cell_groups[cell_group_index].cells.iter() {
-                                                let calculated_pixel_board_index_x: usize = (location.0 + cell.0) as usize;
-                                                let calculated_pixel_board_index_y: usize = (location.1 + cell.1) as usize;
-                                                let pixel_board_coordinate = self.pixel_board_coordinate_per_cell_group_index[cell_group_index];
-                                                let original_pixel_board_index_x: usize = (cell.0 as usize + pixel_board_coordinate.0);
-                                                let original_pixel_board_index_y: usize = (cell.1 as usize + pixel_board_coordinate.1);
-                                                random_pixel_board.set(calculated_pixel_board_index_x, calculated_pixel_board_index_y, self.pixel_board.get(original_pixel_board_index_x, original_pixel_board_index_y).unwrap());
-                                            }
-                                        }
-                                        return random_pixel_board;
-                                    }
-                                }
-                            }
                         }
                     }
 
-                    // look for cliches given the stateful hyper graph nodes of the latest set of provided location pairs
-                    let hyper_graph_cliche_shifter = Rc::new(RefCell::new(HyperGraphClicheShifter::new(stateful_hyper_graph_nodes_per_hyper_graph_node_index.clone())));
-                    let mut shifter_incrementer = ShifterIncrementer::new(hyper_graph_cliche_shifter, 0);
-                    if shifter_incrementer.try_increment() {
-                        // found cliche
-                        debug!("cliche found");
-                        let cliche = shifter_incrementer.get();
-                        let mut random_pixel_board: PixelBoard<TPixel> = PixelBoard::new(self.pixel_board.get_width(), self.pixel_board.get_height());
-                        for indexed_element in cliche {
-                            let location = *indexed_element.element.as_ref();
-                            for cell in self.cell_groups[indexed_element.index].cells.iter() {
-                                let calculated_pixel_board_index_x: usize = (location.0 + cell.0) as usize;
-                                let calculated_pixel_board_index_y: usize = (location.1 + cell.1) as usize;
-                                let pixel_board_coordinate = self.pixel_board_coordinate_per_cell_group_index[indexed_element.index];
-                                let original_pixel_board_index_x: usize = (cell.0 as usize + pixel_board_coordinate.0);
-                                let original_pixel_board_index_y: usize = (cell.1 as usize + pixel_board_coordinate.1);
-                                random_pixel_board.set(calculated_pixel_board_index_x, calculated_pixel_board_index_y, self.pixel_board.get(original_pixel_board_index_x, original_pixel_board_index_y).unwrap());
+                    time_graph::spanned!("cliche_shifter", {
+                        // look for cliches given the stateful hyper graph nodes of the latest set of provided location pairs
+                        let hyper_graph_cliche_shifter = Rc::new(RefCell::new(HyperGraphClicheShifter::new(stateful_hyper_graph_nodes_per_hyper_graph_node_index.clone())));
+                        let mut shifter_incrementer = ShifterIncrementer::new(hyper_graph_cliche_shifter, 0);
+                        if shifter_incrementer.try_increment() {
+                            // found cliche
+                            debug!("cliche found");
+                            let cliche = shifter_incrementer.get();
+                            let mut random_pixel_board: PixelBoard<TPixel> = PixelBoard::new(self.pixel_board.get_width(), self.pixel_board.get_height());
+                            for indexed_element in cliche {
+                                let location = *indexed_element.element.as_ref();
+                                for cell in self.cell_groups[indexed_element.index].cells.iter() {
+                                    let calculated_pixel_board_index_x: usize = (location.0 + cell.0) as usize;
+                                    let calculated_pixel_board_index_y: usize = (location.1 + cell.1) as usize;
+                                    let pixel_board_coordinate = self.pixel_board_coordinate_per_cell_group_index[indexed_element.index];
+                                    let original_pixel_board_index_x: usize = (cell.0 as usize + pixel_board_coordinate.0);
+                                    let original_pixel_board_index_y: usize = (cell.1 as usize + pixel_board_coordinate.1);
+                                    random_pixel_board.set(calculated_pixel_board_index_x, calculated_pixel_board_index_y, self.pixel_board.get(original_pixel_board_index_x, original_pixel_board_index_y).unwrap());
+                                }
                             }
+                            return random_pixel_board;
                         }
-                        return random_pixel_board;
-                    }
-                    else {
-                        debug!("cliche not found");
-                    }
+                        else {
+                            debug!("cliche not found");
+                            println!("cliche not found: {}", incrementer_iterations_total);
+                            incrementer_iterations_total += 1;
+                        }
+                    });
                 }
             }
             else {
@@ -3226,13 +3020,16 @@ mod pixel_board_randomizer_tests {
     fn small_plus_sign_and_single_wall_segments() {
         init();
 
+        time_graph::enable_data_collection(true);
+
+        let width_and_height_tuple = (9, 9);
         let top_wall_segment_image_id = Uuid::new_v4().to_string();
         let bottom_wall_segment_image_id = Uuid::new_v4().to_string();
         let left_wall_segment_image_id = Uuid::new_v4().to_string();
         let right_wall_segment_image_id = Uuid::new_v4().to_string();
         let floater_wall_segment_image_id = Uuid::new_v4().to_string();
-        let board_width = 5;
-        let board_height = 5;
+        let board_width = width_and_height_tuple.0;
+        let board_height = width_and_height_tuple.1;
         let board_x_mid = board_width / 2;
         let board_y_mid = board_height / 2;
         println!("board ({board_width}, {board_height}) crossing at ({board_x_mid}, {board_y_mid}).");
@@ -3301,6 +3098,8 @@ mod pixel_board_randomizer_tests {
                 }
             }
         }
+
+        println!("{}", time_graph::get_full_graph().as_dot());
     }
 
     #[ignore]

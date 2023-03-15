@@ -1067,9 +1067,9 @@ dependencies = [
 
 [[package]]
 name = "time-graph"
-version = "0.1.3"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab8d1c006e001f28103c67b060f03dd2bfbc5f7cb0a55d91daa356f9e5c4ce66"
+checksum = "de7f620711b3502e7378d8b394096ab43a2bb4b7f84aabf0de20aaa5024b295f"
 dependencies = [
  "once_cell",
  "petgraph",
@@ -1079,9 +1079,9 @@ dependencies = [
 
 [[package]]
 name = "time-graph-macros"
-version = "0.1.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b734c4613d9239f974990c4acc65080b37b4867f961c1ab1c1581a91ff9d9899"
+checksum = "75b90b0da204877a450b4ce7efe72765080b5055779660d3ec08f1bf891e3ce5"
 dependencies = [
  "quote",
  "syn",

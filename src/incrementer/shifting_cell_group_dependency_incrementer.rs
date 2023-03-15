@@ -176,7 +176,7 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
                                     second_state_index = other_element_index_and_adjusted_element_index_and_state_index_tuple.2;
                                 }
                                 bitvec_index = ((second_state_index * self.current_states_total + first_state_index) * self.current_elements_total + second_element_index) * self.current_elements_total + first_element_index;
-                                println!("ShiftingCellGroupDependency: try_increment: bitvec_index: {bitvec_index}");
+                                //println!("ShiftingCellGroupDependency: try_increment: bitvec_index: {bitvec_index}");
                             }
 
                             if !self.current_is_checked[bitvec_index] {
