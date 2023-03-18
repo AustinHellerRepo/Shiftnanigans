@@ -180,7 +180,7 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
                             }
 
                             if !self.current_is_checked[bitvec_index] {
-                                debug!("checking cell group {} against {}", current_element_index_and_adjusted_element_index_and_state_index_tuple.1, other_element_index_and_adjusted_element_index_and_state_index_tuple.1);
+                                //debug!("checking cell group {} against {}", current_element_index_and_adjusted_element_index_and_state_index_tuple.1, other_element_index_and_adjusted_element_index_and_state_index_tuple.1);
                                 let other_index_element_location = self.current_states[other_element_index_and_adjusted_element_index_and_state_index_tuple.2].clone();
 
                                 // verify that the pair of indexed elements are valid at the same time and location
@@ -192,11 +192,11 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
                                     let is_adjacency_expected_option: Option<bool>;
                                     if let Some(is_adjacent_cell_group_index_per_cell_group_index) = &self.is_adjacent_cell_group_index_per_cell_group_index {
                                         is_adjacency_expected_option = Some(is_adjacent_cell_group_index_per_cell_group_index[current_element_index_and_adjusted_element_index_and_state_index_tuple.1][other_element_index_and_adjusted_element_index_and_state_index_tuple.1] || is_adjacent_cell_group_index_per_cell_group_index[other_element_index_and_adjusted_element_index_and_state_index_tuple.1][current_element_index_and_adjusted_element_index_and_state_index_tuple.1]);
-                                        debug!("is_adjacency_expected: {:?} for cell group {} and {}.", is_adjacency_expected_option, other_element_index_and_adjusted_element_index_and_state_index_tuple.1, current_element_index_and_adjusted_element_index_and_state_index_tuple.1);
+                                        //debug!("is_adjacency_expected: {:?} for cell group {} and {}.", is_adjacency_expected_option, other_element_index_and_adjusted_element_index_and_state_index_tuple.1, current_element_index_and_adjusted_element_index_and_state_index_tuple.1);
                                     }
                                     else {
                                         is_adjacency_expected_option = None;
-                                        debug!("adjacency is not considered");
+                                        //debug!("adjacency is not considered");
                                     }
                                     let mut is_adjacent: bool = false;
 
@@ -217,7 +217,7 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
                                         for current_cell in current_cell_group.cells.iter() {
                                             let calculated_current_cell: (u8, u8) = (current_cell.0 + current_index_element_location.0, current_cell.1 + current_index_element_location.1);
                                             if calculated_other_cell == calculated_current_cell {
-                                                debug!("found overlap at ({}, {})", calculated_current_cell.0, calculated_current_cell.1);
+                                                //debug!("found overlap at ({}, {})", calculated_current_cell.0, calculated_current_cell.1);
                                                 is_current_pair_valid = false;
                                                 break 'is_current_pair_valid;
                                             }
@@ -230,7 +230,7 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
                                             }
                                         }
                                         if detection_locations.contains(&calculated_other_cell) {
-                                            debug!("found detection location at ({}, {})", calculated_other_cell.0, calculated_other_cell.1);
+                                            //debug!("found detection location at ({}, {})", calculated_other_cell.0, calculated_other_cell.1);
                                             is_current_pair_valid = false;
                                             break 'is_current_pair_valid;
                                         }
@@ -238,11 +238,11 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
 
                                     if let Some(is_adjacency_expected) = is_adjacency_expected_option {
                                         if is_adjacency_expected && !is_adjacent {
-                                            debug!("adjacency expected and found");
+                                            //debug!("adjacency expected and found");
                                             is_current_pair_valid = false;
                                         }
                                         else if !is_adjacency_expected && is_adjacent {
-                                            debug!("adjacency not expected and yet found");
+                                            //debug!("adjacency not expected and yet found");
                                             is_current_pair_valid = false;
                                         }
                                     }
@@ -252,7 +252,7 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
                                 self.current_is_valid.set(bitvec_index, is_current_pair_valid);
                             }
                             else {
-                                debug!("already checked cell group {} against {} as {}", current_element_index_and_adjusted_element_index_and_state_index_tuple.1, other_element_index_and_adjusted_element_index_and_state_index_tuple.1, self.current_is_valid[bitvec_index]);
+                                //debug!("already checked cell group {} against {} as {}", current_element_index_and_adjusted_element_index_and_state_index_tuple.1, other_element_index_and_adjusted_element_index_and_state_index_tuple.1, self.current_is_valid[bitvec_index]);
                             }
                             if !self.current_is_valid[bitvec_index] {
                                 is_current_indexed_element_valid = false;
@@ -263,7 +263,7 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
                         is_current_indexed_element_valid = true;
                     }
                     if is_current_indexed_element_valid {
-                        debug!("indexed elements are valid together, so storing location and moving forward");
+                        //debug!("indexed elements are valid together, so storing location and moving forward");
                         self.current_locations.push(IndexedElement::new(current_index_element_location, current_element_index_and_adjusted_element_index_and_state_index_tuple.1));
                         self.current_element_index_and_adjusted_element_index_and_state_index_tuples.push(current_element_index_and_adjusted_element_index_and_state_index_tuple);
                         is_forward_required = true;
@@ -275,7 +275,7 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
                 }
             }
             if self.current_locations.len() == shifter_length {
-                debug!("collected a valid set of current locations");
+                //debug!("collected a valid set of current locations");
                 return true;
             }
             if self.current_locations.len() != 0 {

@@ -45,6 +45,8 @@ impl Pixel for ExamplePixel {
 
 fn small_plus_sign(width_and_height_tuple: (usize, usize)) {
 
+    fastrand::seed(0);
+
     let top_wall_segment_image_id = Uuid::new_v4().to_string();
     let bottom_wall_segment_image_id = Uuid::new_v4().to_string();
     let left_wall_segment_image_id = Uuid::new_v4().to_string();
