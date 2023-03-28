@@ -1,6 +1,7 @@
 use std::{rc::Rc, cell::RefCell};
 
 use bitvec::vec::BitVec;
+use bitvec::prelude::*;
 
 use crate::IndexedElement;
 
@@ -14,9 +15,9 @@ pub struct StatefulHyperGraphNode<T: PartialEq + std::fmt::Debug> {
 }
 
 impl<T: PartialEq + std::fmt::Debug> StatefulHyperGraphNode<T> {
-    pub fn new(state: Rc<T>, hyper_graph_node_index: usize, hyper_graph_nodes_total: usize) -> Self {
-        let mut is_hyper_graph_node_index_connected: BitVec = BitVec::repeat(false, hyper_graph_nodes_total);
-        is_hyper_graph_node_index_connected.set(hyper_graph_node_index, true);
+    pub fn new(state: Rc<T>, is_hyper_graph_node_index_connected: BitVec) -> Self {
+        // passing in is_hyper_graph_node_index_connected sets which hyper graph nodes are already considered connected to
+        //      very useful for when this hyper graph node will never be compared to another hyper graph node
         StatefulHyperGraphNode {
             state: state,
             neighbor_stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec::new(),
@@ -40,6 +41,7 @@ impl<T: PartialEq + std::fmt::Debug> StatefulHyperGraphNode<T> {
 
 pub struct HyperGraphClicheShifter<T: PartialEq + std::fmt::Debug> {
     stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec<Vec<Rc<RefCell<StatefulHyperGraphNode<T>>>>>,
+    is_independent_hyper_graph_node_per_hyper_graph_node_index: Rc<Vec<BitVec>>,
     hyper_graph_nodes_length: usize,
     current_hyper_graph_node_index: Option<usize>,
     current_hyper_graph_node_index_mapping: Vec<usize>,
@@ -51,6 +53,14 @@ pub struct HyperGraphClicheShifter<T: PartialEq + std::fmt::Debug> {
 
 impl<T: PartialEq + std::fmt::Debug> HyperGraphClicheShifter<T> {
     pub fn new(stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec<Vec<Rc<RefCell<StatefulHyperGraphNode<T>>>>>) -> Self {
+        let mut is_independent_hyper_graph_node_per_hyper_graph_node_index: Vec<BitVec> = Vec::new();
+        for _ in 0..stateful_hyper_graph_nodes_per_hyper_graph_node_index.len() {
+            let is_independent_hyper_graph_node: BitVec = BitVec::repeat(false, stateful_hyper_graph_nodes_per_hyper_graph_node_index.len());
+            is_independent_hyper_graph_node_per_hyper_graph_node_index.push(is_independent_hyper_graph_node);
+        }
+        return Self::new_with_islands(stateful_hyper_graph_nodes_per_hyper_graph_node_index, Rc::new(is_independent_hyper_graph_node_per_hyper_graph_node_index));
+    }
+    pub fn new_with_islands(stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec<Vec<Rc<RefCell<StatefulHyperGraphNode<T>>>>>, is_independent_hyper_graph_node_per_hyper_graph_node_index: Rc<Vec<BitVec>>) -> Self {
         let hyper_graph_nodes_length = stateful_hyper_graph_nodes_per_hyper_graph_node_index.len();
         let mut possible_states: Vec<Rc<T>> = Vec::new();
         for hyper_graph_node_index in 0..stateful_hyper_graph_nodes_per_hyper_graph_node_index.len() {
@@ -64,7 +74,8 @@ impl<T: PartialEq + std::fmt::Debug> HyperGraphClicheShifter<T> {
                     }
                 }
                 if !is_state_in_possible_states {
-                    possible_states.push(borrowed_stateful_hyper_graph_node.state.clone());
+                    let possible_state = borrowed_stateful_hyper_graph_node.state.clone();
+                    possible_states.push(possible_state);
                 }
             }
         }
@@ -74,6 +85,7 @@ impl<T: PartialEq + std::fmt::Debug> HyperGraphClicheShifter<T> {
         }
         HyperGraphClicheShifter {
             stateful_hyper_graph_nodes_per_hyper_graph_node_index: stateful_hyper_graph_nodes_per_hyper_graph_node_index,
+            is_independent_hyper_graph_node_per_hyper_graph_node_index: is_independent_hyper_graph_node_per_hyper_graph_node_index,
             hyper_graph_nodes_length: hyper_graph_nodes_length,
             current_hyper_graph_node_index: None,
             current_hyper_graph_node_index_mapping: current_hyper_graph_node_index_mapping,
@@ -186,45 +198,50 @@ impl<T: PartialEq + std::fmt::Debug> Shifter for HyperGraphClicheShifter<T> {
                 initial_stateful_hyper_graph_node_index = 0;
             }
 
+            // find a stateful hyper graph node in this hyper graph that is fully connected and is connected to all other previously traversed stateful hyper graph nodes
             for current_stateful_hyper_graph_node_index in initial_stateful_hyper_graph_node_index..self.stateful_hyper_graph_nodes_per_hyper_graph_node_index[mapped_current_hyper_graph_node_index].len() {
                 let wrapped_current_stateful_hyper_graph_node = &self.stateful_hyper_graph_nodes_per_hyper_graph_node_index[mapped_current_hyper_graph_node_index][current_stateful_hyper_graph_node_index];
+                let mut is_current_stateful_hyper_graph_node_valid = false;
                 let borrowed_current_stateful_hyper_graph_node: &StatefulHyperGraphNode<T> = &wrapped_current_stateful_hyper_graph_node.borrow();
                 if borrowed_current_stateful_hyper_graph_node.is_connected_to_all_hyper_graph_nodes() {
                     // TODO check to see that the previous stateful_hyper_graph_nodes permit the state of this hyper_graph_node
-                    let mut is_current_stateful_hyper_graph_node_valid = true;
+                    is_current_stateful_hyper_graph_node_valid = true;
 
                     let mut previous_hyper_graph_node_index = current_hyper_graph_node_index;
                     while previous_hyper_graph_node_index != 0 {
                         previous_hyper_graph_node_index -= 1;
-                        // loop over the stateful_hyper_graph_node neighbors, searching for the current stateful_hyper_graph_node state
-                        let mut previous_neighbor_stateful_hyper_graph_node_exists_with_same_state = false;
-                        let borrowed_previous_hyper_graph_node: &StatefulHyperGraphNode<T> = &self.current_stateful_hyper_graph_node_per_hyper_graph_node_index[previous_hyper_graph_node_index].borrow();
-                        let borrowed_previous_hyper_graph_node_neighbors_length = borrowed_previous_hyper_graph_node.neighbor_stateful_hyper_graph_nodes_per_hyper_graph_node_index.len();
-                        if mapped_current_hyper_graph_node_index < borrowed_previous_hyper_graph_node_neighbors_length {
-                            for wrapped_previous_neighbor_stateful_hyper_graph_node in borrowed_previous_hyper_graph_node.neighbor_stateful_hyper_graph_nodes_per_hyper_graph_node_index[mapped_current_hyper_graph_node_index].iter() {
-                                let borrowed_previous_neighbor_stateful_hyper_graph_node: &StatefulHyperGraphNode<T> = &wrapped_previous_neighbor_stateful_hyper_graph_node.borrow();
-                                if borrowed_previous_neighbor_stateful_hyper_graph_node.state == borrowed_current_stateful_hyper_graph_node.state {
-                                    previous_neighbor_stateful_hyper_graph_node_exists_with_same_state = true;
-                                    break;
+                        let mapped_previous_hyper_graph_node_index = self.current_hyper_graph_node_index_mapping[previous_hyper_graph_node_index];
+                        // if the previous hyper graph node is not independent from all other nodes, check to see that the current stateful hyper graph node state is connected to the previously traversed hyper graph node state
+                        if !self.is_independent_hyper_graph_node_per_hyper_graph_node_index[mapped_previous_hyper_graph_node_index][mapped_current_hyper_graph_node_index] {
+                            // loop over the stateful_hyper_graph_node neighbors, searching for the current stateful_hyper_graph_node state
+                            let mut previous_neighbor_stateful_hyper_graph_node_exists_with_same_state = false;
+                            let borrowed_previous_hyper_graph_node: &StatefulHyperGraphNode<T> = &self.current_stateful_hyper_graph_node_per_hyper_graph_node_index[previous_hyper_graph_node_index].borrow();
+                            let borrowed_previous_hyper_graph_node_neighbors_length = borrowed_previous_hyper_graph_node.neighbor_stateful_hyper_graph_nodes_per_hyper_graph_node_index.len();
+                            if mapped_current_hyper_graph_node_index < borrowed_previous_hyper_graph_node_neighbors_length {
+                                for wrapped_previous_neighbor_stateful_hyper_graph_node in borrowed_previous_hyper_graph_node.neighbor_stateful_hyper_graph_nodes_per_hyper_graph_node_index[mapped_current_hyper_graph_node_index].iter() {
+                                    let borrowed_previous_neighbor_stateful_hyper_graph_node: &StatefulHyperGraphNode<T> = &wrapped_previous_neighbor_stateful_hyper_graph_node.borrow();
+                                    if borrowed_previous_neighbor_stateful_hyper_graph_node.state == borrowed_current_stateful_hyper_graph_node.state {
+                                        previous_neighbor_stateful_hyper_graph_node_exists_with_same_state = true;
+                                        break;
+                                    }
                                 }
                             }
-                        }
-                        if !previous_neighbor_stateful_hyper_graph_node_exists_with_same_state {
-                            is_current_stateful_hyper_graph_node_valid = false;
-                            break;
+                            if !previous_neighbor_stateful_hyper_graph_node_exists_with_same_state {
+                                is_current_stateful_hyper_graph_node_valid = false;
+                                break;
+                            }
                         }
                     }
-
-                    if is_current_stateful_hyper_graph_node_valid {
-                        if current_hyper_graph_node_index == self.current_stateful_hyper_graph_node_per_hyper_graph_node_index.len() {
-                            self.current_stateful_hyper_graph_node_per_hyper_graph_node_index.push(wrapped_current_stateful_hyper_graph_node.clone());
-                        }
-                        else {
-                            self.current_stateful_hyper_graph_node_per_hyper_graph_node_index[current_hyper_graph_node_index] = wrapped_current_stateful_hyper_graph_node.clone();
-                        }
-                        self.current_stateful_hyper_graph_node_index_per_hyper_graph_node_index[current_hyper_graph_node_index] = Some(current_stateful_hyper_graph_node_index);
-                        return true;
+                }
+                if is_current_stateful_hyper_graph_node_valid {
+                    if current_hyper_graph_node_index == self.current_stateful_hyper_graph_node_per_hyper_graph_node_index.len() {
+                        self.current_stateful_hyper_graph_node_per_hyper_graph_node_index.push(wrapped_current_stateful_hyper_graph_node.clone());
                     }
+                    else {
+                        self.current_stateful_hyper_graph_node_per_hyper_graph_node_index[current_hyper_graph_node_index] = wrapped_current_stateful_hyper_graph_node.clone();
+                    }
+                    self.current_stateful_hyper_graph_node_index_per_hyper_graph_node_index[current_hyper_graph_node_index] = Some(current_stateful_hyper_graph_node_index);
+                    return true;
                 }
             }
             return false;
@@ -298,7 +315,7 @@ mod hyper_graph_cliche_shifter_tests {
 
         let stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec<Vec<Rc<RefCell<StatefulHyperGraphNode<(u8, u8)>>>>> = vec![
             vec![
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((10 as u8, 100 as u8)), 0, 1)))
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((10 as u8, 100 as u8)), bitvec![1])))
             ]
         ];
 
@@ -324,8 +341,8 @@ mod hyper_graph_cliche_shifter_tests {
 
         let stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec<Vec<Rc<RefCell<StatefulHyperGraphNode<(u8, u8)>>>>> = vec![
             vec![
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((10 as u8, 100 as u8)), 0, 1))),
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((12 as u8, 100 as u8)), 0, 1)))
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((10 as u8, 100 as u8)), bitvec![1]))),
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((12 as u8, 100 as u8)), bitvec![1])))
             ]
         ];
 
@@ -359,25 +376,16 @@ mod hyper_graph_cliche_shifter_tests {
 
         let stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec<Vec<Rc<RefCell<StatefulHyperGraphNode<(u8, u8)>>>>> = vec![
             vec![
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((10 as u8, 100 as u8)), 0, 2)))
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((10 as u8, 100 as u8)), bitvec![1, 0])))
             ],
             vec![
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 200 as u8)), 1, 2)))
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 200 as u8)), bitvec![0, 1])))
             ]
         ];
 
         let mut shifter: HyperGraphClicheShifter<(u8, u8)> = HyperGraphClicheShifter::new(stateful_hyper_graph_nodes_per_hyper_graph_node_index);
         for _ in 0..10 {
             assert!(shifter.try_forward());
-            assert!(shifter.try_increment());
-            {
-                let indexed_element = shifter.get_indexed_element();
-                assert_eq!(0, indexed_element.index);
-                assert_eq!(&(10 as u8, 100 as u8), indexed_element.element.as_ref());
-            }
-            assert!(shifter.try_forward());
-            assert!(!shifter.try_increment());
-            assert!(shifter.try_backward());
             assert!(!shifter.try_increment());
             assert!(!shifter.try_backward());
         }
@@ -389,35 +397,17 @@ mod hyper_graph_cliche_shifter_tests {
 
         let stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec<Vec<Rc<RefCell<StatefulHyperGraphNode<(u8, u8)>>>>> = vec![
             vec![
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((10 as u8, 100 as u8)), 0, 2))),
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((12 as u8, 100 as u8)), 0, 2)))
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((10 as u8, 100 as u8)), bitvec![1, 0]))),
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((12 as u8, 100 as u8)), bitvec![1, 0])))
             ],
             vec![
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 200 as u8)), 1, 2)))
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 200 as u8)), bitvec![0, 1])))
             ]
         ];
 
         let mut shifter: HyperGraphClicheShifter<(u8, u8)> = HyperGraphClicheShifter::new(stateful_hyper_graph_nodes_per_hyper_graph_node_index);
         for _ in 0..10 {
             assert!(shifter.try_forward());
-            assert!(shifter.try_increment());
-            {
-                let indexed_element = shifter.get_indexed_element();
-                assert_eq!(0, indexed_element.index);
-                assert_eq!(&(10 as u8, 100 as u8), indexed_element.element.as_ref());
-            }
-            assert!(shifter.try_forward());
-            assert!(!shifter.try_increment());
-            assert!(shifter.try_backward());
-            assert!(shifter.try_increment());
-            {
-                let indexed_element = shifter.get_indexed_element();
-                assert_eq!(0, indexed_element.index);
-                assert_eq!(&(12 as u8, 100 as u8), indexed_element.element.as_ref());
-            }
-            assert!(shifter.try_forward());
-            assert!(!shifter.try_increment());
-            assert!(shifter.try_backward());
             assert!(!shifter.try_increment());
             assert!(!shifter.try_backward());
         }
@@ -429,10 +419,10 @@ mod hyper_graph_cliche_shifter_tests {
 
         let stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec<Vec<Rc<RefCell<StatefulHyperGraphNode<(u8, u8)>>>>> = vec![
             vec![
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((10 as u8, 100 as u8)), 0, 2)))
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((10 as u8, 100 as u8)), bitvec![1, 0])))
             ],
             vec![
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 200 as u8)), 1, 2)))
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 200 as u8)), bitvec![0, 1])))
             ]
         ];
 
@@ -482,12 +472,12 @@ mod hyper_graph_cliche_shifter_tests {
 
         let stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec<Vec<Rc<RefCell<StatefulHyperGraphNode<(u8, u8)>>>>> = vec![
             vec![
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((10 as u8, 100 as u8)), 0, 2))),
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((12 as u8, 100 as u8)), 0, 2)))
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((10 as u8, 100 as u8)), bitvec![1, 0]))),
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((12 as u8, 100 as u8)), bitvec![1, 0])))
             ],
             vec![
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 200 as u8)), 1, 2))),
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 202 as u8)), 1, 2)))
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 200 as u8)), bitvec![0, 1]))),
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 202 as u8)), bitvec![0, 1])))
             ]
         ];
 
@@ -555,16 +545,16 @@ mod hyper_graph_cliche_shifter_tests {
 
         let stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec<Vec<Rc<RefCell<StatefulHyperGraphNode<(u8, u8)>>>>> = vec![
             vec![
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((10 as u8, 100 as u8)), 0, 3))),
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((12 as u8, 100 as u8)), 0, 3)))
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((10 as u8, 100 as u8)), bitvec![1, 0, 0]))),
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((12 as u8, 100 as u8)), bitvec![1, 0, 0])))
             ],
             vec![
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 200 as u8)), 1, 3))),
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 202 as u8)), 1, 3)))
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 200 as u8)), bitvec![0, 1, 0]))),
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 202 as u8)), bitvec![0, 1, 0])))
             ],
             vec![
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((30 as u8, 40 as u8)), 2, 3))),
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((31 as u8, 41 as u8)), 2, 3)))
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((30 as u8, 40 as u8)), bitvec![0, 0, 1]))),
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((31 as u8, 41 as u8)), bitvec![0, 0, 1])))
             ]
         ];
 
@@ -639,16 +629,16 @@ mod hyper_graph_cliche_shifter_tests {
 
         let stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec<Vec<Rc<RefCell<StatefulHyperGraphNode<(u8, u8)>>>>> = vec![
             vec![
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((10 as u8, 100 as u8)), 0, 3))),
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((12 as u8, 100 as u8)), 0, 3))),
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((14 as u8, 100 as u8)), 0, 3)))
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((10 as u8, 100 as u8)), bitvec![1, 0, 0]))),
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((12 as u8, 100 as u8)), bitvec![1, 0, 0]))),
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((14 as u8, 100 as u8)), bitvec![1, 0, 0])))
             ],
             vec![
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 200 as u8)), 1, 3))),
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 202 as u8)), 1, 3)))
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 200 as u8)), bitvec![0, 1, 0]))),
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 202 as u8)), bitvec![0, 1, 0])))
             ],
             vec![
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((30 as u8, 40 as u8)), 2, 3)))
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((30 as u8, 40 as u8)), bitvec![0, 0, 1])))
             ]
         ];
 
@@ -673,33 +663,6 @@ mod hyper_graph_cliche_shifter_tests {
         let mut shifter: HyperGraphClicheShifter<(u8, u8)> = HyperGraphClicheShifter::new(stateful_hyper_graph_nodes_per_hyper_graph_node_index);
         for _ in 0..10 {
             assert!(shifter.try_forward());
-            assert!(shifter.try_increment());
-            {
-                let indexed_element = shifter.get_indexed_element();
-                assert_eq!(0, indexed_element.index);
-                assert_eq!(&(10 as u8, 100 as u8), indexed_element.element.as_ref());
-            }
-            assert!(shifter.try_forward());
-            assert!(!shifter.try_increment());
-            assert!(shifter.try_backward());
-            assert!(shifter.try_increment());
-            {
-                let indexed_element = shifter.get_indexed_element();
-                assert_eq!(0, indexed_element.index);
-                assert_eq!(&(12 as u8, 100 as u8), indexed_element.element.as_ref());
-            }
-            assert!(shifter.try_forward());
-            assert!(shifter.try_increment());
-            {
-                let indexed_element = shifter.get_indexed_element();
-                assert_eq!(1, indexed_element.index);
-                assert_eq!(&(20 as u8, 200 as u8), indexed_element.element.as_ref());
-            }
-            assert!(shifter.try_forward());
-            assert!(!shifter.try_increment());
-            assert!(shifter.try_backward());
-            assert!(!shifter.try_increment());
-            assert!(shifter.try_backward());
             assert!(shifter.try_increment());
             {
                 let indexed_element = shifter.get_indexed_element();
@@ -737,16 +700,16 @@ mod hyper_graph_cliche_shifter_tests {
 
         let stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec<Vec<Rc<RefCell<StatefulHyperGraphNode<(u8, u8)>>>>> = vec![
             vec![
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((10 as u8, 100 as u8)), 0, 3))),
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((12 as u8, 100 as u8)), 0, 3))),
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((14 as u8, 100 as u8)), 0, 3)))
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((10 as u8, 100 as u8)), bitvec![1, 0, 0]))),
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((12 as u8, 100 as u8)), bitvec![1, 0, 0]))),
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((14 as u8, 100 as u8)), bitvec![1, 0, 0])))
             ],
             vec![
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 200 as u8)), 1, 3))),
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 202 as u8)), 1, 3)))
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 200 as u8)), bitvec![0, 1, 0]))),
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 202 as u8)), bitvec![0, 1, 0])))
             ],
             vec![
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((30 as u8, 40 as u8)), 2, 3)))
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((30 as u8, 40 as u8)), bitvec![0, 0, 1])))
             ]
         ];
 

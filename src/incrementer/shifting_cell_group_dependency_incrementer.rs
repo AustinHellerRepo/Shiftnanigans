@@ -109,7 +109,10 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
             while self.current_locations.len() != shifter_length && !is_fully_backward {
                 if is_forward_required {
                     //debug!("moving forward to next shift index");
-                    shifter.try_forward();
+                    let is_forward_successful = shifter.try_forward();
+                    if !is_forward_successful {
+                        panic!("Unexpectedly failed to move forward.");
+                    }
                 }
                 //debug!("incrementing at current shift index");
                 let is_increment_successful = shifter.try_increment();
@@ -156,7 +159,6 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
                         for location_index in 0..self.current_locations.len() {
                             let other_element_index_and_adjusted_element_index_and_state_index_tuple = &self.current_element_index_and_adjusted_element_index_and_state_index_tuples[location_index];
 
-                            // check if the pair of indexed elements have already been compared
                             let bitvec_index: usize;
                             {
                                 let first_element_index: usize;
@@ -179,6 +181,7 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
                                 //println!("ShiftingCellGroupDependency: try_increment: bitvec_index: {bitvec_index}");
                             }
 
+                            // check if the pair of indexed elements have already been compared
                             if !self.current_is_checked[bitvec_index] {
                                 //debug!("checking cell group {} against {}", current_element_index_and_adjusted_element_index_and_state_index_tuple.1, other_element_index_and_adjusted_element_index_and_state_index_tuple.1);
                                 let other_index_element_location = self.current_states[other_element_index_and_adjusted_element_index_and_state_index_tuple.2].clone();

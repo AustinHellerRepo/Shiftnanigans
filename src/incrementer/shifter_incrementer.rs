@@ -1,11 +1,12 @@
 use std::{rc::Rc, cell::RefCell};
 use crate::{shifter::Shifter, IndexedElement};
 use super::Incrementer;
+use bitvec::prelude::*;
 
 // Purpose: with each iteration, evaluates a complete shifted state of the underlying shifter
 pub struct ShifterIncrementer<T> {
     shifter: Rc<RefCell<dyn Shifter<T = T>>>,
-    index_offset: usize,
+    index_mapping: Vec<usize>,
     is_started: bool,
     is_completed: bool,
     current_indexed_elements: Vec<IndexedElement<T>>,
@@ -13,11 +14,11 @@ pub struct ShifterIncrementer<T> {
 }
 
 impl<T> ShifterIncrementer<T> {
-    pub fn new(shifter: Rc<RefCell<dyn Shifter<T = T>>>, index_offset: usize) -> Self {
+    pub fn new(shifter: Rc<RefCell<dyn Shifter<T = T>>>, index_mapping: Vec<usize>) -> Self {
         let shifter_length = shifter.borrow().get_length();
         ShifterIncrementer {
             shifter: shifter,
-            index_offset: index_offset,
+            index_mapping: index_mapping,
             is_started: shifter_length == 0,
             is_completed: shifter_length == 0,
             current_indexed_elements: Vec::new(),
@@ -87,7 +88,7 @@ impl<T> Incrementer for ShifterIncrementer<T> {
     fn get(&self) -> Vec<IndexedElement<Self::T>> {
         return self.current_indexed_elements
             .iter()
-            .map(|indexed_element| { IndexedElement::new(indexed_element.element.clone(), indexed_element.index + self.index_offset) })
+            .map(|indexed_element| { IndexedElement::new(indexed_element.element.clone(), self.index_mapping[indexed_element.index]) })
             .collect();
     }
     fn reset(&mut self) {
@@ -134,7 +135,7 @@ mod shifter_incrementer_tests {
                 1,
                 false
             ))),
-            0
+            vec![0, 1]
         );
 
         assert!(shifter_incrementer.try_increment());
@@ -173,16 +174,16 @@ mod shifter_incrementer_tests {
 
         let stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec<Vec<Rc<RefCell<StatefulHyperGraphNode<(u8, u8)>>>>> = vec![
             vec![
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((10 as u8, 100 as u8)), 0, 3))),
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((12 as u8, 100 as u8)), 0, 3)))
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((10 as u8, 100 as u8)), bitvec![1, 0, 0]))),
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((12 as u8, 100 as u8)), bitvec![1, 0, 0])))
             ],
             vec![
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 200 as u8)), 1, 3))),
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 202 as u8)), 1, 3)))
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 200 as u8)), bitvec![0, 1, 0]))),
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 202 as u8)), bitvec![0, 1, 0])))
             ],
             vec![
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((30 as u8, 40 as u8)), 2, 3))),
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((31 as u8, 41 as u8)), 2, 3)))
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((30 as u8, 40 as u8)), bitvec![0, 0, 1]))),
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((31 as u8, 41 as u8)), bitvec![0, 0, 1])))
             ]
         ];
 
@@ -208,7 +209,7 @@ mod shifter_incrementer_tests {
         }
 
         let shifter: Rc<RefCell<HyperGraphClicheShifter<(u8, u8)>>> = Rc::new(RefCell::new(HyperGraphClicheShifter::new(stateful_hyper_graph_nodes_per_hyper_graph_node_index)));
-        let mut incrementer = ShifterIncrementer::new(shifter, 0);
+        let mut incrementer = ShifterIncrementer::new(shifter, vec![0, 1, 2]);
         assert!(!incrementer.try_increment());
     }
 
@@ -218,16 +219,16 @@ mod shifter_incrementer_tests {
 
         let stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec<Vec<Rc<RefCell<StatefulHyperGraphNode<(u8, u8)>>>>> = vec![
             vec![
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((10 as u8, 100 as u8)), 0, 3))),
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((12 as u8, 100 as u8)), 0, 3))),
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((14 as u8, 100 as u8)), 0, 3)))
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((10 as u8, 100 as u8)), bitvec![1, 0, 0]))),
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((12 as u8, 100 as u8)), bitvec![1, 0, 0]))),
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((14 as u8, 100 as u8)), bitvec![1, 0, 0])))
             ],
             vec![
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 200 as u8)), 1, 3))),
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 202 as u8)), 1, 3)))
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 200 as u8)), bitvec![0, 1, 0]))),
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((20 as u8, 202 as u8)), bitvec![0, 1, 0])))
             ],
             vec![
-                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((30 as u8, 40 as u8)), 2, 3)))
+                Rc::new(RefCell::new(StatefulHyperGraphNode::new(Rc::new((30 as u8, 40 as u8)), bitvec![0, 0, 1])))
             ]
         ];
 
@@ -250,7 +251,7 @@ mod shifter_incrementer_tests {
         }
 
         let shifter: Rc<RefCell<HyperGraphClicheShifter<(u8, u8)>>> = Rc::new(RefCell::new(HyperGraphClicheShifter::new(stateful_hyper_graph_nodes_per_hyper_graph_node_index)));
-        let mut incrementer = ShifterIncrementer::new(shifter, 0);
+        let mut incrementer = ShifterIncrementer::new(shifter, vec![0, 1, 2]);
         assert!(incrementer.try_increment());
         {
             let indexed_elements = incrementer.get();

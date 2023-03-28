@@ -1582,7 +1582,7 @@ mod shifting_square_breadth_first_search_shifter_tests {
             ],
             true
         );
-        let mut incrementer = ShifterIncrementer::new(Rc::new(RefCell::new(shifter)), 0);
+        let mut incrementer = ShifterIncrementer::new(Rc::new(RefCell::new(shifter)), vec![0, 1]);
         for _ in 0..10 {
             assert!(incrementer.try_increment());
             {
@@ -1666,7 +1666,7 @@ mod shifting_square_breadth_first_search_shifter_tests {
                 ],
                 true
             );
-            let mut incrementer = ShifterIncrementer::new(Rc::new(RefCell::new(shifter)), 0);
+            let mut incrementer = ShifterIncrementer::new(Rc::new(RefCell::new(shifter)), vec![0, 1]);
             for _ in 0..10 {
                 assert!(incrementer.try_increment());
                 assert!(incrementer.try_increment());

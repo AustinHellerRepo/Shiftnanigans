@@ -6,6 +6,7 @@ pub mod paired_square_breadth_first_search_incrementer;
 pub mod shifter_incrementer;
 pub mod binary_density_incrementer;
 pub mod binary_value_incrementer;
+pub mod limited_incrementer;
 
 pub trait Incrementer {
     type T;

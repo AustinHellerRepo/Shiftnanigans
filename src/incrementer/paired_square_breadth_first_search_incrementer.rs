@@ -280,7 +280,7 @@ mod paired_square_breadth_first_search_incrementer_tests {
                         1,
                         false
                     ))),
-                    0
+                    vec![0, 1]
                 ))),
                 Rc::new(RefCell::new(ShifterIncrementer::new(
                     Rc::new(RefCell::new(SegmentPermutationShifter::new(
@@ -294,7 +294,7 @@ mod paired_square_breadth_first_search_incrementer_tests {
                         1,
                         false
                     ))),
-                    2
+                    vec![2, 3]
                 )))
             )
         );
