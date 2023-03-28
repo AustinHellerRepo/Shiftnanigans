@@ -6,14 +6,14 @@ use super::Incrementer;
 
 
 pub struct LimitedIncrementer<T> {
-    incrementer: Rc<RefCell<dyn Incrementer<T = T>>>,
+    incrementer: Box<dyn Incrementer<T = T>>,
     length: usize,
     current_index: Option<usize>,
     is_completed: bool
 }
 
 impl<T> LimitedIncrementer<T> {
-    pub fn new(incrementer: Rc<RefCell<dyn Incrementer<T = T>>>, length: usize) -> Self {
+    pub fn new(incrementer: Box<dyn Incrementer<T = T>>, length: usize) -> Self {
         LimitedIncrementer {
             incrementer: incrementer,
             length: length,
@@ -41,18 +41,18 @@ impl<T> Incrementer for LimitedIncrementer<T> {
         else {
             self.current_index = Some(0);
         }
-        return self.incrementer.borrow_mut().try_increment();
+        return self.incrementer.try_increment();
     }
     fn get(&self) -> Vec<IndexedElement<Self::T>> {
-        return self.incrementer.borrow().get();
+        return self.incrementer.get();
     }
     fn reset(&mut self) {
-        self.incrementer.borrow_mut().reset();
+        self.incrementer.reset();
         self.is_completed = self.length == 0;
         self.current_index = None;
     }
     fn randomize(&mut self) {
-        self.incrementer.borrow_mut().randomize();
+        self.incrementer.randomize();
     }
 }
 

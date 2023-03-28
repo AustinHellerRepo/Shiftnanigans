@@ -63,7 +63,7 @@ use super::{singular_shifter::SingularShifter, Shifter, scaling_square_breadth_f
 ///         2  2  2
 /// 
 pub struct ShiftingSquareBreadthFirstSearchShifter<T> {
-    shifters: Vec<Rc<RefCell<dyn Shifter<T = T>>>>,
+    shifters: Vec<Box<dyn Shifter<T = T>>>,
     element_index_offset_per_shifter_index: Vec<usize>,
     current_global_shift_index: Option<usize>,
     current_shifter_index: Option<usize>,
@@ -77,14 +77,14 @@ pub struct ShiftingSquareBreadthFirstSearchShifter<T> {
 }
 
 impl<T: PartialEq> ShiftingSquareBreadthFirstSearchShifter<T> {
-    pub fn new(shifters: Vec<Rc<RefCell<dyn Shifter<T = T>>>>, is_shifter_order_preserved_on_randomize: bool) -> Self {
+    pub fn new(shifters: Vec<Box<dyn Shifter<T = T>>>, is_shifter_order_preserved_on_randomize: bool) -> Self {
         let mut element_index_offset_per_shifter_index: Vec<usize> = Vec::new();
         let mut length = 0;
         let mut highest_shifter_state_length: usize = 0;
         let mut possible_states: Vec<Rc<T>> = Vec::new();
         let mut state_index_mapping_per_shifter_index: Vec<Vec<usize>> = Vec::new();
         for shifter in shifters.iter() {
-            let borrowed_shifter = shifter.borrow();
+            let borrowed_shifter = shifter;
             let shifter_length = borrowed_shifter.get_length();
             element_index_offset_per_shifter_index.push(length);
             length += shifter_length;
@@ -138,7 +138,7 @@ impl<T> Shifter for ShiftingSquareBreadthFirstSearchShifter<T> {
         if self.current_global_shift_index.is_none() {
             let mut current_shifter_index = 0;
             if self.scaling_square_breadth_first_search_shifter.try_forward() {
-                while !self.shifters[current_shifter_index].borrow_mut().try_forward() {
+                while !self.shifters[current_shifter_index].try_forward() {
                     current_shifter_index += 1;
                     if current_shifter_index == self.shifters.len() {
                         self.current_shifter_index = Some(current_shifter_index);
@@ -161,7 +161,7 @@ impl<T> Shifter for ShiftingSquareBreadthFirstSearchShifter<T> {
         }
         let mut current_shifter_index = self.current_shifter_index.unwrap();
         let mut is_shifter_incremented = false;
-        while !self.shifters[current_shifter_index].borrow_mut().try_forward() {
+        while !self.shifters[current_shifter_index].try_forward() {
             is_shifter_incremented = true;
             current_shifter_index += 1;
             if current_shifter_index == self.shifters.len() {
@@ -195,7 +195,7 @@ impl<T> Shifter for ShiftingSquareBreadthFirstSearchShifter<T> {
                 return false;
             }
             current_shifter_index -= 1;
-            while !self.shifters[current_shifter_index].borrow_mut().try_backward() {
+            while !self.shifters[current_shifter_index].try_backward() {
                 self.current_shift_index_per_shifter_index.pop();
                 self.current_state_index_per_shift_index_per_shifter_index.pop();
                 if current_shifter_index == 0 {
@@ -209,7 +209,7 @@ impl<T> Shifter for ShiftingSquareBreadthFirstSearchShifter<T> {
         }
         self.current_state_index_per_shift_index_per_shifter_index[current_shifter_index].pop();
         let mut is_shifter_decremented = false;
-        while !self.shifters[current_shifter_index].borrow_mut().try_backward() {
+        while !self.shifters[current_shifter_index].try_backward() {
             self.current_state_index_per_shift_index_per_shifter_index.pop();
             self.current_shift_index_per_shifter_index.pop();
             if current_shifter_index == 0 {
@@ -258,15 +258,15 @@ impl<T> Shifter for ShiftingSquareBreadthFirstSearchShifter<T> {
                     if self.current_global_shift_index.unwrap() != 0 {
                         panic!("Unexpected state index above scaling index when not at the beginning.");
                     }
-                    self.shifters[current_shifter_index].borrow_mut().reset();
-                    if !self.shifters[current_shifter_index].borrow_mut().try_forward() {
+                    self.shifters[current_shifter_index].reset();
+                    if !self.shifters[current_shifter_index].try_forward() {
                         panic!("Unexpectedly failed to move first shifter with shifts forward when reseting due to current shift index exceeding scaling index.");
                     }
                     self.current_state_index_per_shift_index_per_shifter_index[current_shifter_index][current_shift_index] = None;
                 }
                 'match_scaling_index: {
                     while self.current_state_index_per_shift_index_per_shifter_index[current_shifter_index][current_shift_index].is_none() || self.current_state_index_per_shift_index_per_shifter_index[current_shifter_index][current_shift_index].unwrap() < current_scaling_index {
-                        if !self.shifters[current_shifter_index].borrow_mut().try_increment() {
+                        if !self.shifters[current_shifter_index].try_increment() {
                             // failed to increment the current shifter to match the scaling index
                             break 'match_scaling_index;
                         }
@@ -286,7 +286,7 @@ impl<T> Shifter for ShiftingSquareBreadthFirstSearchShifter<T> {
     }
     fn get_indexed_element(&self) -> IndexedElement<Self::T> {
         if let Some(current_shifter_index) = self.current_shifter_index {
-            let mut indexed_element = self.shifters[current_shifter_index].borrow().get_indexed_element();
+            let mut indexed_element = self.shifters[current_shifter_index].get_indexed_element();
             indexed_element.index += self.element_index_offset_per_shifter_index[current_shifter_index];
             return indexed_element;
         }
@@ -297,7 +297,7 @@ impl<T> Shifter for ShiftingSquareBreadthFirstSearchShifter<T> {
     }
     fn get_element_index_and_state_index(&self) -> (usize, usize) {
         let current_shifter_index = self.current_shifter_index.unwrap();
-        let (mut element_index, mut state_index) = self.shifters[current_shifter_index].borrow().get_element_index_and_state_index();
+        let (mut element_index, mut state_index) = self.shifters[current_shifter_index].get_element_index_and_state_index();
         element_index += self.element_index_offset_per_shifter_index[current_shifter_index];
         state_index = self.state_index_mapping_per_shifter_index[current_shifter_index][state_index];
         return (element_index, state_index);
@@ -307,8 +307,8 @@ impl<T> Shifter for ShiftingSquareBreadthFirstSearchShifter<T> {
     }
     fn randomize(&mut self) {
         // TODO determine if this misorders indexes - should a mapper be used and randomized instead?
-        for shifter in self.shifters.iter() {
-            shifter.borrow_mut().randomize();
+        for shifter in self.shifters.iter_mut() {
+            shifter.randomize();
         }
         if !self.is_shifter_order_preserved_on_randomize {
             fastrand::shuffle(&mut self.shifters);
@@ -346,14 +346,14 @@ mod shifting_square_breadth_first_search_shifter_tests {
         init();
 
         let mut shifter = ShiftingSquareBreadthFirstSearchShifter::new(vec![
-            Rc::new(RefCell::new(SegmentPermutationShifter::new(vec![
+            Box::new(SegmentPermutationShifter::new(vec![
                 Rc::new(Segment::new(1)),
                 Rc::new(Segment::new(1))
-            ], (10, 100), 4, true, 1, false))),
-            Rc::new(RefCell::new(SegmentPermutationShifter::new(vec![
+            ], (10, 100), 4, true, 1, false)),
+            Box::new(SegmentPermutationShifter::new(vec![
                 Rc::new(Segment::new(1)),
                 Rc::new(Segment::new(1))
-            ], (20, 200), 4, false, 1, false)))
+            ], (20, 200), 4, false, 1, false))
         ], true);
         for _ in 0..10 {
             assert!(shifter.try_forward());
@@ -1327,12 +1327,12 @@ mod shifting_square_breadth_first_search_shifter_tests {
         init();
 
         let mut shifter = ShiftingSquareBreadthFirstSearchShifter::new(vec![
-            Rc::new(RefCell::new(SegmentPermutationShifter::new(vec![
+            Box::new(SegmentPermutationShifter::new(vec![
                 Rc::new(Segment::new(1))
-            ], (10, 100), 3, true, 1, false))),
-            Rc::new(RefCell::new(SegmentPermutationShifter::new(vec![
+            ], (10, 100), 3, true, 1, false)),
+            Box::new(SegmentPermutationShifter::new(vec![
                 Rc::new(Segment::new(1))
-            ], (11, 99), 3, false, 1, false)))
+            ], (11, 99), 3, false, 1, false))
         ], true);
         for _ in 0..10 {
             assert!(shifter.try_forward());
@@ -1488,17 +1488,17 @@ mod shifting_square_breadth_first_search_shifter_tests {
     #[rstest]
     fn two_shifters_skewed_by_one_index_shifters() {
         let mut shifter = ShiftingSquareBreadthFirstSearchShifter::new(vec![
-            Rc::new(RefCell::new(IndexShifter::new(&vec![
+            Box::new(IndexShifter::new(&vec![
                 vec![
                     Rc::new((0 as u8, 0 as u8))
                 ]
-            ]))),
-            Rc::new(RefCell::new(IndexShifter::new(&vec![
+            ])),
+            Box::new(IndexShifter::new(&vec![
                 vec![
                     Rc::new((2 as u8, 1 as u8)),
                     Rc::new((1 as u8, 1 as u8))
                 ]
-            ])))
+            ]))
         ], true);
 
         for _ in 0..10 {
@@ -1578,11 +1578,11 @@ mod shifting_square_breadth_first_search_shifter_tests {
         // iterate over the ShiftingSquareBreadthFirstSearchShifter
         let shifter = ShiftingSquareBreadthFirstSearchShifter::new(
             vec![
-                Rc::new(RefCell::new(segment_permutation_shifter))
+                Box::new(segment_permutation_shifter)
             ],
             true
         );
-        let mut incrementer = ShifterIncrementer::new(Rc::new(RefCell::new(shifter)), vec![0, 1]);
+        let mut incrementer = ShifterIncrementer::new(Box::new(shifter), vec![0, 1]);
         for _ in 0..10 {
             assert!(incrementer.try_increment());
             {
@@ -1662,11 +1662,11 @@ mod shifting_square_breadth_first_search_shifter_tests {
             // iterate over the ShiftingSquareBreadthFirstSearchShifter
             let shifter = ShiftingSquareBreadthFirstSearchShifter::new(
                 vec![
-                    Rc::new(RefCell::new(segment_permutation_shifter))
+                    Box::new(segment_permutation_shifter)
                 ],
                 true
             );
-            let mut incrementer = ShifterIncrementer::new(Rc::new(RefCell::new(shifter)), vec![0, 1]);
+            let mut incrementer = ShifterIncrementer::new(Box::new(shifter), vec![0, 1]);
             for _ in 0..10 {
                 assert!(incrementer.try_increment());
                 assert!(incrementer.try_increment());

@@ -1383,7 +1383,7 @@ mod segment_permutation_shifter_tests {
         for _ in 0..iterations_total {
             let mut segment_permutation_shifter = SegmentPermutationShifter::new(vec![Rc::new(Segment::new(1)), Rc::new(Segment::new(1))], (20, 200), bounding_length, false, 1, false);
             segment_permutation_shifter.randomize();
-            let mut shifter_incrementer = ShifterIncrementer::new(Rc::new(RefCell::new(segment_permutation_shifter)), vec![0, 1]);
+            let mut shifter_incrementer = ShifterIncrementer::new(Box::new(segment_permutation_shifter), vec![0, 1]);
             assert!(shifter_incrementer.try_increment());
             {
                 let indexed_elements = shifter_incrementer.get();
@@ -1613,7 +1613,10 @@ mod segment_permutation_shifter_tests {
 
     #[rstest]
     fn three_segments_in_large_bounding_length() {
-        let segments_total = 3;
+        
+        // 2023-03-27   4   10.40s
+
+        let segments_total = 4;
 
         let mut segments: Vec<Rc<Segment>> = Vec::new();
         for _ in 0..segments_total {
@@ -1621,10 +1624,10 @@ mod segment_permutation_shifter_tests {
         }
         let mut segment_permutation_shifter_0 = SegmentPermutationShifter::new(segments.clone(), (0, 0), 255, false, 1, false);
         segment_permutation_shifter_0.randomize();
-        let mut shifter_incrementer_0 = ShifterIncrementer::new(Rc::new(RefCell::new(segment_permutation_shifter_0)), vec![0]);
+        let mut shifter_incrementer_0 = ShifterIncrementer::new(Box::new(segment_permutation_shifter_0), vec![0]);
         let mut segment_permutation_shifter_1 = SegmentPermutationShifter::new(segments.clone(), (0, 0), 255, false, 1, false);
         segment_permutation_shifter_1.randomize();
-        let mut shifter_incrementer_1 = ShifterIncrementer::new(Rc::new(RefCell::new(segment_permutation_shifter_1)), vec![0]);
+        let mut shifter_incrementer_1 = ShifterIncrementer::new(Box::new(segment_permutation_shifter_1), vec![0]);
 
         let mut iterations = 0;
         while shifter_incrementer_0.try_increment() {

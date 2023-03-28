@@ -2,14 +2,14 @@ use std::{rc::Rc, cell::RefCell};
 use super::Incrementer;
 
 pub struct RoundRobinIncrementer<T> {
-    incrementers: Vec<Rc<RefCell<dyn Incrementer<T = T>>>>,
+    incrementers: Vec<Box<dyn Incrementer<T = T>>>,
     current_available_indexes: Vec<usize>,
     current_available_indexes_index: Option<usize>,
     is_completed: bool
 }
 
 impl<T> RoundRobinIncrementer<T> {
-    pub fn new(incrementers: Vec<Rc<RefCell<dyn Incrementer<T = T>>>>) -> Self {
+    pub fn new(incrementers: Vec<Box<dyn Incrementer<T = T>>>) -> Self {
         let mut current_available_indexes: Vec<usize> = Vec::new();
         let is_completed = incrementers.len() == 0;
         if !is_completed {
@@ -46,7 +46,7 @@ impl<T> Incrementer for RoundRobinIncrementer<T> {
             self.current_available_indexes_index = Some(0);
         }
         let mut incrementer_index: usize = self.current_available_indexes[self.current_available_indexes_index.unwrap()];
-        while !self.incrementers[incrementer_index].borrow_mut().try_increment() {
+        while !self.incrementers[incrementer_index].try_increment() {
             debug!("removing incrementer {incrementer_index}");
             self.current_available_indexes.remove(self.current_available_indexes_index.unwrap());
             if self.current_available_indexes.len() == 0 {
@@ -63,7 +63,7 @@ impl<T> Incrementer for RoundRobinIncrementer<T> {
     }
     fn get(&self) -> Vec<crate::IndexedElement<Self::T>> {
         let incrementer_index: usize = self.current_available_indexes[self.current_available_indexes_index.unwrap()];
-        let indexed_elements = self.incrementers[incrementer_index].borrow().get();
+        let indexed_elements = self.incrementers[incrementer_index].get();
         let mut offset_indexed_elements: Vec<crate::IndexedElement<T>> = Vec::new();
         for indexed_element in indexed_elements {
             //let offset_indexed_element: crate::IndexedElement<T> = crate::IndexedElement::new(indexed_element.element, indexed_element.index + self.current_indexed_element_index_offset);
@@ -78,13 +78,13 @@ impl<T> Incrementer for RoundRobinIncrementer<T> {
             self.current_available_indexes_index = None;
             for index in 0..self.incrementers.len() {
                 self.current_available_indexes.push(index);
-                self.incrementers[index].borrow_mut().reset();
+                self.incrementers[index].reset();
             }
         }
     }
     fn randomize(&mut self) {
-        for incrementer in self.incrementers.iter() {
-            incrementer.borrow_mut().randomize();
+        for incrementer in self.incrementers.iter_mut() {
+            incrementer.randomize();
         }
         fastrand::shuffle(&mut self.incrementers);
     }
@@ -109,8 +109,8 @@ mod round_robin_incrementer_tests {
     #[rstest]
     fn two_shifter_incrementers() {
         let mut round_robin_incrementer = RoundRobinIncrementer::new(vec![
-            Rc::new(RefCell::new(ShifterIncrementer::new(
-                Rc::new(RefCell::new(SegmentPermutationShifter::new(
+            Box::new(ShifterIncrementer::new(
+                Box::new(SegmentPermutationShifter::new(
                     vec![
                         Rc::new(Segment::new(1)),
                         Rc::new(Segment::new(1))
@@ -120,11 +120,11 @@ mod round_robin_incrementer_tests {
                     true,
                     1,
                     false
-                ))),
+                )),
                 vec![0, 1]
-            ))),
-            Rc::new(RefCell::new(ShifterIncrementer::new(
-                Rc::new(RefCell::new(SegmentPermutationShifter::new(
+            )),
+            Box::new(ShifterIncrementer::new(
+                Box::new(SegmentPermutationShifter::new(
                     vec![
                         Rc::new(Segment::new(1)),
                         Rc::new(Segment::new(1))
@@ -134,9 +134,9 @@ mod round_robin_incrementer_tests {
                     false,
                     1,
                     false
-                ))),
+                )),
                 vec![2, 3]
-            )))
+            ))
         ]);
 
         assert!(round_robin_incrementer.try_increment());

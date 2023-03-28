@@ -5,7 +5,7 @@ use bitvec::prelude::*;
 
 // Purpose: with each iteration, evaluates a complete shifted state of the underlying shifter
 pub struct ShifterIncrementer<T> {
-    shifter: Rc<RefCell<dyn Shifter<T = T>>>,
+    shifter: Box<dyn Shifter<T = T>>,
     index_mapping: Vec<usize>,
     is_started: bool,
     is_completed: bool,
@@ -14,8 +14,8 @@ pub struct ShifterIncrementer<T> {
 }
 
 impl<T> ShifterIncrementer<T> {
-    pub fn new(shifter: Rc<RefCell<dyn Shifter<T = T>>>, index_mapping: Vec<usize>) -> Self {
-        let shifter_length = shifter.borrow().get_length();
+    pub fn new(shifter: Box<dyn Shifter<T = T>>, index_mapping: Vec<usize>) -> Self {
+        let shifter_length = shifter.get_length();
         ShifterIncrementer {
             shifter: shifter,
             index_mapping: index_mapping,
@@ -34,24 +34,23 @@ impl<T> Incrementer for ShifterIncrementer<T> {
         if self.is_completed {
             return false;
         }
-        let mut borrowed_shifter = self.shifter.borrow_mut();
         if !self.is_started {
             self.is_started = true;
             let mut is_forward_required = true;
             while self.current_indexed_elements.len() != self.shifter_length {
-                if is_forward_required && !borrowed_shifter.try_forward() {
+                if is_forward_required && !self.shifter.try_forward() {
                     panic!("Unexpectedly failed to move forward when not at the end.");
                     //self.is_completed = true;
                     //return false;
                 }
-                if borrowed_shifter.try_increment() {
-                    let indexed_element = borrowed_shifter.get_indexed_element();
+                if self.shifter.try_increment() {
+                    let indexed_element = self.shifter.get_indexed_element();
                     self.current_indexed_elements.push(indexed_element);
                     is_forward_required = true;
                 }
                 else {
                     self.current_indexed_elements.pop();
-                    if !borrowed_shifter.try_backward() {
+                    if !self.shifter.try_backward() {
                         // failed to find any valid initial set of states
                         self.is_completed = true;
                         return false;
@@ -63,11 +62,11 @@ impl<T> Incrementer for ShifterIncrementer<T> {
         }
         self.current_indexed_elements.pop();
         while self.current_indexed_elements.len() != self.shifter_length {
-            if borrowed_shifter.try_increment() {
-                let indexed_element = borrowed_shifter.get_indexed_element();
+            if self.shifter.try_increment() {
+                let indexed_element = self.shifter.get_indexed_element();
                 self.current_indexed_elements.push(indexed_element);
                 if self.current_indexed_elements.len() != self.shifter_length {
-                    if !borrowed_shifter.try_forward() {
+                    if !self.shifter.try_forward() {
                         panic!("Unexpectedly failed to move forward when not at the end.");
                     }
                 }
@@ -78,7 +77,7 @@ impl<T> Incrementer for ShifterIncrementer<T> {
                     return false;
                 }
                 self.current_indexed_elements.pop();
-                if !borrowed_shifter.try_backward() {
+                if !self.shifter.try_backward() {
                     panic!("Unexpectedly failed to move backward when not at the beginning.");
                 }
             }
@@ -92,14 +91,14 @@ impl<T> Incrementer for ShifterIncrementer<T> {
             .collect();
     }
     fn reset(&mut self) {
-        self.shifter.borrow_mut().reset();
+        self.shifter.reset();
         self.is_started = false;
         self.is_completed = false;
         self.current_indexed_elements.clear();
 
     }
     fn randomize(&mut self) {
-        self.shifter.borrow_mut().randomize();
+        self.shifter.randomize();
     }
 }
 
@@ -124,7 +123,7 @@ mod shifter_incrementer_tests {
         init();
 
         let mut shifter_incrementer = ShifterIncrementer::new(
-            Rc::new(RefCell::new(SegmentPermutationShifter::new(
+            Box::new(SegmentPermutationShifter::new(
                 vec![
                     Rc::new(Segment::new(1)),
                     Rc::new(Segment::new(1))
@@ -134,7 +133,7 @@ mod shifter_incrementer_tests {
                 true,
                 1,
                 false
-            ))),
+            )),
             vec![0, 1]
         );
 
@@ -208,8 +207,8 @@ mod shifter_incrementer_tests {
             }
         }
 
-        let shifter: Rc<RefCell<HyperGraphClicheShifter<(u8, u8)>>> = Rc::new(RefCell::new(HyperGraphClicheShifter::new(stateful_hyper_graph_nodes_per_hyper_graph_node_index)));
-        let mut incrementer = ShifterIncrementer::new(shifter, vec![0, 1, 2]);
+        let shifter: HyperGraphClicheShifter<(u8, u8)> = HyperGraphClicheShifter::new(stateful_hyper_graph_nodes_per_hyper_graph_node_index);
+        let mut incrementer = ShifterIncrementer::new(Box::new(shifter), vec![0, 1, 2]);
         assert!(!incrementer.try_increment());
     }
 
@@ -250,8 +249,8 @@ mod shifter_incrementer_tests {
             }
         }
 
-        let shifter: Rc<RefCell<HyperGraphClicheShifter<(u8, u8)>>> = Rc::new(RefCell::new(HyperGraphClicheShifter::new(stateful_hyper_graph_nodes_per_hyper_graph_node_index)));
-        let mut incrementer = ShifterIncrementer::new(shifter, vec![0, 1, 2]);
+        let shifter: HyperGraphClicheShifter<(u8, u8)> = HyperGraphClicheShifter::new(stateful_hyper_graph_nodes_per_hyper_graph_node_index);
+        let mut incrementer = ShifterIncrementer::new(Box::new(shifter), vec![0, 1, 2]);
         assert!(incrementer.try_increment());
         {
             let indexed_elements = incrementer.get();

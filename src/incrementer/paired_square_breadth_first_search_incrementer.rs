@@ -3,7 +3,7 @@ use crate::{shifter::Shifter, IndexedElement};
 use super::Incrementer;
 
 pub struct PairedSquareBreadthFirstSearchIncrementer<T> {
-    incrementers: Vec<Rc<RefCell<dyn Incrementer<T = T>>>>,
+    incrementers: Vec<Box<dyn Incrementer<T = T>>>,
     current_size: Option<usize>,
     current_x: Option<usize>,
     current_y: Option<usize>,
@@ -12,7 +12,7 @@ pub struct PairedSquareBreadthFirstSearchIncrementer<T> {
 }
 
 impl<T> PairedSquareBreadthFirstSearchIncrementer<T> {
-    pub fn new(incrementers: (Rc<RefCell<dyn Incrementer<T = T>>>, Rc<RefCell<dyn Incrementer<T = T>>>)) -> Self {
+    pub fn new(incrementers: (Box<dyn Incrementer<T = T>>, Box<dyn Incrementer<T = T>>)) -> Self {
         let indexed_elements_per_incrementer_index: Vec<Vec<IndexedElement<T>>> = Vec::with_capacity(2);
         PairedSquareBreadthFirstSearchIncrementer {
             incrementers: vec![incrementers.0, incrementers.1],
@@ -36,14 +36,13 @@ impl<T> Incrementer for PairedSquareBreadthFirstSearchIncrementer<T> {
 
         if self.current_size.is_none() {
 
-            for incrementer in self.incrementers.iter() {
-                let mut borrowed_incrementer = incrementer.borrow_mut();
-                if !borrowed_incrementer.try_increment() {
+            for incrementer in self.incrementers.iter_mut() {
+                if !incrementer.try_increment() {
                     self.current_indexed_elements_per_incrementer_index.clear();
                     self.is_completed = true;
                     return false;
                 }
-                let indexed_elements = borrowed_incrementer.get();
+                let indexed_elements = incrementer.get();
                 self.current_indexed_elements_per_incrementer_index.push(indexed_elements);
             }
             self.current_size = Some(1);
@@ -59,9 +58,9 @@ impl<T> Incrementer for PairedSquareBreadthFirstSearchIncrementer<T> {
             self.current_indexed_elements_per_incrementer_index.clear();
 
             // try to move x once to the right
-            if self.incrementers[0].borrow_mut().try_increment() {
-                self.incrementers[1].borrow_mut().reset();
-                if !self.incrementers[1].borrow_mut().try_increment() {
+            if self.incrementers[0].try_increment() {
+                self.incrementers[1].reset();
+                if !self.incrementers[1].try_increment() {
                     panic!("Unexpectedly failed to increment y incrementer after succeeding before.");
                 }
                 self.current_size = Some(self.current_size.unwrap() + 1);
@@ -69,7 +68,7 @@ impl<T> Incrementer for PairedSquareBreadthFirstSearchIncrementer<T> {
                 self.current_y = Some(0);
 
                 for incrementer in self.incrementers.iter() {
-                    let borrowed_incrementer = incrementer.borrow();
+                    let borrowed_incrementer = incrementer;
                     let indexed_elements = borrowed_incrementer.get();
                     self.current_indexed_elements_per_incrementer_index.push(indexed_elements);
                 }
@@ -78,9 +77,9 @@ impl<T> Incrementer for PairedSquareBreadthFirstSearchIncrementer<T> {
             }
 
             // x was not able to move to the new size, so reset x and move y to the new size, starting a tall rectangle
-            if self.incrementers[1].borrow_mut().try_increment() {
-                self.incrementers[0].borrow_mut().reset();
-                if !self.incrementers[0].borrow_mut().try_increment() {
+            if self.incrementers[1].try_increment() {
+                self.incrementers[0].reset();
+                if !self.incrementers[0].try_increment() {
                     panic!("Unexpectedly failed to increment x incrementers after succeeding before.");
                 }
                 self.current_size = Some(self.current_size.unwrap() + 1);
@@ -88,7 +87,7 @@ impl<T> Incrementer for PairedSquareBreadthFirstSearchIncrementer<T> {
                 self.current_y = Some(self.current_y.unwrap() + 1);
 
                 for incrementer in self.incrementers.iter() {
-                    let borrowed_incrementer = incrementer.borrow();
+                    let borrowed_incrementer = incrementer;
                     let indexed_elements = borrowed_incrementer.get();
                     self.current_indexed_elements_per_incrementer_index.push(indexed_elements);
                 }
@@ -106,13 +105,13 @@ impl<T> Incrementer for PairedSquareBreadthFirstSearchIncrementer<T> {
             // if y is one step away from the far bottom, then we need to start y at the bottom and move once to the right
             if self.current_y.unwrap() == self.current_size.unwrap() - 2 {
                 self.current_indexed_elements_per_incrementer_index.clear();
-                if self.incrementers[1].borrow_mut().try_increment() {
-                    self.incrementers[0].borrow_mut().reset();
-                    if !self.incrementers[0].borrow_mut().try_increment() {
+                if self.incrementers[1].try_increment() {
+                    self.incrementers[0].reset();
+                    if !self.incrementers[0].try_increment() {
                         panic!("Unexpectedly failed to increment x incrementer after succeeding before.");
                     }
                     for incrementer in self.incrementers.iter() {
-                        let borrowed_incrementer = incrementer.borrow();
+                        let borrowed_incrementer = incrementer;
                         let indexed_elements = borrowed_incrementer.get();
                         self.current_indexed_elements_per_incrementer_index.push(indexed_elements);
                     }
@@ -124,13 +123,13 @@ impl<T> Incrementer for PairedSquareBreadthFirstSearchIncrementer<T> {
                 
                 // we have reached the end of what y is capable of, but maybe not x
                 // we should increment x and reset y, moving along a wide rectangle
-                if self.incrementers[0].borrow_mut().try_increment() {
-                    self.incrementers[1].borrow_mut().reset();
-                    if !self.incrementers[1].borrow_mut().try_increment() {
+                if self.incrementers[0].try_increment() {
+                    self.incrementers[1].reset();
+                    if !self.incrementers[1].try_increment() {
                         panic!("Unexpectedly failed to increment y incrementer after succeeding before.");
                     }
                     for incrementer in self.incrementers.iter() {
-                        let borrowed_incrementer = incrementer.borrow();
+                        let borrowed_incrementer = incrementer;
                         let indexed_elements = borrowed_incrementer.get();
                         self.current_indexed_elements_per_incrementer_index.push(indexed_elements);
                     }
@@ -146,8 +145,8 @@ impl<T> Incrementer for PairedSquareBreadthFirstSearchIncrementer<T> {
             }
             else {
                 self.current_indexed_elements_per_incrementer_index.pop();
-                if self.incrementers[1].borrow_mut().try_increment() {
-                    let indexed_elements = self.incrementers[1].borrow().get();
+                if self.incrementers[1].try_increment() {
+                    let indexed_elements = self.incrementers[1].get();
                     self.current_indexed_elements_per_incrementer_index.push(indexed_elements);
                     self.current_y = Some(self.current_y.unwrap() + 1);
 
@@ -157,9 +156,9 @@ impl<T> Incrementer for PairedSquareBreadthFirstSearchIncrementer<T> {
                     // we are currently in a rectangle with a larger width than height
                     // we have arrived beyond the bottom, so increase the size, increase x, and reset y
                     self.current_indexed_elements_per_incrementer_index.pop();
-                    if self.incrementers[0].borrow_mut().try_increment() {
-                        self.incrementers[1].borrow_mut().reset();
-                        if !self.incrementers[1].borrow_mut().try_increment() {
+                    if self.incrementers[0].try_increment() {
+                        self.incrementers[1].reset();
+                        if !self.incrementers[1].try_increment() {
                             panic!("Unexpectedly failed to increment y incrementer after already having succeeded before.");
                         }
                         self.current_size = Some(self.current_size.unwrap() + 1);
@@ -167,7 +166,7 @@ impl<T> Incrementer for PairedSquareBreadthFirstSearchIncrementer<T> {
                         self.current_y = Some(0);
 
                         for incrementer in self.incrementers.iter() {
-                            let borrowed_incrementer = incrementer.borrow();
+                            let borrowed_incrementer = incrementer;
                             let indexed_elements = borrowed_incrementer.get();
                             self.current_indexed_elements_per_incrementer_index.push(indexed_elements);
                         }
@@ -185,8 +184,8 @@ impl<T> Incrementer for PairedSquareBreadthFirstSearchIncrementer<T> {
         }
 
         // the process is iterating over the bottom towards the right corner
-        if self.incrementers[0].borrow_mut().try_increment() {
-            let indexed_elements = self.incrementers[0].borrow().get();
+        if self.incrementers[0].try_increment() {
+            let indexed_elements = self.incrementers[0].get();
             self.current_indexed_elements_per_incrementer_index[0] = indexed_elements;
             self.current_x = Some(self.current_x.unwrap() + 1);
 
@@ -196,9 +195,9 @@ impl<T> Incrementer for PairedSquareBreadthFirstSearchIncrementer<T> {
         // this is a rectangle that is taller than it is wide
         // move down and reset the x to the left
         self.current_indexed_elements_per_incrementer_index.clear();
-        if self.incrementers[1].borrow_mut().try_increment() {
-            self.incrementers[0].borrow_mut().reset();
-            if !self.incrementers[0].borrow_mut().try_increment() {
+        if self.incrementers[1].try_increment() {
+            self.incrementers[0].reset();
+            if !self.incrementers[0].try_increment() {
                 panic!("Unexpectedly failed to increment x incrementer after succeeding before.");
             }
             self.current_size = Some(self.current_size.unwrap() + 1);
@@ -206,7 +205,7 @@ impl<T> Incrementer for PairedSquareBreadthFirstSearchIncrementer<T> {
             self.current_y = Some(self.current_y.unwrap() + 1);
 
             for incrementer in self.incrementers.iter() {
-                let indexed_elements = incrementer.borrow().get();
+                let indexed_elements = incrementer.get();
                 self.current_indexed_elements_per_incrementer_index.push(indexed_elements);
             }
 
@@ -219,8 +218,8 @@ impl<T> Incrementer for PairedSquareBreadthFirstSearchIncrementer<T> {
         return false;
     }
     fn reset(&mut self) {
-        for incrementer in self.incrementers.iter() {
-            incrementer.borrow_mut().reset();
+        for incrementer in self.incrementers.iter_mut() {
+            incrementer.reset();
         }
         self.current_size = None;
         self.current_x = None;
@@ -240,8 +239,8 @@ impl<T> Incrementer for PairedSquareBreadthFirstSearchIncrementer<T> {
             .collect();
     }
     fn randomize(&mut self) {
-        self.incrementers[0].borrow_mut().randomize();
-        self.incrementers[1].borrow_mut().randomize();
+        self.incrementers[0].randomize();
+        self.incrementers[1].randomize();
     }
 }
 
@@ -268,8 +267,8 @@ mod paired_square_breadth_first_search_incrementer_tests {
 
         let mut paired_incrementer = PairedSquareBreadthFirstSearchIncrementer::new(
             (
-                Rc::new(RefCell::new(ShifterIncrementer::new(
-                    Rc::new(RefCell::new(SegmentPermutationShifter::new(
+                Box::new(ShifterIncrementer::new(
+                    Box::new(SegmentPermutationShifter::new(
                         vec![
                             Rc::new(Segment::new(1)),
                             Rc::new(Segment::new(1))
@@ -279,11 +278,11 @@ mod paired_square_breadth_first_search_incrementer_tests {
                         true,
                         1,
                         false
-                    ))),
+                    )),
                     vec![0, 1]
-                ))),
-                Rc::new(RefCell::new(ShifterIncrementer::new(
-                    Rc::new(RefCell::new(SegmentPermutationShifter::new(
+                )),
+                Box::new(ShifterIncrementer::new(
+                    Box::new(SegmentPermutationShifter::new(
                         vec![
                             Rc::new(Segment::new(1)),
                             Rc::new(Segment::new(1))
@@ -293,9 +292,9 @@ mod paired_square_breadth_first_search_incrementer_tests {
                         false,
                         1,
                         false
-                    ))),
+                    )),
                     vec![2, 3]
-                )))
+                ))
             )
         );
 
