@@ -29,7 +29,6 @@ impl CellGroupDependency {
 pub struct ShiftingCellGroupDependencyIncrementer {
     cell_groups: Rc<Vec<CellGroup>>,
     cell_group_dependencies: Vec<CellGroupDependency>,
-    cell_group_dependencies_length: usize,
     detection_offsets_per_cell_group_index_per_cell_group_index: Option<Rc<Vec<Vec<Vec<(i16, i16)>>>>>,
     is_adjacent_cell_group_index_per_cell_group_index: Option<Rc<Vec<BitVec>>>,
     current_cell_group_dependency_index: Option<usize>,
@@ -44,11 +43,9 @@ pub struct ShiftingCellGroupDependencyIncrementer {
 
 impl ShiftingCellGroupDependencyIncrementer {
     pub fn new(cell_groups: Rc<Vec<CellGroup>>, cell_group_dependencies: Vec<CellGroupDependency>, detection_offsets_per_cell_group_index_per_cell_group_index: Option<Rc<Vec<Vec<Vec<(i16, i16)>>>>>, is_adjacent_cell_group_index_per_cell_group_index: Option<Rc<Vec<BitVec>>>) -> Self {
-        let cell_group_dependencies_length = cell_group_dependencies.len();
         ShiftingCellGroupDependencyIncrementer {
             cell_groups: cell_groups,
             cell_group_dependencies: cell_group_dependencies,
-            cell_group_dependencies_length: cell_group_dependencies_length,
             detection_offsets_per_cell_group_index_per_cell_group_index: detection_offsets_per_cell_group_index_per_cell_group_index,
             is_adjacent_cell_group_index_per_cell_group_index: is_adjacent_cell_group_index_per_cell_group_index,
             current_cell_group_dependency_index: None,
