@@ -38,8 +38,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "austinhellerrepo-common-rust"
-version = "0.2.2"
+name = "austinhellerrepo-shiftnanigans"
+version = "0.3.0"
 dependencies = [
  "bitvec",
  "criterion",

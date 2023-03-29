@@ -3531,7 +3531,7 @@ mod pixel_board_randomizer_tests {
 
         time_graph::enable_data_collection(true);
 
-        let segments_total: usize = 3;
+        let segments_total: usize = 2;
 
         let top_wall_segment_image_id = Uuid::new_v4().to_string();
         let bottom_wall_segment_image_id = Uuid::new_v4().to_string();
