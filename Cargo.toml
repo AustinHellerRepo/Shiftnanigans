@@ -1,14 +1,14 @@
 [package]
-name = "austinhellerrepo-common-rust"
-version = "0.2.2"
+name = "austinhellerrepo-shiftnanigans"
+version = "0.3.0"
 edition = "2021"
 authors = ["Austin Heller"]
-description = "This library contains all general algorithms and functionality that can easily be shared between my other projects."
+description = "This library contains different iteration data structures for either iterating or for shifting iteratively forward and backward."
 readme = "README.md"
-repository = "https://github.com/AustinHellerRepo/CommonRust"
+repository = "https://github.com/AustinHellerRepo/Shiftnanigans"
 license = "MIT OR Apache-2.0"
-keywords = ["math", "utility", "common", "data-structures", "algorithm"]
-categories = ["algorithms", "mathematics", "data-structures"]
+keywords = ["iterator", "data-structures", "algorithm"]
+categories = ["algorithms", "data-structures"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -18,3 +18,16 @@ rstest = { version = "0.16.0" }
 uuid = { version = "1.2.2", features = ["v4"] }
 log = { version = "0.4.17" }
 pretty_env_logger = { version = "0.4.0" }
+nohash-hasher = { version = "0.2.0" }
+time-graph = { version = "0.3.0" }
+gomez = { version = "0.3.1" }
+rusymbols = { version = "0.1.2" }
+fastrand = { version = "1.8.0" }
+itertools = { version = "0.10.5" }
+
+[dev-dependencies]
+criterion = { version = "0.4.0" }
+
+[[bench]]
+name = "main"
+harness = false
