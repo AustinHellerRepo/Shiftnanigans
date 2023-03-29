@@ -38,24 +38,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "austinhellerrepo-shiftnanigans"
-version = "0.3.0"
-dependencies = [
- "bitvec",
- "criterion",
- "fastrand",
- "gomez",
- "itertools",
- "log",
- "nohash-hasher",
- "pretty_env_logger",
- "rstest",
- "rusymbols",
- "time-graph",
- "uuid",
-]
-
-[[package]]
 name = "autocfg"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -989,6 +971,24 @@ dependencies = [
  "itoa",
  "ryu",
  "serde",
+]
+
+[[package]]
+name = "shiftnanigans"
+version = "0.3.1"
+dependencies = [
+ "bitvec",
+ "criterion",
+ "fastrand",
+ "gomez",
+ "itertools",
+ "log",
+ "nohash-hasher",
+ "pretty_env_logger",
+ "rstest",
+ "rusymbols",
+ "time-graph",
+ "uuid",
 ]
 
 [[package]]

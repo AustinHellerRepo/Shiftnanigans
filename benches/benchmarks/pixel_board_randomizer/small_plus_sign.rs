@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use austinhellerrepo_common_rust::pixel_board::{Pixel, PixelBoard, pixel_board_randomizer::PixelBoardRandomizer};
+use shiftnanigans::pixel_board::{Pixel, PixelBoard, pixel_board_randomizer::PixelBoardRandomizer};
 use criterion::{Criterion, criterion_group, black_box};
 use uuid::Uuid;
 

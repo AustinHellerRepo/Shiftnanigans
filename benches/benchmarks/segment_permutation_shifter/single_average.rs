@@ -1,5 +1,5 @@
 use std::rc::Rc;
-use austinhellerrepo_common_rust::shifter::{segment_permutation_shifter::{SegmentPermutationShifter, Segment}, Shifter};
+use shiftnanigans::shifter::{segment_permutation_shifter::{SegmentPermutationShifter, Segment}, Shifter};
 use criterion::{black_box, criterion_group, Criterion};
 
 fn single_shifter(bounding_length: usize) {

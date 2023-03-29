@@ -1,7 +1,6 @@
 pub mod index_shifter;
 pub mod segment_permutation_shifter;
 pub mod combined_shifter;
-pub mod singular_shifter;
 pub mod shifting_square_breadth_first_search_shifter;
 pub mod scaling_square_breadth_first_search_shifter;
 pub mod hyper_graph_cliche_shifter;

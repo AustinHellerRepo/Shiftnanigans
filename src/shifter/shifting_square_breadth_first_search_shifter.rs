@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 use crate::IndexedElement;
-use super::{singular_shifter::SingularShifter, Shifter, scaling_square_breadth_first_search_shifter::ScalingSquareBreadthFirstSearchShifter};
+use super::{Shifter, scaling_square_breadth_first_search_shifter::ScalingSquareBreadthFirstSearchShifter};
 
 /// Purpose:
 ///     To increment each shifter forward, resetting as need be, to ensure that the earliest states of each shifter are attempted before the last states
