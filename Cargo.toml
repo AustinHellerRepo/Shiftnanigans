@@ -1,5 +1,5 @@
 [package]
-name = "austinhellerrepo-shiftnanigans"
+name = "shiftnanigans"
 version = "0.3.0"
 edition = "2021"
 authors = ["Austin Heller"]
