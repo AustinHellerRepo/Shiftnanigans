@@ -16,3 +16,14 @@ pub trait Incrementer {
     fn reset(&mut self);
     fn randomize(&mut self);
 }
+
+impl<T> Iterator for dyn Incrementer<T = T> {
+    type Item = Vec<IndexedElement<T>>;
+
+    fn next(&mut self) -> Option<<Self as Iterator>::Item> {
+        if self.try_increment() {
+            return Some(self.get());
+        }
+        return None;
+    }
+}

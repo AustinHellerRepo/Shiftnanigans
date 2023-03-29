@@ -3,7 +3,6 @@ use std::rc::Rc;
 pub mod incrementer;
 // TODO bloom filter wrapper over hashset
 pub mod shifter;
-pub mod backup;
 pub mod pixel_board;
 extern crate pretty_env_logger;
 #[macro_use] extern crate log;
