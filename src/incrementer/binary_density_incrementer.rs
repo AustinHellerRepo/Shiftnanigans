@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use bitvec::vec::BitVec;
+use crate::IndexedElement;
 use super::Incrementer;
-
 pub struct BinaryDensityIncrementer {
     length: usize,
     current_state: BitVec,
@@ -73,10 +73,10 @@ impl Incrementer for BinaryDensityIncrementer {
         }
         return true;
     }
-    fn get(&self) -> Vec<crate::IndexedElement<Self::T>> {
+    fn get(&self) -> Vec<IndexedElement<Self::T>> {
         let mut indexed_elements = Vec::new();
         for index in 0..self.length {
-            let indexed_element: crate::IndexedElement<Self::T> = crate::IndexedElement::new(Rc::new(self.current_state[index]), index);
+            let indexed_element: IndexedElement<Self::T> = IndexedElement::new(Rc::new(self.current_state[index]), index);
             indexed_elements.push(indexed_element);
         }
         return indexed_elements;
@@ -88,6 +88,17 @@ impl Incrementer for BinaryDensityIncrementer {
     }
     fn randomize(&mut self) {
         todo!();
+    }
+}
+
+impl Iterator for BinaryDensityIncrementer {
+    type Item = Vec<IndexedElement<bool>>;
+
+    fn next(&mut self) -> Option<<Self as Iterator>::Item> {
+        if self.try_increment() {
+            return Some(self.get());
+        }
+        return None;
     }
 }
 

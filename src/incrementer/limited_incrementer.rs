@@ -1,9 +1,5 @@
-use std::{rc::Rc, cell::RefCell};
-
 use crate::IndexedElement;
-
 use super::Incrementer;
-
 
 pub struct LimitedIncrementer<T> {
     incrementer: Box<dyn Incrementer<T = T>>,
@@ -56,10 +52,20 @@ impl<T> Incrementer for LimitedIncrementer<T> {
     }
 }
 
+impl<T> Iterator for LimitedIncrementer<T> {
+    type Item = Vec<IndexedElement<T>>;
+
+    fn next(&mut self) -> Option<<Self as Iterator>::Item> {
+        if self.try_increment() {
+            return Some(self.get());
+        }
+        return None;
+    }
+}
+
 #[cfg(test)]
 mod limited_incrementer_tests {
     use rstest::rstest;
-
 
     fn init() {
         std::env::set_var("RUST_LOG", "trace");

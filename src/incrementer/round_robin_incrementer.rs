@@ -1,5 +1,5 @@
-use std::{rc::Rc, cell::RefCell};
 use super::Incrementer;
+use crate::IndexedElement;
 
 pub struct RoundRobinIncrementer<T> {
     incrementers: Vec<Box<dyn Incrementer<T = T>>>,
@@ -61,15 +61,10 @@ impl<T> Incrementer for RoundRobinIncrementer<T> {
         }
         return true;
     }
-    fn get(&self) -> Vec<crate::IndexedElement<Self::T>> {
+    fn get(&self) -> Vec<IndexedElement<Self::T>> {
         let incrementer_index: usize = self.current_available_indexes[self.current_available_indexes_index.unwrap()];
         let indexed_elements = self.incrementers[incrementer_index].get();
-        let mut offset_indexed_elements: Vec<crate::IndexedElement<T>> = Vec::new();
-        for indexed_element in indexed_elements {
-            //let offset_indexed_element: crate::IndexedElement<T> = crate::IndexedElement::new(indexed_element.element, indexed_element.index + self.current_indexed_element_index_offset);
-            offset_indexed_elements.push(indexed_element);
-        }
-        return offset_indexed_elements;
+        return indexed_elements;
     }
     fn reset(&mut self) {
         self.is_completed = self.incrementers.len() == 0;
@@ -90,9 +85,20 @@ impl<T> Incrementer for RoundRobinIncrementer<T> {
     }
 }
 
+impl<T> Iterator for RoundRobinIncrementer<T> {
+    type Item = Vec<IndexedElement<T>>;
+
+    fn next(&mut self) -> Option<<Self as Iterator>::Item> {
+        if self.try_increment() {
+            return Some(self.get());
+        }
+        return None;
+    }
+}
+
 #[cfg(test)]
 mod round_robin_incrementer_tests {
-    use std::{time::{Duration, Instant}, cell::RefCell, collections::BTreeSet};
+    use std::{time::{Duration, Instant}, cell::RefCell, collections::BTreeSet, rc::Rc};
 
     use crate::{incrementer::shifter_incrementer::ShifterIncrementer, shifter::segment_permutation_shifter::{SegmentPermutationShifter, Segment}};
 

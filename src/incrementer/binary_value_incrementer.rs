@@ -1,11 +1,7 @@
 use std::rc::Rc;
-
 use bitvec::vec::BitVec;
-
 use crate::IndexedElement;
-
 use super::Incrementer;
-
 pub struct BinaryValueIncrementer {
     length: usize,
     current_state: BitVec,
@@ -58,6 +54,17 @@ impl Incrementer for BinaryValueIncrementer {
     }
     fn randomize(&mut self) {
         todo!();
+    }
+}
+
+impl Iterator for BinaryValueIncrementer {
+    type Item = Vec<IndexedElement<bool>>;
+
+    fn next(&mut self) -> Option<<Self as Iterator>::Item> {
+        if self.try_increment() {
+            return Some(self.get());
+        }
+        return None;
     }
 }
 

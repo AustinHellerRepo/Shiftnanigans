@@ -309,13 +309,12 @@ impl Incrementer for ShiftingCellGroupDependencyIncrementer {
 
 impl Iterator for ShiftingCellGroupDependencyIncrementer {
     type Item = Vec<IndexedElement<(u8, u8)>>;
-    fn next(&mut self) -> Option<Self::Item> {
+
+    fn next(&mut self) -> Option<<Self as Iterator>::Item> {
         if self.try_increment() {
-            Some(self.get())
+            return Some(self.get());
         }
-        else {
-            None
-        }
+        return None;
     }
 }
 

@@ -1,7 +1,5 @@
-use std::{rc::Rc, cell::RefCell};
 use crate::{shifter::Shifter, IndexedElement};
 use super::Incrementer;
-use bitvec::prelude::*;
 
 // Purpose: with each iteration, evaluates a complete shifted state of the underlying shifter
 pub struct ShifterIncrementer<T> {
@@ -102,9 +100,20 @@ impl<T> Incrementer for ShifterIncrementer<T> {
     }
 }
 
+impl<T> Iterator for ShifterIncrementer<T> {
+    type Item = Vec<IndexedElement<T>>;
+
+    fn next(&mut self) -> Option<<Self as Iterator>::Item> {
+        if self.try_increment() {
+            return Some(self.get());
+        }
+        return None;
+    }
+}
+
 #[cfg(test)]
 mod shifter_incrementer_tests {
-    use std::{time::{Duration, Instant}, cell::RefCell, collections::BTreeSet};
+    use std::{time::{Duration, Instant}, cell::RefCell, collections::BTreeSet, rc::Rc};
 
     use crate::shifter::{segment_permutation_shifter::{SegmentPermutationShifter, Segment}, hyper_graph_cliche_shifter::{HyperGraphClicheShifter, StatefulHyperGraphNode}};
 
@@ -112,6 +121,7 @@ mod shifter_incrementer_tests {
     use bitvec::{bits, vec::BitVec};
     use rstest::rstest;
     use uuid::Uuid;
+    use bitvec::prelude::*;
 
     fn init() {
         std::env::set_var("RUST_LOG", "trace");
