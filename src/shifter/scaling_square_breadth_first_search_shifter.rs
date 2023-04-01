@@ -35,6 +35,11 @@ impl ScalingSquareBreadthFirstSearchShifter {
             possible_states: possible_states
         }
     }
+    pub fn get_scaling_index(&self) -> usize {
+        // TODO cache all possible indexes to reduce memory footprint
+        let current_index = self.current_index.unwrap();
+        return self.current_scale_per_index[current_index].unwrap();
+    }
 }
 
 impl Shifter for ScalingSquareBreadthFirstSearchShifter {

@@ -1051,12 +1051,11 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
             is_always_valid_cell_group_index_per_cell_group_index: Rc::new(is_always_valid_cell_group_index_per_cell_group_index)
         }
     }
-    #[time_graph::instrument]
     pub fn get_random_pixel_board(&self) -> PixelBoard<TPixel> {
         // the structure that will search over each cell group dependency, collecting valid pairs of cell group locations
         let mut round_robin_incrementer: RoundRobinIncrementer<(u8, u8)>;
 
-        time_graph::spanned!("setup shifters", {
+        {
             // randomize the shifters
             let mut corner_wall_index_shifters: Vec<IndexShifter<(u8, u8)>> = Vec::new();
             let mut corner_wall_cell_group_index_per_shifter: Vec<usize> = Vec::new();
@@ -1412,7 +1411,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
 
             // TODO construct each incrementer that equates to each possible combination of cell groups depending on their location in the bounds
             round_robin_incrementer = RoundRobinIncrementer::new(incrementers);
-        });
+        }
 
         // prepare to find the cycle as the RoundRobinIncrementer is iterated over
         // the idea is that we round-robin across all shifters, building up graphs of connected locations until we find that the next pair to be connected already exist in the same graph, then we check for a cycle
@@ -1509,7 +1508,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                     }
                 }
 
-                time_graph::spanned!("cliche_shifter check focused", {
+                {
                     // check to see if it is worth looking for the cliche
                     let mut is_all_focused_stateful_hyper_graph_nodes_fully_connected = true;
                     if let Some(focused_stateful_hyper_graph_node_index_and_hyper_graph_node_index_tuples) = &focused_stateful_hyper_graph_node_index_and_hyper_graph_node_index_tuples_option {
@@ -1528,8 +1527,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                             hyper_graph_cliche_shifter.focus_on_neighbors(focused_stateful_hyper_graph_node_index_and_hyper_graph_node_index_tuples.clone());
                         }
 
-                        time_graph::spanned!("cliche_shifter try_increment", {
-
+                        {
                             let mut shifter_incrementer = ShifterIncrementer::new(Box::new(hyper_graph_cliche_shifter), (0..stateful_hyper_graph_nodes_per_hyper_graph_node_index.len()).collect());
                             if shifter_incrementer.try_increment() {
                                 // found cliche
@@ -1554,9 +1552,9 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                                 //println!("cliche not found: {}", incrementer_iterations_total);
                                 incrementer_iterations_total += 1;
                             }
-                        });
+                        }
                     }
-                });
+                }
             }
             else {
                 debug!("round robin done incrementing");
@@ -3350,7 +3348,7 @@ mod pixel_board_randomizer_tests {
     fn small_plus_sign_and_single_wall_segments() {
         init();
 
-        time_graph::enable_data_collection(true);
+        //time_graph::enable_data_collection(true);
         
         for seed_index in 0..40 {
         
@@ -3435,7 +3433,7 @@ mod pixel_board_randomizer_tests {
             }
         }
 
-        println!("{}", time_graph::get_full_graph().as_dot());
+        //println!("{}", time_graph::get_full_graph().as_dot());
     }
 
     //#[ignore]
@@ -3443,7 +3441,7 @@ mod pixel_board_randomizer_tests {
     fn largest_plus_sign_and_single_wall_segments() {
         init();
 
-        time_graph::enable_data_collection(true);
+        //time_graph::enable_data_collection(true);
 
         let top_wall_segment_image_id = Uuid::new_v4().to_string();
         let bottom_wall_segment_image_id = Uuid::new_v4().to_string();
@@ -3521,7 +3519,7 @@ mod pixel_board_randomizer_tests {
             }
         }
 
-        println!("{}", time_graph::get_full_graph().as_dot());
+        //println!("{}", time_graph::get_full_graph().as_dot());
     }
 
     //#[ignore]
@@ -3529,7 +3527,7 @@ mod pixel_board_randomizer_tests {
     fn largest_plus_sign_and_two_segments_per_wall_segment() {
         init();
 
-        time_graph::enable_data_collection(true);
+        //time_graph::enable_data_collection(true);
 
         let segments_total: usize = 2;
 
@@ -3633,6 +3631,6 @@ mod pixel_board_randomizer_tests {
             }
         }
 
-        println!("{}", time_graph::get_full_graph().as_dot());
+        //println!("{}", time_graph::get_full_graph().as_dot());
     }
 }

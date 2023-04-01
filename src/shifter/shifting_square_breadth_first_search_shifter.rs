@@ -250,33 +250,50 @@ impl<T> Shifter for ShiftingSquareBreadthFirstSearchShifter<T> {
         // return false
 
         if let Some(current_shifter_index) = self.current_shifter_index {
+            let current_shifter = &mut self.shifters[current_shifter_index];
+            let current_state_index_per_shift_index = &mut self.current_state_index_per_shift_index_per_shifter_index[current_shifter_index];
+            let current_shift_index = self.current_shift_index_per_shifter_index[current_shifter_index];
             while self.scaling_square_breadth_first_search_shifter.try_increment() {
-                let current_shift_index = self.current_shift_index_per_shifter_index[current_shifter_index];
-                let current_scaling_index = *self.scaling_square_breadth_first_search_shifter.get_indexed_element().element.as_ref();
-                if self.current_state_index_per_shift_index_per_shifter_index[current_shifter_index][current_shift_index].is_some() && self.current_state_index_per_shift_index_per_shifter_index[current_shifter_index][current_shift_index].unwrap() > current_scaling_index {
-                    // the current state index is above the scaling index, so reset and move back to the 0th state
-                    if self.current_global_shift_index.unwrap() != 0 {
-                        panic!("Unexpected state index above scaling index when not at the beginning.");
+                let current_scaling_index = self.scaling_square_breadth_first_search_shifter.get_scaling_index();
+                let mut current_state_option = current_state_index_per_shift_index[current_shift_index];
+                if let Some(current_state_index) = current_state_option {
+                    if current_state_index > current_scaling_index {
+                        // the current state index is above the scaling index, so reset and move back to the 0th state
+                        if self.current_global_shift_index.unwrap() != 0 {
+                            panic!("Unexpected state index above scaling index when not at the beginning.");
+                        }
+                        current_shifter.reset();
+                        if !current_shifter.try_forward() {
+                            panic!("Unexpectedly failed to move first shifter with shifts forward when reseting due to current shift index exceeding scaling index.");
+                        }
+                        /*self.shifters[current_shifter_index].reset();
+                        if !self.shifters[current_shifter_index].try_forward() {
+                            panic!("Unexpectedly failed to move first shifter with shifts forward when reseting due to current shift index exceeding scaling index.");
+                        }*/
+                        current_state_option = None;
                     }
-                    self.shifters[current_shifter_index].reset();
-                    if !self.shifters[current_shifter_index].try_forward() {
-                        panic!("Unexpectedly failed to move first shifter with shifts forward when reseting due to current shift index exceeding scaling index.");
-                    }
-                    self.current_state_index_per_shift_index_per_shifter_index[current_shifter_index][current_shift_index] = None;
                 }
+                // was getting 85.6
                 'match_scaling_index: {
-                    while self.current_state_index_per_shift_index_per_shifter_index[current_shifter_index][current_shift_index].is_none() || self.current_state_index_per_shift_index_per_shifter_index[current_shifter_index][current_shift_index].unwrap() < current_scaling_index {
-                        if !self.shifters[current_shifter_index].try_increment() {
-                            // failed to increment the current shifter to match the scaling index
+                    let mut current_state_index;
+                    if let Some(temp_current_state_index) = current_state_option {
+                        current_state_index = temp_current_state_index;
+                    }
+                    else {
+                        if !current_shifter.try_increment() {
                             break 'match_scaling_index;
                         }
-                        if self.current_state_index_per_shift_index_per_shifter_index[current_shifter_index][current_shift_index].is_none() {
-                            self.current_state_index_per_shift_index_per_shifter_index[current_shifter_index][current_shift_index] = Some(0);
-                        }
-                        else {
-                            self.current_state_index_per_shift_index_per_shifter_index[current_shifter_index][current_shift_index] = Some(self.current_state_index_per_shift_index_per_shifter_index[current_shifter_index][current_shift_index].unwrap() + 1);
-                        }
+                        current_state_index = 0;
                     }
+                    while current_state_index < current_scaling_index {
+                        if !current_shifter.try_increment() {
+                            // failed to increment the current shifter to match the scaling index
+                            current_state_index_per_shift_index[current_shift_index] = Some(current_state_index);
+                            break 'match_scaling_index;
+                        }
+                        current_state_index += 1;
+                    }
+                    current_state_index_per_shift_index[current_shift_index] = Some(current_state_index);
                     return true;
                 }
             }

@@ -411,11 +411,13 @@ mod shifting_cell_group_dependency_incrementer_tests {
     fn multiple_squares_complete_set() {
         init();
 
-        time_graph::enable_data_collection(true);
+        fastrand::seed(0);
+
+        //time_graph::enable_data_collection(true);
 
         let mut cell_group_dependencies: Vec<CellGroupDependency> = Vec::new();
 
-        let cell_groups_total = 4;
+        let cell_groups_total = 5;
 
         // Stats
         //  3
@@ -426,6 +428,7 @@ mod shifting_cell_group_dependency_incrementer_tests {
         //      2022-12-22  0.05s
         //      2023-01-06  0.00866s
         //      2023-02-25  0.07s on potato after change to ShiftingSquareBreadthFirstSearchShifter
+        //      2023-03-30  0.07s on potato after Box refactor
         //  5
         //      2022-12-21  2339.69s
         //      2022-12-22    28.95s
@@ -434,6 +437,7 @@ mod shifting_cell_group_dependency_incrementer_tests {
         //      2023-01-10     0.819s on potato
         //      2023-02-18     1.08s on potato
         //      2023-02-25    20.82s on potato after change to ShiftingSquareBreadthFirstSearchShifter
+        //      2023-03-30    20.43s on potato after Box refactor
         //  6
         //      2023-01-08   327.12s
 
@@ -520,7 +524,7 @@ mod shifting_cell_group_dependency_incrementer_tests {
         println!("validation time: {:?}", validating_start_time.elapsed());
         println!("validated: {:?}", indexed_elements_collection.len());
 
-        println!("{}", time_graph::get_full_graph().as_dot());
+        //println!("{}", time_graph::get_full_graph().as_dot());
 
         // https://en.wikipedia.org/wiki/Square_pyramidal_number
         let cells_total: usize = (cell_groups_total * (cell_groups_total + 1) * (2 * cell_groups_total + 1)) / 6;
@@ -596,7 +600,7 @@ mod shifting_cell_group_dependency_incrementer_tests {
     fn multiple_squares_first_occurrence() {
         init();
 
-        time_graph::enable_data_collection(true);
+        //time_graph::enable_data_collection(true);
 
         let mut cell_group_dependencies: Vec<CellGroupDependency> = Vec::new();
 
@@ -698,7 +702,7 @@ mod shifting_cell_group_dependency_incrementer_tests {
         println!("validation time: {:?}", validating_start_time.elapsed());
         println!("validated: {:?}", indexed_elements);
 
-        println!("{}", time_graph::get_full_graph().as_dot());
+        //println!("{}", time_graph::get_full_graph().as_dot());
 
         // https://en.wikipedia.org/wiki/Square_pyramidal_number
         let cells_total: usize = (cell_groups_total * (cell_groups_total + 1) * (2 * cell_groups_total + 1)) / 6;

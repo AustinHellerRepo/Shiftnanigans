@@ -1,6 +1,5 @@
 use std::{rc::Rc, cell::RefCell};
 use crate::IndexedElement;
-
 use super::{Shifter};
 
 #[derive(Clone)]
@@ -103,11 +102,6 @@ impl<T> Shifter for CombinedShifter<T> {
         let is_current_shifter_try_increment_successful = self.shifters[current_shifter_index].borrow_mut().try_increment();
         return is_current_shifter_try_increment_successful;
     }
-    /*fn try_decrement(&mut self) -> bool {
-        let current_shifter_index = self.current_shifter_index.unwrap();
-        let is_current_shifter_try_decrement_successful = self.shifters[current_shifter_index].borrow_mut().try_decrement();
-        return is_current_shifter_try_decrement_successful;
-    }*/
     fn get_indexed_element(&self) -> IndexedElement<Self::T> {
         let current_shifter_index = self.current_shifter_index.unwrap();
         let mut indexed_element = self.shifters[current_shifter_index].borrow().get_indexed_element();

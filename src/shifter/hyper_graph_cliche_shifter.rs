@@ -104,12 +104,14 @@ impl<T: PartialEq + std::fmt::Debug> HyperGraphClicheShifter<T> {
             self.current_hyper_graph_node_index_mapping.push(*hyper_graph_node_index);
         }
         self.focused_stateful_hyper_graph_node_index_and_hyper_graph_node_index_tuples = Some(focused_stateful_hyper_graph_node_index_and_hyper_graph_node_index_tuples);
+        let mut remaining_hyper_graph_node_indexes: Vec<usize> = Vec::new();
         for hyper_graph_node_index in 0..self.hyper_graph_nodes_length {
             if !self.current_hyper_graph_node_index_mapping.contains(&hyper_graph_node_index) {
                 // TODO optimize by storing in a separate vector first, then concat together
-                self.current_hyper_graph_node_index_mapping.push(hyper_graph_node_index);
+                remaining_hyper_graph_node_indexes.push(hyper_graph_node_index);
             }
         }
+        self.current_hyper_graph_node_index_mapping.append(&mut remaining_hyper_graph_node_indexes);
     }
 
     pub fn unfocus_neighbors(&mut self) {
