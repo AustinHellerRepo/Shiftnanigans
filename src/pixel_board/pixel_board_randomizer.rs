@@ -71,7 +71,11 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
         // TODO fill is_adjacent based on wall-adjacent identification
 
         {
-            let mut adjacent_pixel_board_coordinates_per_cell_group_index: Vec<BTreeSet<(usize, usize)>> = Vec::new();
+            // these are separated out so that the wall-adjacents know which wall they must stick to
+            let mut top_adjacent_pixel_board_coordinates_per_cell_group_index: Vec<BTreeSet<(usize, usize)>> = Vec::new();
+            let mut bottom_adjacent_pixel_board_coordinates_per_cell_group_index: Vec<BTreeSet<(usize, usize)>> = Vec::new();
+            let mut left_adjacent_pixel_board_coordinates_per_cell_group_index: Vec<BTreeSet<(usize, usize)>> = Vec::new();
+            let mut right_adjacent_pixel_board_coordinates_per_cell_group_index: Vec<BTreeSet<(usize, usize)>> = Vec::new();
 
             let rightmost_x: usize = pixel_board.width - 1;
             let bottommost_y: usize = pixel_board.height - 1;
@@ -79,14 +83,17 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
             // construct the cell group for the top left wall corner
             if pixel_board.exists(0, 0) {
                 let mut cells: Vec<(u8, u8)> = vec![(0, 0)];
-                let mut adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+                let mut top_adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+                let mut bottom_adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+                let mut left_adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+                let mut right_adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
                 top_left_corner_wall_cell_group_index = Some(0);
                 'clockwise_collecting: {
                     for x in 1..pixel_board.width {
                         if pixel_board.exists(x, 0) {
                             cells.push((x as u8, 0));
                             if x != rightmost_x {
-                                adjacent_pixel_board_coordinates.insert((x, 1));
+                                top_adjacent_pixel_board_coordinates.insert((x, 1));
                             }
                         }
                         else {
@@ -98,7 +105,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                         if pixel_board.exists(rightmost_x, y) {
                             cells.push((rightmost_x as u8, y as u8));
                             if y != bottommost_y {
-                                adjacent_pixel_board_coordinates.insert((rightmost_x - 1, y));
+                                right_adjacent_pixel_board_coordinates.insert((rightmost_x - 1, y));
                             }
                         }
                         else {
@@ -110,7 +117,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                         if pixel_board.exists(x, bottommost_y) {
                             cells.push((x as u8, bottommost_y as u8));
                             if x != 0 {
-                                adjacent_pixel_board_coordinates.insert((x, bottommost_y - 1));
+                                bottom_adjacent_pixel_board_coordinates.insert((x, bottommost_y - 1));
                             }
                         }
                         else {
@@ -121,7 +128,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                     for y in (1..pixel_board.height).rev() {
                         if pixel_board.exists(0, y) {
                             cells.push((0, y as u8));
-                            adjacent_pixel_board_coordinates.insert((1, y));
+                            left_adjacent_pixel_board_coordinates.insert((1, y));
                         }
                         else {
                             break 'clockwise_collecting;
@@ -134,7 +141,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                         if pixel_board.exists(0, y) {
                             cells.push((0, y as u8));
                             if y != bottommost_y {
-                                adjacent_pixel_board_coordinates.insert((1, y));
+                                left_adjacent_pixel_board_coordinates.insert((1, y));
                             }
                         }
                         else {
@@ -146,7 +153,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                         if pixel_board.exists(x, bottommost_y) {
                             cells.push((x as u8, bottommost_y as u8));
                             if x != rightmost_x {
-                                adjacent_pixel_board_coordinates.insert((x, bottommost_y - 1));
+                                bottom_adjacent_pixel_board_coordinates.insert((x, bottommost_y - 1));
                             }
                         }
                         else {
@@ -158,7 +165,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                         if pixel_board.exists(rightmost_x, y) {
                             cells.push((rightmost_x as u8, y as u8));
                             if y != 0 {
-                                adjacent_pixel_board_coordinates.insert((rightmost_x - 1, y));
+                                right_adjacent_pixel_board_coordinates.insert((rightmost_x - 1, y));
                             }
                         }
                         else {
@@ -169,7 +176,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                     for x in (2..rightmost_x).rev() {
                         if pixel_board.exists(x, 0) {
                             cells.push((x as u8, 0));
-                            adjacent_pixel_board_coordinates.insert((x, 1));
+                            top_adjacent_pixel_board_coordinates.insert((x, 1));
                         }
                         else {
                             break 'counterclockwise_collecting;
@@ -180,7 +187,10 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                 raw_cell_groups.push(CellGroup {
                     cells: cells
                 });
-                adjacent_pixel_board_coordinates_per_cell_group_index.push(adjacent_pixel_board_coordinates);
+                top_adjacent_pixel_board_coordinates_per_cell_group_index.push(top_adjacent_pixel_board_coordinates);
+                bottom_adjacent_pixel_board_coordinates_per_cell_group_index.push(bottom_adjacent_pixel_board_coordinates);
+                left_adjacent_pixel_board_coordinates_per_cell_group_index.push(left_adjacent_pixel_board_coordinates);
+                right_adjacent_pixel_board_coordinates_per_cell_group_index.push(right_adjacent_pixel_board_coordinates);
                 pixel_board_coordinate_per_cell_group_index.push((0, 0));
                 top_left_corner_wall_index_shifter_option = Some(IndexShifter::new(&vec![
                     vec![Rc::new((0, 0))]
@@ -191,7 +201,10 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
             if top_right_corner_wall_cell_group_index.is_none() && pixel_board.exists(rightmost_x, 0) {
                 let mut leftmost_cell_x: usize = rightmost_x;
                 let mut cells: Vec<(u8, u8)> = vec![(rightmost_x as u8, 0)];
-                let mut adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+                let mut top_adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+                let mut bottom_adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+                let mut left_adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+                let mut right_adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
                 let cell_group_index = raw_cell_groups.len();
                 top_right_corner_wall_cell_group_index = Some(cell_group_index);
                 'clockwise_collecting: {
@@ -199,7 +212,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                         if pixel_board.exists(rightmost_x, y) {
                             cells.push((rightmost_x as u8, y as u8));
                             if y != bottommost_y {
-                                adjacent_pixel_board_coordinates.insert((rightmost_x - 1, y));
+                                right_adjacent_pixel_board_coordinates.insert((rightmost_x - 1, y));
                             }
                         }
                         else {
@@ -211,7 +224,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                         if pixel_board.exists(x, bottommost_y) {
                             cells.push((x as u8, bottommost_y as u8));
                             if x != 0 {
-                                adjacent_pixel_board_coordinates.insert((x, bottommost_y - 1));
+                                bottom_adjacent_pixel_board_coordinates.insert((x, bottommost_y - 1));
                             }
                             leftmost_cell_x = x;
                         }
@@ -223,7 +236,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                     for y in (1..bottommost_y).rev() {
                         if pixel_board.exists(0, y) {
                             cells.push((0, y as u8));
-                            adjacent_pixel_board_coordinates.insert((1, y));
+                            left_adjacent_pixel_board_coordinates.insert((1, y));
                         }
                         else {
                             break 'clockwise_collecting;
@@ -236,7 +249,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                     for x in (1..rightmost_x).rev() {
                         if pixel_board.exists(x, 0) {
                             cells.push((x as u8, 0));
-                            adjacent_pixel_board_coordinates.insert((x, 1));
+                            top_adjacent_pixel_board_coordinates.insert((x, 1));
                             if x < leftmost_cell_x {
                                 leftmost_cell_x = x;
                             }
@@ -250,7 +263,10 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                 raw_cell_groups.push(CellGroup {
                     cells: cells
                 });
-                adjacent_pixel_board_coordinates_per_cell_group_index.push(adjacent_pixel_board_coordinates);
+                top_adjacent_pixel_board_coordinates_per_cell_group_index.push(top_adjacent_pixel_board_coordinates);
+                bottom_adjacent_pixel_board_coordinates_per_cell_group_index.push(bottom_adjacent_pixel_board_coordinates);
+                left_adjacent_pixel_board_coordinates_per_cell_group_index.push(left_adjacent_pixel_board_coordinates);
+                right_adjacent_pixel_board_coordinates_per_cell_group_index.push(right_adjacent_pixel_board_coordinates);
                 pixel_board_coordinate_per_cell_group_index.push((leftmost_cell_x, 0));
                 top_right_corner_wall_index_shifter_option = Some(IndexShifter::new(&vec![
                     vec![Rc::new((leftmost_cell_x as u8, 0))]
@@ -262,7 +278,10 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                 let mut leftmost_cell_x: usize = rightmost_x;
                 let mut topmost_cell_y: usize = bottommost_y;
                 let mut cells: Vec<(u8, u8)> = vec![(rightmost_x as u8, bottommost_y as u8)];
-                let mut adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+                let mut top_adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+                let mut bottom_adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+                let mut left_adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+                let mut right_adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
                 let cell_group_index = raw_cell_groups.len();
                 bottom_right_corner_wall_cell_group_index = Some(cell_group_index);
                 'clockwise_collecting: {
@@ -270,7 +289,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                         if pixel_board.exists(x, bottommost_y) {
                             cells.push((x as u8, bottommost_y as u8));
                             if x != 0 {
-                                adjacent_pixel_board_coordinates.insert((x, bottommost_y - 1));
+                                bottom_adjacent_pixel_board_coordinates.insert((x, bottommost_y - 1));
                             }
                             leftmost_cell_x = x;
                         }
@@ -282,7 +301,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                     for y in (1..bottommost_y).rev() {
                         if pixel_board.exists(0, y) {
                             cells.push((0, y as u8));
-                            adjacent_pixel_board_coordinates.insert((1, y));
+                            left_adjacent_pixel_board_coordinates.insert((1, y));
                             topmost_cell_y = y;
                         }
                         else {
@@ -295,7 +314,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                     for y in (1..bottommost_y).rev() {
                         if pixel_board.exists(rightmost_x, y) {
                             cells.push((rightmost_x as u8, y as u8));
-                            adjacent_pixel_board_coordinates.insert((rightmost_x - 1, y));
+                            right_adjacent_pixel_board_coordinates.insert((rightmost_x - 1, y));
                             if y < topmost_cell_y {
                                 topmost_cell_y = y;
                             }
@@ -309,7 +328,10 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                 raw_cell_groups.push(CellGroup {
                     cells: cells
                 });
-                adjacent_pixel_board_coordinates_per_cell_group_index.push(adjacent_pixel_board_coordinates);
+                top_adjacent_pixel_board_coordinates_per_cell_group_index.push(top_adjacent_pixel_board_coordinates);
+                bottom_adjacent_pixel_board_coordinates_per_cell_group_index.push(bottom_adjacent_pixel_board_coordinates);
+                left_adjacent_pixel_board_coordinates_per_cell_group_index.push(left_adjacent_pixel_board_coordinates);
+                right_adjacent_pixel_board_coordinates_per_cell_group_index.push(right_adjacent_pixel_board_coordinates);
                 pixel_board_coordinate_per_cell_group_index.push((leftmost_cell_x, topmost_cell_y));
                 bottom_right_corner_wall_index_shifter_option = Some(IndexShifter::new(&vec![
                     vec![Rc::new((leftmost_cell_x as u8, topmost_cell_y as u8))]
@@ -320,14 +342,17 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
             if bottom_left_corner_wall_cell_group_index.is_none() && pixel_board.exists(0, bottommost_y) {
                 let mut topmost_cell_y: usize = bottommost_y;
                 let mut cells: Vec<(u8, u8)> = vec![(0, bottommost_y as u8)];
-                let mut adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+                let mut top_adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+                let mut bottom_adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+                let mut left_adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+                let mut right_adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
                 let cell_group_index = raw_cell_groups.len();
                 bottom_left_corner_wall_cell_group_index = Some(cell_group_index);
                 'clockwise_collecting: {
                     for y in (1..bottommost_y).rev() {
                         if pixel_board.exists(0, y) {
                             cells.push((0, y as u8));
-                            adjacent_pixel_board_coordinates.insert((1, y));
+                            left_adjacent_pixel_board_coordinates.insert((1, y));
                             topmost_cell_y = y;
                         }
                         else {
@@ -340,7 +365,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                     for x in 1..rightmost_x {
                         if pixel_board.exists(x, bottommost_y) {
                             cells.push((x as u8, bottommost_y as u8));
-                            adjacent_pixel_board_coordinates.insert((x, bottommost_y - 1));
+                            bottom_adjacent_pixel_board_coordinates.insert((x, bottommost_y - 1));
                         }
                         else {
                             break 'counterclockwise_collecting;
@@ -351,7 +376,10 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                 raw_cell_groups.push(CellGroup {
                     cells: cells
                 });
-                adjacent_pixel_board_coordinates_per_cell_group_index.push(adjacent_pixel_board_coordinates);
+                top_adjacent_pixel_board_coordinates_per_cell_group_index.push(top_adjacent_pixel_board_coordinates);
+                bottom_adjacent_pixel_board_coordinates_per_cell_group_index.push(bottom_adjacent_pixel_board_coordinates);
+                left_adjacent_pixel_board_coordinates_per_cell_group_index.push(left_adjacent_pixel_board_coordinates);
+                right_adjacent_pixel_board_coordinates_per_cell_group_index.push(right_adjacent_pixel_board_coordinates);
                 pixel_board_coordinate_per_cell_group_index.push((0, topmost_cell_y));
                 bottom_left_corner_wall_index_shifter_option = Some(IndexShifter::new(&vec![
                     vec![Rc::new((0, topmost_cell_y as u8))]
@@ -390,7 +418,10 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                 }
                 if leftmost_wall_x <= rightmost_wall_x {
                     let mut cells: Vec<(u8, u8)> = Vec::new();
-                    let mut adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+                    let mut top_adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+                    let mut bottom_adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+                    let mut left_adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+                    let mut right_adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
                     let mut segments: Vec<Rc<Segment>> = Vec::new();
                     let mut current_segment_length: usize = 0;
                     let mut leftmost_cell_x: Option<usize> = None;
@@ -398,7 +429,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                         if pixel_board.exists(x, 0) {
                             current_segment_length += 1;
                             cells.push((x as u8, 0));
-                            adjacent_pixel_board_coordinates.insert((x, 1));
+                            top_adjacent_pixel_board_coordinates.insert((x, 1));
                             if leftmost_cell_x.is_none() {
                                 leftmost_cell_x = Some(x);
                             }
@@ -409,12 +440,18 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                             raw_cell_groups.push(CellGroup {
                                 cells: cells
                             });
-                            adjacent_pixel_board_coordinates_per_cell_group_index.push(adjacent_pixel_board_coordinates);
+                            top_adjacent_pixel_board_coordinates_per_cell_group_index.push(top_adjacent_pixel_board_coordinates);
+                            bottom_adjacent_pixel_board_coordinates_per_cell_group_index.push(bottom_adjacent_pixel_board_coordinates);
+                            left_adjacent_pixel_board_coordinates_per_cell_group_index.push(left_adjacent_pixel_board_coordinates);
+                            right_adjacent_pixel_board_coordinates_per_cell_group_index.push(right_adjacent_pixel_board_coordinates);
                             pixel_board_coordinate_per_cell_group_index.push((leftmost_cell_x.unwrap(), 0));
                             // reset for the next potential wall segment
                             current_segment_length = 0;
                             cells = Vec::new();
-                            adjacent_pixel_board_coordinates = BTreeSet::new();
+                            top_adjacent_pixel_board_coordinates = BTreeSet::new();
+                            bottom_adjacent_pixel_board_coordinates = BTreeSet::new();
+                            left_adjacent_pixel_board_coordinates = BTreeSet::new();
+                            right_adjacent_pixel_board_coordinates = BTreeSet::new();
                             leftmost_cell_x = None;
                         }
                     }
@@ -424,7 +461,10 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                         raw_cell_groups.push(CellGroup {
                             cells: cells
                         });
-                        adjacent_pixel_board_coordinates_per_cell_group_index.push(adjacent_pixel_board_coordinates);
+                        top_adjacent_pixel_board_coordinates_per_cell_group_index.push(top_adjacent_pixel_board_coordinates);
+                        bottom_adjacent_pixel_board_coordinates_per_cell_group_index.push(bottom_adjacent_pixel_board_coordinates);
+                        left_adjacent_pixel_board_coordinates_per_cell_group_index.push(left_adjacent_pixel_board_coordinates);
+                        right_adjacent_pixel_board_coordinates_per_cell_group_index.push(right_adjacent_pixel_board_coordinates);
                         pixel_board_coordinate_per_cell_group_index.push((leftmost_cell_x.unwrap(), 0));
                     }
                     // find bounding length
@@ -485,7 +525,10 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                 }
                 if leftmost_wall_x <= rightmost_wall_x {
                     let mut cells: Vec<(u8, u8)> = Vec::new();
-                    let mut adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+                    let mut top_adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+                    let mut bottom_adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+                    let mut left_adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+                    let mut right_adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
                     let mut segments: Vec<Rc<Segment>> = Vec::new();
                     let mut current_segment_length: usize = 0;
                     let mut leftmost_cell_x: Option<usize> = None;
@@ -493,7 +536,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                         if pixel_board.exists(x, bottommost_y) {
                             current_segment_length += 1;
                             cells.push((x as u8, bottommost_y as u8));
-                            adjacent_pixel_board_coordinates.insert((x, bottommost_y - 1));
+                            bottom_adjacent_pixel_board_coordinates.insert((x, bottommost_y - 1));
                             if leftmost_cell_x.is_none() {
                                 leftmost_cell_x = Some(x);
                             }
@@ -504,12 +547,18 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                             raw_cell_groups.push(CellGroup {
                                 cells: cells
                             });
-                            adjacent_pixel_board_coordinates_per_cell_group_index.push(adjacent_pixel_board_coordinates);
+                            top_adjacent_pixel_board_coordinates_per_cell_group_index.push(top_adjacent_pixel_board_coordinates);
+                            bottom_adjacent_pixel_board_coordinates_per_cell_group_index.push(bottom_adjacent_pixel_board_coordinates);
+                            left_adjacent_pixel_board_coordinates_per_cell_group_index.push(left_adjacent_pixel_board_coordinates);
+                            right_adjacent_pixel_board_coordinates_per_cell_group_index.push(right_adjacent_pixel_board_coordinates);
                             pixel_board_coordinate_per_cell_group_index.push((leftmost_cell_x.unwrap(), bottommost_y));
                             // reset for the next potential wall segment
                             current_segment_length = 0;
                             cells = Vec::new();
-                            adjacent_pixel_board_coordinates = BTreeSet::new();
+                            top_adjacent_pixel_board_coordinates = BTreeSet::new();
+                            bottom_adjacent_pixel_board_coordinates = BTreeSet::new();
+                            left_adjacent_pixel_board_coordinates = BTreeSet::new();
+                            right_adjacent_pixel_board_coordinates = BTreeSet::new();
                             leftmost_cell_x = None;
                         }
                     }
@@ -519,7 +568,10 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                         raw_cell_groups.push(CellGroup {
                             cells: cells
                         });
-                        adjacent_pixel_board_coordinates_per_cell_group_index.push(adjacent_pixel_board_coordinates);
+                        top_adjacent_pixel_board_coordinates_per_cell_group_index.push(top_adjacent_pixel_board_coordinates);
+                        bottom_adjacent_pixel_board_coordinates_per_cell_group_index.push(bottom_adjacent_pixel_board_coordinates);
+                        left_adjacent_pixel_board_coordinates_per_cell_group_index.push(left_adjacent_pixel_board_coordinates);
+                        right_adjacent_pixel_board_coordinates_per_cell_group_index.push(right_adjacent_pixel_board_coordinates);
                         pixel_board_coordinate_per_cell_group_index.push((leftmost_cell_x.unwrap(), bottommost_y));
                     }
                     // find bounding length
@@ -578,7 +630,10 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                 }
                 if topmost_wall_y <= bottommost_wall_y {
                     let mut cells: Vec<(u8, u8)> = Vec::new();
-                    let mut adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+                    let mut top_adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+                    let mut bottom_adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+                    let mut left_adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+                    let mut right_adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
                     let mut segments: Vec<Rc<Segment>> = Vec::new();
                     let mut current_segment_length: usize = 0;
                     let mut topmost_cell_y: Option<usize> = None;
@@ -586,7 +641,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                         if pixel_board.exists(0, y) {
                             current_segment_length += 1;
                             cells.push((0, y as u8));
-                            adjacent_pixel_board_coordinates.insert((1, y));
+                            left_adjacent_pixel_board_coordinates.insert((1, y));
                             if topmost_cell_y.is_none() {
                                 topmost_cell_y = Some(y);
                             }
@@ -597,12 +652,18 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                             raw_cell_groups.push(CellGroup {
                                 cells: cells
                             });
-                            adjacent_pixel_board_coordinates_per_cell_group_index.push(adjacent_pixel_board_coordinates);
+                            top_adjacent_pixel_board_coordinates_per_cell_group_index.push(top_adjacent_pixel_board_coordinates);
+                            bottom_adjacent_pixel_board_coordinates_per_cell_group_index.push(bottom_adjacent_pixel_board_coordinates);
+                            left_adjacent_pixel_board_coordinates_per_cell_group_index.push(left_adjacent_pixel_board_coordinates);
+                            right_adjacent_pixel_board_coordinates_per_cell_group_index.push(right_adjacent_pixel_board_coordinates);
                             pixel_board_coordinate_per_cell_group_index.push((0, topmost_cell_y.unwrap()));
                             // reset for the next potential wall segment
                             current_segment_length = 0;
                             cells = Vec::new();
-                            adjacent_pixel_board_coordinates = BTreeSet::new();
+                            top_adjacent_pixel_board_coordinates = BTreeSet::new();
+                            bottom_adjacent_pixel_board_coordinates = BTreeSet::new();
+                            left_adjacent_pixel_board_coordinates = BTreeSet::new();
+                            right_adjacent_pixel_board_coordinates = BTreeSet::new();
                             topmost_cell_y = None;
                         }
                     }
@@ -612,7 +673,10 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                         raw_cell_groups.push(CellGroup {
                             cells: cells
                         });
-                        adjacent_pixel_board_coordinates_per_cell_group_index.push(adjacent_pixel_board_coordinates);
+                        top_adjacent_pixel_board_coordinates_per_cell_group_index.push(top_adjacent_pixel_board_coordinates);
+                        bottom_adjacent_pixel_board_coordinates_per_cell_group_index.push(bottom_adjacent_pixel_board_coordinates);
+                        left_adjacent_pixel_board_coordinates_per_cell_group_index.push(left_adjacent_pixel_board_coordinates);
+                        right_adjacent_pixel_board_coordinates_per_cell_group_index.push(right_adjacent_pixel_board_coordinates);
                         pixel_board_coordinate_per_cell_group_index.push((0, topmost_cell_y.unwrap()));
                     }
                     // find bounding length
@@ -671,7 +735,10 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                 }
                 if topmost_wall_y <= bottommost_wall_y {
                     let mut cells: Vec<(u8, u8)> = Vec::new();
-                    let mut adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+                    let mut top_adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+                    let mut bottom_adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+                    let mut left_adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
+                    let mut right_adjacent_pixel_board_coordinates: BTreeSet<(usize, usize)> = BTreeSet::new();
                     let mut segments: Vec<Rc<Segment>> = Vec::new();
                     let mut current_segment_length: usize = 0;
                     let mut topmost_cell_y: Option<usize> = None;
@@ -679,7 +746,7 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                         if pixel_board.exists(rightmost_x, y) {
                             current_segment_length += 1;
                             cells.push((rightmost_x as u8, y as u8));
-                            adjacent_pixel_board_coordinates.insert((rightmost_x - 1, y));
+                            right_adjacent_pixel_board_coordinates.insert((rightmost_x - 1, y));
                             if topmost_cell_y.is_none() {
                                 topmost_cell_y = Some(y);
                             }
@@ -690,12 +757,18 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                             raw_cell_groups.push(CellGroup {
                                 cells: cells
                             });
-                            adjacent_pixel_board_coordinates_per_cell_group_index.push(adjacent_pixel_board_coordinates);
+                            top_adjacent_pixel_board_coordinates_per_cell_group_index.push(top_adjacent_pixel_board_coordinates);
+                            bottom_adjacent_pixel_board_coordinates_per_cell_group_index.push(bottom_adjacent_pixel_board_coordinates);
+                            left_adjacent_pixel_board_coordinates_per_cell_group_index.push(left_adjacent_pixel_board_coordinates);
+                            right_adjacent_pixel_board_coordinates_per_cell_group_index.push(right_adjacent_pixel_board_coordinates);
                             pixel_board_coordinate_per_cell_group_index.push((rightmost_x, topmost_cell_y.unwrap()));
                             // reset for the next potential wall segment
                             current_segment_length = 0;
                             cells = Vec::new();
-                            adjacent_pixel_board_coordinates = BTreeSet::new();
+                            top_adjacent_pixel_board_coordinates = BTreeSet::new();
+                            bottom_adjacent_pixel_board_coordinates = BTreeSet::new();
+                            left_adjacent_pixel_board_coordinates = BTreeSet::new();
+                            right_adjacent_pixel_board_coordinates = BTreeSet::new();
                             topmost_cell_y = None;
                         }
                     }
@@ -705,7 +778,10 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                         raw_cell_groups.push(CellGroup {
                             cells: cells
                         });
-                        adjacent_pixel_board_coordinates_per_cell_group_index.push(adjacent_pixel_board_coordinates);
+                        top_adjacent_pixel_board_coordinates_per_cell_group_index.push(top_adjacent_pixel_board_coordinates);
+                        bottom_adjacent_pixel_board_coordinates_per_cell_group_index.push(bottom_adjacent_pixel_board_coordinates);
+                        left_adjacent_pixel_board_coordinates_per_cell_group_index.push(left_adjacent_pixel_board_coordinates);
+                        right_adjacent_pixel_board_coordinates_per_cell_group_index.push(right_adjacent_pixel_board_coordinates);
                         pixel_board_coordinate_per_cell_group_index.push((rightmost_x, topmost_cell_y.unwrap()));
                     }
                     // find bounding length
@@ -772,7 +848,9 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                         }
                     }
 
-                    if rightmost_x > 1 && bottommost_y > 1 {
+                    // TODO only supply location references that would permit adjacency requirements to walls and wall segments
+
+                    if rightmost_x > 1 && bottommost_y > 1 {  // if there can even exist wall-adjacent cell groups (because there is enough space)
                         let location_references_width = rightmost_x - 1;
 
                         // TODO incorporate adjacent vector to determining which cell group indexes are adjacent to each wall-adjacent as they are being constructed
@@ -788,6 +866,10 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                                     let mut rightmost_cell_group_x: usize = 0;
                                     let mut adjacent_wall_cell_group_indexes: Vec<usize> = Vec::new();
                                     let mut possible_cell_at_pixel_board_coordinates: Vec<(usize, usize)> = vec![pixel_board_coordinate];
+                                    let mut is_adjacent_to_top: bool = false;
+                                    let mut is_adjacent_to_bottom: bool = false;
+                                    let mut is_adjacent_to_left: bool = false;
+                                    let mut is_adjacent_to_right: bool = false;
                                     while !possible_cell_at_pixel_board_coordinates.is_empty() {
                                         let cell_pixel_board_coordinate = possible_cell_at_pixel_board_coordinates.pop().unwrap();
                                         visited_pixel_board_coordinates.insert(cell_pixel_board_coordinate);
@@ -806,7 +888,24 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                                         }
                                         // check if there are any wall indexes this cell is adjacent to
                                         for wall_cell_group_index in wall_cell_group_indexes.iter() {
-                                            if adjacent_pixel_board_coordinates_per_cell_group_index[*wall_cell_group_index].contains(&cell_pixel_board_coordinate) && !adjacent_wall_cell_group_indexes.contains(wall_cell_group_index) {
+                                            let mut is_wall_cell_group_adjacent = false;
+                                            if top_adjacent_pixel_board_coordinates_per_cell_group_index[*wall_cell_group_index].contains(&cell_pixel_board_coordinate) {
+                                                is_adjacent_to_top = true;
+                                                is_wall_cell_group_adjacent = true;
+                                            }
+                                            if bottom_adjacent_pixel_board_coordinates_per_cell_group_index[*wall_cell_group_index].contains(&cell_pixel_board_coordinate)  {
+                                                is_adjacent_to_bottom = true;
+                                                is_wall_cell_group_adjacent = true;
+                                            }
+                                            if left_adjacent_pixel_board_coordinates_per_cell_group_index[*wall_cell_group_index].contains(&cell_pixel_board_coordinate)  {
+                                                is_adjacent_to_left = true;
+                                                is_wall_cell_group_adjacent = true;
+                                            }
+                                            if right_adjacent_pixel_board_coordinates_per_cell_group_index[*wall_cell_group_index].contains(&cell_pixel_board_coordinate)  {
+                                                is_adjacent_to_right = true;
+                                                is_wall_cell_group_adjacent = true;
+                                            }
+                                            if is_wall_cell_group_adjacent && !adjacent_wall_cell_group_indexes.contains(wall_cell_group_index) {
                                                 adjacent_wall_cell_group_indexes.push(*wall_cell_group_index);
                                             }
                                         }
@@ -851,10 +950,43 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                                     
                                     // construct index shifter
                                     let mut states: Vec<Rc<(u8, u8)>> = Vec::new();
+                                    
+                                    // determine the bounds of the locations this cell group could exist at based on required adjacency
                                     let cell_group_width = rightmost_cell_group_x - leftmost_cell_group_x + 1;
                                     let cell_group_height = bottommost_cell_group_y - topmost_cell_group_y + 1;
-                                    for y in 1..=(bottommost_y - cell_group_height) {
-                                        for x in 1..=(rightmost_x - cell_group_width) {
+                                    let rightmost_cell_group_location_x = (rightmost_x - cell_group_width);
+                                    let bottommost_cell_group_location_y = (bottommost_y - cell_group_height);
+                                    let min_x: usize;
+                                    let max_x: usize;
+                                    let min_y: usize;
+                                    let max_y: usize;
+                                    if is_adjacent_to_top {
+                                        min_y = 1;
+                                        max_y = 1;
+                                    }
+                                    else if is_adjacent_to_bottom {
+                                        min_y = bottommost_cell_group_location_y;
+                                        max_y = bottommost_cell_group_location_y;
+                                    }
+                                    else {
+                                        min_y = 1;
+                                        max_y = bottommost_cell_group_location_y;
+                                    }
+                                    if is_adjacent_to_left {
+                                        min_x = 1;
+                                        max_x = 1;
+                                    }
+                                    else if is_adjacent_to_right {
+                                        min_x = rightmost_cell_group_location_x;
+                                        max_x = rightmost_cell_group_location_x;
+                                    }
+                                    else {
+                                        min_x = 1;
+                                        max_x = rightmost_cell_group_location_x;
+                                    }
+
+                                    for y in min_y..=max_y {
+                                        for x in min_x..=max_x {
                                             let location_reference_index = (y - 1) * location_references_width + (x - 1);
                                             states.push(location_references[location_reference_index].clone());
                                         }
