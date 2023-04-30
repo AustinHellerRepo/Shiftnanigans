@@ -1239,7 +1239,8 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                 let mut independent_shifter_incrementers: Vec<ShifterIncrementer<(u8, u8)>> = Vec::new();
 
                 if corner_wall_index_shifters.len() == 0 && wall_segment_permutation_shifters.len() == 0 && wall_adjacent_index_shifters.len() == 0 {
-                    todo!();
+                    // nothing to increment over
+                    return self.pixel_board.clone();
                 }
                 else if corner_wall_index_shifters.len() + wall_segment_permutation_shifters.len() + wall_adjacent_index_shifters.len() == 1 {
                     if corner_wall_index_shifters.len() == 1 {
@@ -1554,7 +1555,6 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
             stateful_hyper_graph_nodes_per_hyper_graph_node_index.push(Vec::new());
         }
 
-        let mut incrementer_iterations_total = 0;
         let mut connections_total = 0;
         let mut focused_stateful_hyper_graph_node_index_and_hyper_graph_node_index_tuples_option: Option<Vec<(usize, usize)>> = None;
         let mut is_incrementer_completed: bool = false;
@@ -1681,8 +1681,6 @@ impl<TPixel: Pixel> PixelBoardRandomizer<TPixel> {
                             }
                             else {
                                 debug!("cliche not found");
-                                //println!("cliche not found: {}", incrementer_iterations_total);
-                                incrementer_iterations_total += 1;
                             }
                         }
                     }

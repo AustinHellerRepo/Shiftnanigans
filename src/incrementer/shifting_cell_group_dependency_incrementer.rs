@@ -439,6 +439,7 @@ mod shifting_cell_group_dependency_incrementer_tests {
         //      2023-02-25    20.82s on potato after change to ShiftingSquareBreadthFirstSearchShifter
         //      2023-03-30    20.43s on potato after Box refactor
         //      2023-04-01    16.25s on potato after efficiency attempt
+        //      2023-04-04     5.84s on laptop
         //  6
         //      2023-01-08   327.12s
 

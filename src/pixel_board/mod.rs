@@ -11,6 +11,16 @@ pub struct PixelBoard<T: Pixel> {
     pixels: Vec<Option<Rc<RefCell<T>>>>
 }
 
+impl<T: Pixel> Clone for PixelBoard<T> {
+    fn clone(&self) -> Self {
+        Self {
+            width: self.width.clone(),
+            height: self.height.clone(),
+            pixels: self.pixels.clone()
+        }
+    }
+}
+
 impl<T: Pixel> PixelBoard<T> {
     pub fn new(width: usize, height: usize) -> Self {
         let mut pixels = Vec::new();
