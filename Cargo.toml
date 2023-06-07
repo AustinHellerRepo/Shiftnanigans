@@ -14,19 +14,20 @@ categories = ["algorithms", "data-structures"]
 
 [dependencies]
 bitvec = { version = "1.0.1" }
-rstest = { version = "0.16.0" }
-uuid = { version = "1.2.2", features = ["v4"] }
 log = { version = "0.4.17" }
-pretty_env_logger = { version = "0.4.0" }
 nohash-hasher = { version = "0.2.0" }
-#time-graph = { version = "0.3.0" }
-gomez = { version = "0.3.1" }
-rusymbols = { version = "0.1.2" }
 fastrand = { version = "1.8.0" }
 itertools = { version = "0.10.5" }
 
+#time-graph = { version = "0.3.0" }
+#gomez = { version = "0.3.1" }
+#rusymbols = { version = "0.1.2" }
+
 [dev-dependencies]
+pretty_env_logger = { version = "0.4.0" }
+rstest = { version = "0.16.0" }
 criterion = { version = "0.4.0" }
+uuid = { version = "1.2.2", features = ["v4"] }
 
 [[bench]]
 name = "main"
