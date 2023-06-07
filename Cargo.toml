@@ -1,6 +1,6 @@
 [package]
 name = "shiftnanigans"
-version = "0.3.2"
+version = "0.3.3"
 edition = "2021"
 authors = ["Austin Heller"]
 description = "This library contains different iteration data structures for either iterating or for shifting iteratively forward and backward."
