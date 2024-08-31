@@ -18,6 +18,8 @@ This crate contains useful, generic, commonly needed functionality, data structu
 ### Incrementers
 - BinaryDensityIncrementer
   - Returns a collection of boolean values such that each subsequent iteration increases the total number of ones progressively starting from having zero true values to having all true values
+- FixedBinaryDensityIncrementer
+  - The same as the BinaryDensityIncrementer but it maintains the same density of bits as it increments to the end of the permutations
 - BinaryValueIncrementer
   - Returns the binary representation of all integers from zero to the provided maximum power of two based on the provided length
 - LimitedIncrementer
