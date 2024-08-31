@@ -1,5 +1,3 @@
-use std::{iter::Peekable, cell::RefCell};
-
 use crate::IndexedElement;
 
 pub mod shifting_cell_group_dependency_incrementer;
@@ -8,6 +6,7 @@ pub mod shifter_incrementer;
 pub mod binary_density_incrementer;
 pub mod binary_value_incrementer;
 pub mod limited_incrementer;
+pub mod fixed_binary_density_incrementer;
 
 pub trait Incrementer {
     type T;

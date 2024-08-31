@@ -2,66 +2,66 @@ use std::{cell::RefCell, rc::Rc};
 use crate::IndexedElement;
 use super::{Shifter, scaling_square_breadth_first_search_shifter::ScalingSquareBreadthFirstSearchShifter};
 
-/// Purpose:
-///     To increment each shifter forward, resetting as need be, to ensure that the earliest states of each shifter are attempted before the last states
-///     Example:
-///         0  0  0
-///         1  0  0
-///         0  1  0
-///         0  0  1
-///         1  1  0
-///         1  0  1
-///         0  1  1
-///         1  1  1
-///         2  0  0
-///         0  2  0
-///         0  0  2
-///         2  1  0
-///         1  2  0
-///         1  0  2
-///         2  0  1
-///         0  2  1
-///         0  1  2
-///         2  1  1
-///         1  2  1
-///         1  1  2
-///         2  2  0
-///         2  0  2
-///         0  2  2
-///         2  2  1
-///         2  1  2
-///         1  2  2
-///         2  2  2
-/// 
-///     Square algorithm
-///         0  0  0
-///         1  0  0
-///         0  1  0
-///         0  0  1
-///         1  1  0
-///         1  0  1
-///         0  1  1
-///         1  1  1
-///         2  0  0
-///         2  1  0
-///         2  0  1
-///         2  1  1
-///         0  2  0
-///         1  2  0
-///         0  2  1
-///         1  2  1
-///         0  0  2
-///         1  0  2
-///         0  1  2
-///         1  1  2
-///         2  2  0
-///         2  2  1
-///         2  0  2
-///         2  1  2
-///         0  2  2
-///         1  2  2
-///         2  2  2
-/// 
+// Purpose:
+//     To increment each shifter forward, resetting as need be, to ensure that the earliest states of each shifter are attempted before the last states
+//     Example:
+//         0  0  0
+//         1  0  0
+//         0  1  0
+//         0  0  1
+//         1  1  0
+//         1  0  1
+//         0  1  1
+//         1  1  1
+//         2  0  0
+//         0  2  0
+//         0  0  2
+//         2  1  0
+//         1  2  0
+//         1  0  2
+//         2  0  1
+//         0  2  1
+//         0  1  2
+//         2  1  1
+//         1  2  1
+//         1  1  2
+//         2  2  0
+//         2  0  2
+//         0  2  2
+//         2  2  1
+//         2  1  2
+//         1  2  2
+//         2  2  2
+// 
+//     Square algorithm
+//         0  0  0
+//         1  0  0
+//         0  1  0
+//         0  0  1
+//         1  1  0
+//         1  0  1
+//         0  1  1
+//         1  1  1
+//         2  0  0
+//         2  1  0
+//         2  0  1
+//         2  1  1
+//         0  2  0
+//         1  2  0
+//         0  2  1
+//         1  2  1
+//         0  0  2
+//         1  0  2
+//         0  1  2
+//         1  1  2
+//         2  2  0
+//         2  2  1
+//         2  0  2
+//         2  1  2
+//         0  2  2
+//         1  2  2
+//         2  2  2
+// 
 pub struct ShiftingSquareBreadthFirstSearchShifter<T> {
     shifters: Vec<Box<dyn Shifter<T = T>>>,
     element_index_offset_per_shifter_index: Vec<usize>,

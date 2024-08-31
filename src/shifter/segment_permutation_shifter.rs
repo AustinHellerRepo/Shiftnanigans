@@ -736,10 +736,10 @@ mod segment_permutation_shifter_tests {
     }
     
     #[rstest]
-    #[case(vec![Rc::new(Segment::new(1))], (10, 100), 3, true, 1)]
-    #[case(vec![Rc::new(Segment::new(1)), Rc::new(Segment::new(1))], (10, 100), 3, true, 1)]
-    #[case(vec![Rc::new(Segment::new(1)), Rc::new(Segment::new(1)), Rc::new(Segment::new(1))], (10, 100), 3, true, 1)]
-    #[case(vec![Rc::new(Segment::new(1)), Rc::new(Segment::new(1)), Rc::new(Segment::new(1)), Rc::new(Segment::new(1))], (10, 100), 3, true, 1)]
+    #[case(vec![Rc::new(Segment::new(1))], (10, 100), 2, true, 1)]
+    #[case(vec![Rc::new(Segment::new(1)), Rc::new(Segment::new(1))], (10, 100), 4, true, 1)]
+    #[case(vec![Rc::new(Segment::new(1)), Rc::new(Segment::new(1)), Rc::new(Segment::new(1))], (10, 100), 6, true, 1)]
+    #[case(vec![Rc::new(Segment::new(1)), Rc::new(Segment::new(1)), Rc::new(Segment::new(1)), Rc::new(Segment::new(1))], (10, 100), 8, true, 1)]
     fn shift_forward_and_backward_for_multiple_segments(#[case] segments: Vec<Rc<Segment>>, #[case] origin: (u8, u8), #[case] bounding_length: usize, #[case] is_horizontal: bool, #[case] padding: usize) {
         init();
         
