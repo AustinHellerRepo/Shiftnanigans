@@ -3,7 +3,9 @@ use crate::IndexedElement;
 use super::Shifter;
 
 // Purpose:
-// This represents 
+// This represents a collection of items or states that exist at indexes of a list.
+// Example:
+// The IndexShifter can represent the favorite colors of different people. As this shifter progresses, all possible permutations of favorite colors per person is returned.
 #[derive(Clone)]
 pub struct IndexShifter<T> {
     current_shift_index: Option<usize>,
