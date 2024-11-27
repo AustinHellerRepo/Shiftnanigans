@@ -2269,6 +2269,8 @@ mod pixel_board_randomizer_tests {
             for wall_height in 3..=8 {
                 let mut wall_image_ids: Vec<String> = Vec::new();
                 let mut pixel_board: PixelBoard<ExamplePixel> = PixelBoard::new(board_width, wall_height);
+
+                // create wall on the right side that skips the top right square and ends in the bottom right square
                 for height_index in 0..(wall_height - 1) {
                     let image_id = Uuid::new_v4().to_string();
                     pixel_board.set(board_width - 1, height_index + 1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
@@ -2276,10 +2278,13 @@ mod pixel_board_randomizer_tests {
                     }))));
                     wall_image_ids.push(image_id);
                 }
+
+                // create a tile directly next to the uppermost wall tile adjacent to its left
                 let wall_adjacent_image_id = Uuid::new_v4().to_string();
                 pixel_board.set(board_width - 2, 1, Rc::new(RefCell::new(ExamplePixel::Tile(Tile {
                     image_id: wall_adjacent_image_id.clone()
                 }))));
+
                 let pixel_board_randomizer = PixelBoardRandomizer::new(pixel_board);
                 let mut appearances_totals: Vec<u32> = Vec::new();
                 for _ in 0..(wall_height - 2) {
@@ -2288,12 +2293,22 @@ mod pixel_board_randomizer_tests {
                 let iterations_total = 10000;
                 for _ in 0..iterations_total {
                     let random_pixel_board = pixel_board_randomizer.get_random_pixel_board();
+
+                    // assert that the wall hasn't escaped the bottom-right corner upward
+                    // this is where the wall-adjancent tile could be if the wall could escape the bottom-right corner
                     assert!(!random_pixel_board.exists(board_width - 2, 0));
+
+                    // assert that the wall hasn't escaped the bottom-right corner leftward
+                    // this is where the bottommost wall tile could be if the wall could escape the bottom-right corner
                     assert!(!random_pixel_board.exists(board_width - 2, wall_height - 1));
+
                     let mut wall_adjacents_total = 0;
                     for height_index in 0..wall_height {
                         if height_index != 0 {
+                            // assert that the wall is exactly where we originally placed it
                             assert!(random_pixel_board.exists(board_width - 1, height_index));
+
+                            // assert that all of the wall tiles are in the correct order by checking the tile at this height_index
                             {
                                 let wrapped_random_wall_pixel = random_pixel_board.get(board_width - 1, height_index).unwrap();
                                 let borrowed_random_wall_pixel: &ExamplePixel = &wrapped_random_wall_pixel.borrow();
@@ -2307,8 +2322,11 @@ mod pixel_board_randomizer_tests {
                             }
                         }
                         else {
+                            // again, assert that the wall hasn't escaped the bottom-right corner by moving directly upward
                             assert!(!random_pixel_board.exists(board_width - 1, height_index));
                         }
+
+                        // add up how many times the randomly generated pixel board spawns the wall-adjacent tile at any of the available placements along the wall
                         {
                             let wrapped_wall_adjacent_pixel_option = random_pixel_board.get(board_width - 2, height_index);
                             if wrapped_wall_adjacent_pixel_option.is_some() {
@@ -2325,6 +2343,7 @@ mod pixel_board_randomizer_tests {
                             }
                         }
                         
+                        // assert that the rest of the pixel board is empty, that the wall nor the wall-adjacent moved away to the left
                         for board_width_index in 0..(board_width - 2) {
                             assert!(!random_pixel_board.exists(board_width_index, height_index));
                         }
@@ -2334,6 +2353,7 @@ mod pixel_board_randomizer_tests {
                 println!("appearances_totals: {:?}", appearances_totals);
                 for appearances_total in appearances_totals.iter() {
                     let expected_value = &(iterations_total / appearances_totals.len() as u32 - (iterations_total / 5) / appearances_totals.len() as u32);
+                    println!("expected_value: {}", expected_value);
                     assert!(appearances_total > expected_value);
                 }
             }

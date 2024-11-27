@@ -340,4 +340,28 @@ mod index_shifter_tests {
     /*fn decrement_shifter() {
         todo!();
     }*/
+
+    #[rstest]
+    fn check_that_rc_usizes_are_equal() {
+        init();
+
+        let shape_lengths = vec![2, 3, 4];
+        let shifter = {
+            let states_per_shift_index: Vec<Vec<Rc<usize>>> = shape_lengths.iter()
+                .map(|shape| {
+                    (0..*shape).into_iter()
+                        .map(|index| {
+                            Rc::new(index)
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>();
+            IndexShifter::new(
+                &states_per_shift_index,
+            )
+        };
+
+        let states = shifter.get_states();
+        assert_eq!(4, states.len());
+    }
 }
