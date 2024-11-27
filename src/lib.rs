@@ -8,8 +8,8 @@ pub mod pixel_board;
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct IndexedElement<T> {
-    element: Rc<T>,
-    index: usize
+    pub element: Rc<T>,
+    pub index: usize
 }
 
 impl<T> Clone for IndexedElement<T> {
@@ -39,7 +39,6 @@ pub struct LocatedCellGroup {
     cell_group_index: usize,
     location: Rc<(u8, u8)>
 }
-
 
 fn get_n_choose_k(n: u64, k: u64) -> u64 {
     let mut permutations_total: u64 = 1;

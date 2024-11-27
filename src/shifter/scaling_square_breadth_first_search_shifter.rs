@@ -1,12 +1,12 @@
 use std::rc::Rc;
 use bitvec::vec::BitVec;
-
 use crate::{IndexedElement, incrementer::{binary_density_incrementer::BinaryDensityIncrementer, Incrementer}};
-
 use super::Shifter;
 
-/// Purpose:
-///     
+// Purpose:
+// This represents an IndexShifter of sorts that expands the depth of the element indexes gradually.
+// Example:
+// The index of each person's favorite toy is sorted lowest index to highest index. The result is that the elements returned first are always the most favorites first.
 pub struct ScalingSquareBreadthFirstSearchShifter {
     length: usize,
     maximum_scale: usize,
