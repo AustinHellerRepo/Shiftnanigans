@@ -1,9 +1,9 @@
 use std::{collections::VecDeque, rc::Rc};
-
 use crate::IndexedElement;
+use super::Shifter;
 
-use super::{Shifter};
-
+// Purpose:
+// This represents 
 #[derive(Clone)]
 pub struct IndexShifter<T> {
     current_shift_index: Option<usize>,
@@ -214,6 +214,80 @@ mod index_shifter_tests {
 
         let states_per_shift_index: Vec<Vec<Rc<(i32, i32)>>> = Vec::new();
         let _ = IndexShifter::new(&states_per_shift_index);
+    }
+
+    #[rstest]
+    fn test_q5c9_specific_example() {
+        init();
+
+        let states_per_shift_index = vec![
+            vec![
+                Rc::new("abbb"),
+                Rc::new("accc"),
+            ],
+            vec![
+                Rc::new("bddd"),
+                Rc::new("beee"),
+                Rc::new("bfff"),
+            ],
+        ];
+        let mut index_shifter = IndexShifter::new(&states_per_shift_index);
+
+        for _ in 0..100 {
+            assert!(index_shifter.try_forward());
+            assert!(index_shifter.try_increment());
+            let indexed_element = index_shifter.get_indexed_element();
+            assert_eq!(0, indexed_element.index);
+            assert_eq!("abbb", *indexed_element.element.as_ref());
+            assert!(index_shifter.try_forward());
+            assert!(index_shifter.try_increment());
+            let indexed_element = index_shifter.get_indexed_element();
+            assert_eq!(1, indexed_element.index);
+            assert_eq!("bddd", *indexed_element.element.as_ref());
+            assert!(!index_shifter.try_forward());
+            assert!(index_shifter.try_backward());
+            assert!(index_shifter.try_increment());
+            let indexed_element = index_shifter.get_indexed_element();
+            assert_eq!(1, indexed_element.index);
+            assert_eq!("beee", *indexed_element.element.as_ref());
+            assert!(!index_shifter.try_forward());
+            assert!(index_shifter.try_backward());
+            assert!(index_shifter.try_increment());
+            let indexed_element = index_shifter.get_indexed_element();
+            assert_eq!(1, indexed_element.index);
+            assert_eq!("bfff", *indexed_element.element.as_ref());
+            assert!(!index_shifter.try_forward());
+            assert!(index_shifter.try_backward());
+            assert!(!index_shifter.try_increment());
+            assert!(index_shifter.try_backward());
+            assert!(index_shifter.try_increment());
+            let indexed_element = index_shifter.get_indexed_element();
+            assert_eq!(0, indexed_element.index);
+            assert_eq!("accc", *indexed_element.element.as_ref());
+            assert!(index_shifter.try_forward());
+            assert!(index_shifter.try_increment());
+            let indexed_element = index_shifter.get_indexed_element();
+            assert_eq!(1, indexed_element.index);
+            assert_eq!("bddd", *indexed_element.element.as_ref());
+            assert!(!index_shifter.try_forward());
+            assert!(index_shifter.try_backward());
+            assert!(index_shifter.try_increment());
+            let indexed_element = index_shifter.get_indexed_element();
+            assert_eq!(1, indexed_element.index);
+            assert_eq!("beee", *indexed_element.element.as_ref());
+            assert!(!index_shifter.try_forward());
+            assert!(index_shifter.try_backward());
+            assert!(index_shifter.try_increment());
+            let indexed_element = index_shifter.get_indexed_element();
+            assert_eq!(1, indexed_element.index);
+            assert_eq!("bfff", *indexed_element.element.as_ref());
+            assert!(!index_shifter.try_forward());
+            assert!(index_shifter.try_backward());
+            assert!(!index_shifter.try_increment());
+            assert!(index_shifter.try_backward());
+            assert!(!index_shifter.try_increment());
+            assert!(!index_shifter.try_backward());
+        }
     }
 
     #[rstest]

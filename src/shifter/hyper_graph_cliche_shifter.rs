@@ -1,44 +1,17 @@
 use std::{rc::Rc, cell::RefCell};
-
 use bitvec::vec::BitVec;
 use bitvec::prelude::*;
-
 use crate::IndexedElement;
-
 use super::{Shifter, index_shifter::IndexShifter};
 
-#[derive(PartialEq)]
-pub struct StatefulHyperGraphNode<T: PartialEq + std::fmt::Debug> {
-    pub state: Rc<T>,
-    neighbor_stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec<Vec<Rc<RefCell<StatefulHyperGraphNode<T>>>>>,
-    is_hyper_graph_node_index_connected: BitVec
-}
 
-impl<T: PartialEq + std::fmt::Debug> StatefulHyperGraphNode<T> {
-    pub fn new(state: Rc<T>, is_hyper_graph_node_index_connected: BitVec) -> Self {
-        // passing in is_hyper_graph_node_index_connected sets which hyper graph nodes are already considered connected to
-        //      very useful for when this hyper graph node will never be compared to another hyper graph node
-        StatefulHyperGraphNode {
-            state: state,
-            neighbor_stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec::new(),
-            is_hyper_graph_node_index_connected: is_hyper_graph_node_index_connected
-        }
-    }
-
-    pub fn add_neighbor(&mut self, hyper_graph_node_index: usize, stateful_hyper_graph_node: Rc<RefCell<StatefulHyperGraphNode<T>>>) {
-        while self.neighbor_stateful_hyper_graph_nodes_per_hyper_graph_node_index.len() <= hyper_graph_node_index {
-            self.neighbor_stateful_hyper_graph_nodes_per_hyper_graph_node_index.push(Vec::new());
-        }
-        self.neighbor_stateful_hyper_graph_nodes_per_hyper_graph_node_index[hyper_graph_node_index].push(stateful_hyper_graph_node);
-        self.is_hyper_graph_node_index_connected.set(hyper_graph_node_index, true);
-    }
-
-    pub fn is_connected_to_all_hyper_graph_nodes(&self) -> bool {
-        debug!("state {:?} has {} connections", self.state, self.is_hyper_graph_node_index_connected.count_ones());
-        return self.is_hyper_graph_node_index_connected.all();
-    }
-}
-
+// Purpose:
+// To represent a hypergraph of internally connected nodes. Each hypergraph node contains a subset of nodes that are themselves connected together, potentially from different hypergraph nodes.
+// This will shift over the hypergraph in such a way that a cliche is found between a node from each hypergraph node.
+// Example:
+// You can imagine that there are three separate hypergraph nodes representing three separate stores, but there are nodes within each store representing customers. An edge connects them if they are the same customer.
+// The state of the node represents the each of their purchases over the past year at that store for that customer.
+// The solution finds the permutations of three amounts spent at all three stores for each customer that bought something at all three stores.
 pub struct HyperGraphClicheShifter<T: PartialEq + std::fmt::Debug> {
     stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec<Vec<Rc<RefCell<StatefulHyperGraphNode<T>>>>>,
     is_independent_hyper_graph_node_per_hyper_graph_node_index: Rc<Vec<BitVec>>,
@@ -283,6 +256,38 @@ impl<T: PartialEq + std::fmt::Debug> Shifter for HyperGraphClicheShifter<T> {
     }
     fn randomize(&mut self) {
         todo!();
+    }
+}
+
+#[derive(PartialEq)]
+pub struct StatefulHyperGraphNode<T: PartialEq + std::fmt::Debug> {
+    pub state: Rc<T>,
+    neighbor_stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec<Vec<Rc<RefCell<StatefulHyperGraphNode<T>>>>>,
+    is_hyper_graph_node_index_connected: BitVec
+}
+
+impl<T: PartialEq + std::fmt::Debug> StatefulHyperGraphNode<T> {
+    pub fn new(state: Rc<T>, is_hyper_graph_node_index_connected: BitVec) -> Self {
+        // passing in is_hyper_graph_node_index_connected sets which hyper graph nodes are already considered connected to
+        //      very useful for when this hyper graph node will never be compared to another hyper graph node
+        StatefulHyperGraphNode {
+            state: state,
+            neighbor_stateful_hyper_graph_nodes_per_hyper_graph_node_index: Vec::new(),
+            is_hyper_graph_node_index_connected: is_hyper_graph_node_index_connected
+        }
+    }
+
+    pub fn add_neighbor(&mut self, hyper_graph_node_index: usize, stateful_hyper_graph_node: Rc<RefCell<StatefulHyperGraphNode<T>>>) {
+        while self.neighbor_stateful_hyper_graph_nodes_per_hyper_graph_node_index.len() <= hyper_graph_node_index {
+            self.neighbor_stateful_hyper_graph_nodes_per_hyper_graph_node_index.push(Vec::new());
+        }
+        self.neighbor_stateful_hyper_graph_nodes_per_hyper_graph_node_index[hyper_graph_node_index].push(stateful_hyper_graph_node);
+        self.is_hyper_graph_node_index_connected.set(hyper_graph_node_index, true);
+    }
+
+    pub fn is_connected_to_all_hyper_graph_nodes(&self) -> bool {
+        debug!("state {:?} has {} connections", self.state, self.is_hyper_graph_node_index_connected.count_ones());
+        return self.is_hyper_graph_node_index_connected.all();
     }
 }
 
